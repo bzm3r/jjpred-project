@@ -1,0 +1,24 @@
+# python generated files
+__pycache__/
+*.py[oc]
+build/
+dist
+wheels/
+*.egg-info
+
+# venv
+.venv
+
+# others
+.ipynb_checkpoints
+excel
+Analysis*
+*.parquet
+*.ipynb
+*.arrow
+*.ipynb
+*.xlsx
+*.xlsm
+
+# ignore all jjpred related stuff
+jjpred*
