@@ -1,0 +1,30 @@
+# python generated files
+__pycache__/
+*.py[oc]
+build/
+dist
+wheels/
+*.egg-info
+
+# venv
+.venv
+
+# others
+.ipynb_checkpoints
+excel
+Analysis*
+*.parquet
+*.ipynb
+*.arrow
+*.xlsx
+*.xlsm
+
+jjpred-*
+
+**/docs/*.rst
+**/docs/_build
+
+# documentation related artifacts
+_*
+*.html
+.buildinfo

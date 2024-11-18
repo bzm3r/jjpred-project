@@ -1,0 +1,26 @@
+{
+  "recommendations": [
+    "donjayamanne.vscode-default-python-kernel",
+    "ms-python.vscode-pylance",
+    "ms-python.python",
+    "ms-python.debugpy",
+    "rodolphebarbanneau.python-docstring-highlighter",
+    "ms-toolsai.jupyter-keymap",
+    "ms-toolsai.jupyter-renderers",
+    "ms-toolsai.vscode-jupyter-slideshow",
+    "denoland.vscode-deno",
+    "dbaeumer.vscode-eslint",
+    "usernamehw.errorlens",
+    "bierner.markdown-footnotes",
+    "yzhang.markdown-all-in-one",
+    "esbenp.prettier-vscode",
+    "kamilturek.vscode-pyproject-toml-snippets",
+    "reditorsupport.r",
+    "rdebugger.r-debugger",
+    "charliermarsh.ruff",
+    "timonwong.shellcheck",
+    "amodio.tsl-problem-matcher",
+    "quarto.quarto",
+    "tomoki1207.pdf"
+  ]
+}

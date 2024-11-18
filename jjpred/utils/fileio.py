@@ -1,0 +1,119 @@
+"""Utilities for doing file input/output of Polars dataframes or
+Excel workbooks."""
+
+from collections.abc import Callable
+from pathlib import Path
+import polars as pl
+
+from jjpred.analysisdefn import AnalysisDefn
+from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
+from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
+from jjpred.utils.datetime import Date, DateLike
+
+
+def delete_or_read_df(
+    delete_if_exists: bool, save_path: Path
+) -> pl.DataFrame | None:
+    if delete_if_exists:
+        delete_df(save_path)
+    else:
+        return try_read_df(save_path)
+
+    return None
+
+
+def read_df(save_path: Path) -> pl.DataFrame:
+    print(f"Loading {save_path}...")
+    return pl.read_parquet(save_path, memory_map=False)
+
+
+def try_read_df(save_path: Path) -> pl.DataFrame | None:
+    """Try reading a Polars dataframe at the given path. If the read fails,
+    return ``None``."""
+    try:
+        return read_df(save_path)
+    except OSError:
+        return None
+
+
+def delete_df(save_path: Path) -> bool:
+    if save_path.exists():
+        if save_path.name.endswith(DEFAULT_STORAGE_FORMAT):
+            print(f"Deleting {save_path}...")
+            save_path.unlink()
+            return True
+        else:
+            raise ValueError(
+                f"{save_path} is not a {DEFAULT_STORAGE_FORMAT} type file."
+            )
+    else:
+        return False
+
+
+def write_df(overwrite: bool, save_path: Path, df: pl.DataFrame) -> Path:
+    """Write given dataframe to the given path."""
+    if save_path.exists():
+        if overwrite:
+            save_path.unlink()
+        else:
+            raise OSError(f"File already exists at {save_path}.")
+
+    print(f"Saving to {save_path}...")
+    df.write_parquet(save_path)
+    return save_path
+
+
+def read_storage_file(
+    storage_path: Path,
+    fallback_info_generator: Callable[[], pl.DataFrame] | None = None,
+) -> pl.DataFrame:
+    """Read storage file at path, and if it does not exist, optionally
+    execute the fallback generator in order to instead create the information
+    from scratch.
+    """
+    if not storage_path.exists() and fallback_info_generator is not None:
+        return fallback_info_generator()
+    return pl.read_parquet(
+        storage_path,
+        memory_map=False,
+    )
+
+
+def gen_meta_info_path(analysis_defn: AnalysisDefn, meta_name: str) -> Path:
+    return ANALYSIS_OUTPUT_FOLDER.joinpath(
+        f"{analysis_defn.tag()}_{meta_name}_info.{DEFAULT_STORAGE_FORMAT}"
+    )
+
+
+def gen_support_info_path(
+    analysis_defn: AnalysisDefn,
+    support_name: str,
+    support_file_date: DateLike | None,
+    source_name: str | None = None,
+) -> Path:
+    if support_file_date is not None:
+        date_part = f"_{str(Date.from_datelike(support_file_date))}"
+    else:
+        date_part = ""
+
+    if source_name is None:
+        source_part = ""
+    else:
+        source_part = f"_(from={source_name})"
+
+    return ANALYSIS_OUTPUT_FOLDER.joinpath(
+        f"{str(analysis_defn)}_{support_name}_info"
+        + source_part
+        + date_part
+        + f".{DEFAULT_STORAGE_FORMAT}"
+    )
+
+
+def read_meta_info(
+    analysis_defn: AnalysisDefn,
+    meta_name: str,
+    info_generator: Callable[[], pl.DataFrame] | None = None,
+) -> pl.DataFrame:
+    return read_storage_file(
+        gen_meta_info_path(analysis_defn, meta_name), info_generator
+    )

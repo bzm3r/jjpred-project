@@ -1,0 +1,17 @@
+.. jjpred documentation master file, created by
+   sphinx-quickstart on Thu Aug 15 11:13:23 2024.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+jjpred documentation
+====================
+
+Check the `jjpred-notebooks <https://codeberg.org/bzm3r/jjpred-notebooks>`_
+repository for examples on how to use this package!
+
+
+.. autosummary::
+  :toctree: _autosummary
+  :recursive:
+
+  jjpred
