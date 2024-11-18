@@ -30,8 +30,8 @@ def get_main_folder(assumed_folder_name: str) -> Path:
 MAIN_FOLDER: Path = get_main_folder(ASSUMED_FOLDER_NAME)
 """Full path of the main folder."""
 
-ANALYSIS_INPUT_FOLDER: Path = MAIN_FOLDER.joinpath("analysis_input")
+ANALYSIS_INPUT_FOLDER: Path = MAIN_FOLDER.joinpath("AnalysisInput")
 """Full path of the folder where the analysis input data is located."""
 
-ANALYSIS_OUTPUT_FOLDER: Path = MAIN_FOLDER.joinpath("analysis_output")
+ANALYSIS_OUTPUT_FOLDER: Path = MAIN_FOLDER.joinpath("AnalysisOutput")
 """Full path of the folder where analysis output data will be placed."""
