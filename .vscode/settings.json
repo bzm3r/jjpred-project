@@ -31,7 +31,5 @@
   "quarto.render.renderOnSave": true,
   "python.analysis.supportDocstringTemplate": true,
   "python.analysis.supportRestructuredText": true,
-  "python.analysis.extraPaths": [
-    "./jjpred-notebooks/analysis/trends/season-start-explorer"
-  ]
+  "python.analysis.extraPaths": ["./jjpred-notebooks/analysis/trends"]
 }

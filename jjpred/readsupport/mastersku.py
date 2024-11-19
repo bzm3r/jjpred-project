@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import reduce
-from operator import gt
 from pathlib import Path
 import sys
 import polars as pl
@@ -28,7 +27,6 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
-    find_dupes,
     sanitize_excel_extraction,
 )
 from jjpred.utils.typ import RuntimeCheckableDataclass
@@ -348,7 +346,13 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
             unique_values = unique_values.extend(
                 master_sku_df[c].unique()
             ).unique()
-        unique_values_for_related[z] = unique_values
+
+        if z != "category":
+            unique_values_for_related[z] = unique_values.extend(
+                pl.Series(z, ["ALL"], dtype=pl.String())
+            )
+        else:
+            unique_values_for_related[z] = unique_values
 
     unique_values = {
         k: v.sort() for k, v in unique_values_for_related.items()
