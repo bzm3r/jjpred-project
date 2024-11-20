@@ -67,17 +67,17 @@ def read_netsuite_inv(
 
     use_columns = [
         "Name",
-        "Warehouse.Available",
-        "Item.Parent.Category",
-        "Base.Price",
-        "Item.Category.SKU",
+        "Warehouse Available",
+        "Item Parent Category",
+        "Base Price",
+        "Item Category SKU",
     ]
     rename_map = {k: k.lower() for k in use_columns} | {
         "Name": "sku",
-        "Warehouse.Available": "stock",
-        "Item.Parent.Category": "item_category",
-        "Base.Price": "price",
-        "Item.Category.SKU": "category",
+        "Warehouse Available": "stock",
+        "Item Parent Category": "item_category",
+        "Base Price": "price",
+        "Item Category SKU": "category",
     }
     raw_df = (
         sanitize_excel_extraction(
