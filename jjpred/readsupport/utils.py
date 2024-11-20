@@ -136,9 +136,12 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
     #     elif c == "country_flag":
     #         pl.col(c).cast(PolarsCountryFlagType)
 
+    if "raw_channel" not in df.columns and "channel" in df.columns:
+        df = df.rename({"channel": "raw_channel"})
+
     df = df.join(
         unique_channels,
-        on="channel",
+        on="raw_channel",
         validate="m:1",
         join_nulls=True,
     )

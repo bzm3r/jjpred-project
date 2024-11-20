@@ -258,22 +258,25 @@ def df_sequence_explode(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
     return df
 
 
-def attach_channel_info(
+def filter_channel_info(
     config_df: pl.DataFrame, relevant_channels: pl.DataFrame
 ) -> pl.DataFrame:
-    """Attach channel information to a dataframe."""
-    if "channel" in config_df.columns:
-        return config_df.join(
-            relevant_channels, on="channel", how="left"
-        ).drop("channel")
-    else:
-        if "channel" in relevant_channels:
-            relevant_channels = relevant_channels.drop("channel")
-        return config_df.join(
-            relevant_channels,
-            how="cross",
-            on=None,
-        )
+    """Filter channel information in a dataframe."""
+    return config_df.drop(
+        [x for x in ["channel", "raw_channel"] if x in config_df.columns]
+    ).join(relevant_channels, on=Channel.members())
+    # if "channel" in config_df.columns:
+    #     return config_df.join(
+    #         relevant_channels, on="channel", how="left"
+    #     ).drop("channel")
+    # else:
+    #     if "channel" in relevant_channels:
+    #         relevant_channels = relevant_channels.drop("channel")
+    #     return config_df.join(
+    #         relevant_channels,
+    #         how="cross",
+    #         on=None,
+    #     )
 
 
 def attach_default_info(
@@ -405,7 +408,7 @@ def read_config(
     """
     channel_info = parse_channels(
         pl.DataFrame(pl.Series("channel", relevant_channels))
-    ).drop("raw_channel")
+    ).drop("raw_channel", "channel")
     # channel_info = generate_channel_df(analysis_defn, relevant_channels)
     # sys.displayhook(channel_info)
 
@@ -422,10 +425,7 @@ def read_config(
         .agg(pl.col(x) for x in relevant_sku_parts)
         .with_columns(pl.col(x).list.unique() for x in relevant_sku_parts)
     )
-    sku_part_info = attach_channel_info(
-        sku_part_info,
-        channel_info,
-    )
+    sku_part_info = sku_part_info.join(channel_info, how="cross")
     # sys.displayhook(sku_part_info)
 
     use_columns = [
@@ -454,8 +454,8 @@ def read_config(
     )
 
     # sys.displayhook(refill)
-    refill_request = attach_channel_info(
-        refill_request,
+    refill_request = filter_channel_info(
+        parse_channels(refill_request).drop("raw_channel", "channel"),
         channel_info,
     )
     # sys.displayhook(refill)
