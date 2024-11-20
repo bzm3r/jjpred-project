@@ -3,14 +3,38 @@ import polars as pl
 import altair as alt
 
 
+def make_special_first_option(options: list[str]) -> list[str]:
+    is_special = [x.startswith("_") for x in options]
+    if any(is_special):
+        return [
+            x
+            for x, x_is_special in zip(options, is_special, strict=True)
+            if x_is_special
+        ] + [
+            x
+            for x, x_is_special in zip(options, is_special, strict=True)
+            if not x_is_special
+        ]
+    else:
+        return options
+
+
 def create_dropdown_selection(df: pl.DataFrame, column: str) -> alt.Parameter:
     options = df[column].unique().sort()
+    return create_dropdown_selection_from_options(
+        column, make_special_first_option(list(options))
+    )
+
+
+def create_dropdown_selection_from_options(
+    column: str, options: list[str]
+) -> alt.Parameter:
     assert len(options) > 0
     name = f"{column.capitalize()}"
     selection = alt.selection_point(
         name + "_selector",
         fields=[column],
-        bind=alt.binding_select(options=list(options), name=name),
+        bind=alt.binding_select(options=options, name=name),
         value=options[0],
     )
 

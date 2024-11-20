@@ -340,6 +340,11 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         default_values_for_related[z] = Sku.field_defaults.get(z, None)
 
     unique_values_for_related = {}
+    # sometimes, for analysis purposes, we might aggregate data related to a
+    # particular column (e.g. aggregate all "size" sales data into "_ALL_")
+    may_be_combined = [
+        c for c in Sku.members(MemberType.SECONDARY) if c != "category"
+    ]
     for z in Sku.members(MemberType.META):
         unique_values = pl.Series(z, [], dtype=pl.String())
         for c in related_columns[z]:
@@ -347,9 +352,13 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
                 master_sku_df[c].unique()
             ).unique()
 
-        if z != "category":
-            unique_values_for_related[z] = unique_values.extend(
-                pl.Series(z, ["ALL"], dtype=pl.String())
+        if z in may_be_combined:
+            unique_values_for_related[z] = (
+                unique_values.extend(
+                    pl.Series(z, ["_ALL_"], dtype=pl.String())
+                )
+                .unique()
+                .sort()
             )
         else:
             unique_values_for_related[z] = unique_values

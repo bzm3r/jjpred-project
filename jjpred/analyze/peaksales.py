@@ -1,12 +1,14 @@
 import polars as pl
 
 from jjpred.analysisdefn import AnalysisDefn
+from jjpred.analyze.modelling.utils import (
+    create_agg_label_default_dict,
+    sum_quantity_in_order,
+)
 from jjpred.database import DataBase
-from jjpred.datagroups import ALL_SKU_IDS, WHOLE_SKU_IDS
 from jjpred.sku import Sku
 from jjpred.structlike import MemberType
 from jjpred.utils.datetime import DateLike, Date, first_day
-from jjpred.utils.fileio import read_meta_info
 from jjpred.utils.typ import ScalarOrList, as_list
 
 
@@ -173,45 +175,54 @@ def aggregate_sales(
 
 
 def aggregate_relevant_history(
-    analysis_defn: AnalysisDefn, relevant_history: pl.DataFrame
+    analysis_defn: AnalysisDefn,
+    relevant_history: pl.DataFrame,
+    channel_filter_description: str,
 ) -> pl.DataFrame:
-    agg_sales = (
-        relevant_history.select(
-            ["channel"] + WHOLE_SKU_IDS + ["category", "date", "sales"]
-        )
-        .join(
-            read_meta_info(analysis_defn, "all_sku").select(
-                [c for c in ALL_SKU_IDS if c != "category"]
-            ),
-            on=WHOLE_SKU_IDS,
-        )
-        .select(
-            ["channel"] + Sku.members(MemberType.SECONDARY) + ["date", "sales"]
-        )
+    agg_sales = sum_quantity_in_order(
+        analysis_defn,
+        relevant_history,
+        "sales",
+        ["channel", "print", "size", "sku_remainder"],
+        create_agg_label_default_dict({"channel": channel_filter_description}),
     )
+    # agg_sales = (
+    #     relevant_history.select(
+    #         ["channel"] + WHOLE_SKU_IDS + ["category", "date", "sales"]
+    #     )
+    #     .join(
+    #         read_meta_info(analysis_defn, "all_sku").select(
+    #             [c for c in ALL_SKU_IDS if c != "category"]
+    #         ),
+    #         on=WHOLE_SKU_IDS,
+    #     )
+    #     .select(
+    #         ["channel"] + Sku.members(MemberType.SECONDARY) + ["date", "sales"]
+    #     )
+    # )
 
-    index_by_cols = ["channel", "print", "size", "sku_remainder"]
+    # index_by_cols = ["channel", "print", "size", "sku_remainder"]
 
-    for index_col in reversed(index_by_cols):
-        this_index_cols = ["category", "date"] + [
-            ic for ic in index_by_cols if ic != index_col
-        ]
+    # for index_col in reversed(index_by_cols):
+    #     this_index_cols = ["category", "date"] + [
+    #         ic for ic in index_by_cols if ic != index_col
+    #     ]
 
-        agg_sales = agg_sales.vstack(
-            agg_sales.group_by(this_index_cols)
-            .agg(pl.col.sales.sum())
-            .with_columns(
-                pl.lit("ALL", dtype=agg_sales[index_col].dtype).alias(
-                    index_col
-                )
-            )
-            .select(agg_sales.columns)
-        )
+    #     agg_sales = agg_sales.vstack(
+    #         agg_sales.group_by(this_index_cols)
+    #         .agg(pl.col.sales.sum())
+    #         .with_columns(
+    #             pl.lit("_ALL_", dtype=agg_sales[index_col].dtype).alias(
+    #                 index_col
+    #             )
+    #         )
+    #         .select(agg_sales.columns)
+    #     )
 
-    missing_months_filter = pl.col.date.ge(analysis_defn.date.as_polars_date())
-    agg_sales.with_columns(
-        sales=pl.when(missing_months_filter).then(None).otherwise(pl.col.sales)
-    )
+    # missing_months_filter = pl.col.date.ge(analysis_defn.date.as_polars_date())
+    # agg_sales.with_columns(
+    #     sales=pl.when(missing_months_filter).then(None).otherwise(pl.col.sales)
+    # )
 
     assert (
         len(
@@ -271,7 +282,7 @@ def aggregate_relevant_history(
 
 #     agg_sales = aggregate_sales(
 #         analysis_defn, relevant_history.drop("channel"), index_cols
-#     ).with_columns(channel=pl.lit("ALL"))
+#     ).with_columns(channel=pl.lit("_ALL_"))
 #     sales_with_peaks = calculate_peaks(
 #         agg_sales,
 #         "category",
@@ -302,9 +313,12 @@ def calculate_peaks_per_channel(
     analysis_defn: AnalysisDefn,
     db: DataBase,
     relevant_history: pl.DataFrame,
+    channel_filter_description: str,
     num_digits_to_round_monthly_ratio: int | None,
 ) -> pl.DataFrame:
-    agg_sales = aggregate_relevant_history(analysis_defn, relevant_history)
+    agg_sales = aggregate_relevant_history(
+        analysis_defn, relevant_history, channel_filter_description
+    )
 
     sales_with_peaks = calculate_peaks(
         agg_sales,
@@ -339,7 +353,7 @@ def calculate_peaks_per_channel_old(
 
     agg_sales = aggregate_sales(
         analysis_defn, relevant_history.drop("channel"), ["category"]
-    ).with_columns(channel=pl.lit("ALL"))
+    ).with_columns(channel=pl.lit("_ALL_"))
 
     sales_with_peaks = calculate_peaks(
         agg_sales,
@@ -562,7 +576,7 @@ def calculate_peaks_per_channel_old(
 
 #     agg_sales = aggregate_sales(
 #         analysis_defn, relevant_history.drop("channel")
-#     ).with_columns(channel=pl.lit("ALL"))
+#     ).with_columns(channel=pl.lit("_ALL_"))
 #     sales_with_peaks = calculate_peaks(
 #         agg_sales,
 #         num_digits_to_round_monthly_ratio,
