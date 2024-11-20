@@ -88,6 +88,7 @@ NEW_CATEGORIES = [
     "XLB",
     "XPC",
     "XWG",
+    "IHT",  # temporarily adding IHT
 ]
 """Categories marked "NEW" as per marketing, so we use "NE" type prediction for
 these, if they are in the "PO"-based prediction phase of the year."""
