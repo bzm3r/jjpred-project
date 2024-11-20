@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import reduce
 from pathlib import Path
@@ -405,18 +406,16 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     #     master_sku_df, ["print", "size", "category", "a_sku"], raise_error=True
     # )
 
-    master_sku_df = master_sku_df.cast(
-        {
-            k: pl.Enum(unique_values[category_per_related_column[k]].sort())
-            for k in related_casting_columns
-            if k in master_sku_df.columns
-        }
-        | {
-            k: pl.Enum(unique_values[k].sort())
-            for k in other_casting_columns
-            if k in master_sku_df.columns
-        }
-    )
+    dtypes: Mapping[str, pl.DataType] = {
+        k: pl.Enum(unique_values[category_per_related_column[k]].sort())
+        for k in related_casting_columns
+        if k in master_sku_df.columns
+    } | {
+        k: pl.Enum(unique_values[k].sort())
+        for k in other_casting_columns
+        if k in master_sku_df.columns
+    }
+    master_sku_df = master_sku_df.cast(dtypes)  # type: ignore
 
     unique_plans = pl.Enum(master_sku_df["pause_plan_str"].unique())
 
