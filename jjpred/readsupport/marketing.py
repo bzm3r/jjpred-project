@@ -13,7 +13,7 @@ from jjpred.parse.patternmatch import (
     PatternMatchResult,
     PatternMatcher,
 )
-from jjpred.readsupport.utils import cast_standard
+from jjpred.readsupport.utils import cast_standard, parse_channels
 from jjpred.sku import Sku
 from jjpred.structlike import FieldMeta, MemberType, StructLike
 from jjpred.utils.datetime import Date, DateLike
@@ -374,7 +374,7 @@ def generate_channel_df(
     """Generate the channel information dataframe."""
     channel_info = read_meta_info(analysis_defn, "channel")
     relevant_channels = pl.Series(
-        "channel",
+        "raw_channel",
         [
             ch if isinstance(ch, str) else ch.str_repr(MemberType.PRIMARY)
             for ch in channels
@@ -385,7 +385,8 @@ def generate_channel_df(
         pl.DataFrame(relevant_channels)
         .with_columns(
             channel_info=pl.col.channel.map_elements(
-                Channel.map_polars, return_dtype=Channel.polars_type_struct()
+                Channel.map_polars,
+                return_dtype=Channel.intermediate_polars_type_struct(),
             )
         )
         .unnest("channel_info"),
@@ -402,7 +403,10 @@ def read_config(
     It assumes that only Amazon.com/Amazon.ca data is present, but this can be
     configured.
     """
-    channel_info = generate_channel_df(analysis_defn, relevant_channels)
+    channel_info = parse_channels(
+        pl.DataFrame(pl.Series("channel", relevant_channels))
+    ).drop("raw_channel")
+    # channel_info = generate_channel_df(analysis_defn, relevant_channels)
     # sys.displayhook(channel_info)
 
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
@@ -442,7 +446,7 @@ def read_config(
             pl.col("refill_params").map_elements(
                 RefillParams.map_polars,
                 skip_nulls=False,
-                return_dtype=RefillParams.polars_type_struct(),
+                return_dtype=RefillParams.intermediate_polars_type_struct(),
             ),
         )
         .unnest("refill_params")
@@ -504,7 +508,7 @@ def read_config(
             pl.col("min_keep").map_elements(
                 MinKeepQty.map_polars,
                 skip_nulls=False,
-                return_dtype=MinKeepQty.polars_type_struct(),
+                return_dtype=MinKeepQty.intermediate_polars_type_struct(),
             )
         )
         .unnest("min_keep")

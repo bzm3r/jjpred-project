@@ -55,6 +55,7 @@ class FieldMeta[T](Mapping):
     priority: MemberType
     polars_parser: Callable[[Any], T]
     polars_dtype: pl.DataType
+    intermediate_polars_dtype: pl.DataType | None = field(default=None)
     default_value: Any | None = field(default=None)
 
     def __getitem__(self, key: Any) -> Any:
@@ -101,6 +102,9 @@ class StructLike(Hashable, Protocol):
         init=False, default_factory=dict
     )
     field_dtypes: dict[str, pl.DataType] = field(
+        init=False, default_factory=dict
+    )
+    field_intermediate_dtypes: dict[str, pl.DataType] = field(
         init=False, default_factory=dict
     )
     field_parsers: dict[str, Callable[[Any], Any]] = field(
@@ -153,6 +157,14 @@ class StructLike(Hashable, Protocol):
             k: cls.field_metadata[k].polars_dtype
             for k in cls.fields_by_cutoff[MemberType.META]
         }
+
+        cls.field_intermediate_dtypes = {  # type: ignore
+            k: cls.field_metadata[k].intermediate_polars_dtype
+            if cls.field_metadata[k].intermediate_polars_dtype is not None
+            else cls.field_metadata[k].polars_dtype
+            for k in cls.fields_by_cutoff[MemberType.META]
+        }
+
         cls.field_parsers = {
             k: cls.field_metadata[k].polars_parser
             for k in cls.fields_by_cutoff[MemberType.META]
@@ -282,11 +294,26 @@ class StructLike(Hashable, Protocol):
             return x.as_dict(keys, remove_defaults=False)
 
     @classmethod
+    def intermediate_polars_type_dict(
+        cls, keys: list[str] = list()
+    ) -> dict[str, pl.DataType]:
+        keys = cls.normalize_keys(keys)
+        return {
+            k: v for k, v in cls.field_intermediate_dtypes.items() if k in keys
+        }
+
+    @classmethod
     def polars_type_dict(
         cls, keys: list[str] = list()
     ) -> dict[str, pl.DataType]:
         keys = cls.normalize_keys(keys)
         return {k: v for k, v in cls.field_dtypes.items() if k in keys}
+
+    @classmethod
+    def intermediate_polars_type_struct(
+        cls, keys: list[str] = list()
+    ) -> pl.Struct:
+        return pl.Struct(cls.intermediate_polars_type_dict())
 
     @classmethod
     def polars_type_struct(cls, keys: list[str] = list()) -> pl.Struct:

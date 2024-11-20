@@ -52,7 +52,6 @@ def read_in_stock_ratios_given_meta_info(
     analysis_defn: AnalysisDefn,
     active_sku_info: pl.DataFrame,
     all_sku_info: pl.DataFrame,
-    channel_info: pl.DataFrame,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
 ) -> pl.DataFrame:
@@ -173,11 +172,12 @@ def read_in_stock_ratios_given_meta_info(
         on=["sku", "a_sku"],
     ).rename({"a_category": "category"})
 
-    channel_info = channel_info.filter(
-        pl.col.channel.is_in(isr_df["channel"].unique())
-    )
+    # channel_info = channel_info.filter(
+    #     pl.col.channel.is_in(isr_df["channel"].unique())
+    # )
 
-    isr_df = cast_standard([channel_info], isr_df).select(
+    # cast_standard([channel_info], isr_df)
+    isr_df = isr_df.select(
         WHOLE_SKU_IDS
         + ["category", "sku_year_history"]
         + Channel.members(MemberType.META)

@@ -247,7 +247,8 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         master_sku_df.with_columns(
             m_sku_parsed=pl.col("m_sku")
             .map_elements(
-                Sku.map_polars, return_dtype=Sku.polars_type_struct()
+                Sku.map_polars,
+                return_dtype=Sku.intermediate_polars_type_struct(),
             )
             .struct.rename_fields(["m_" + k for k in Sku.members()])
         )
@@ -258,7 +259,8 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         .with_columns(
             a_sku_parsed=pl.col("a_sku")
             .map_elements(
-                Sku.map_polars, return_dtype=Sku.polars_type_struct()
+                Sku.map_polars,
+                return_dtype=Sku.intermediate_polars_type_struct(),
             )
             .struct.rename_fields(["a_" + k for k in Sku.members()])
         )

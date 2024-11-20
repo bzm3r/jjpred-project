@@ -247,7 +247,7 @@ def create_dispatch_info(
         .with_columns(
             struct_channel=pl.col("channel").map_elements(
                 Channel.map_polars,
-                return_dtype=Channel.polars_type_struct(),
+                return_dtype=Channel.intermediate_polars_type_struct(),
             )
         )
         .unnest("struct_channel"),

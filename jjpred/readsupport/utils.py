@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from jjpred.channel import Channel, PolarsCountryFlagType
+from jjpred.channel import Channel
 from jjpred.columns import Column
 from jjpred.structlike import MemberType
 from jjpred.utils.datetime import Date
@@ -90,7 +90,7 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
         pl.col("channel")
         .map_elements(
             Channel.map_polars,
-            return_dtype=Channel.polars_type_struct(),
+            return_dtype=Channel.intermediate_polars_type_struct(),
         )
         .alias("struct_channel")
     ).unnest("struct_channel")
@@ -117,6 +117,15 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
                     .otherwise(pl.col(c))
                     .alias(c)
                 )
+
+    unique_channels = unique_channels.cast(Channel.polars_type_dict())  # type: ignore
+    unique_channels = unique_channels.rename(
+        {"channel": "raw_channel"}
+    ).with_columns(
+        channel=pl.struct(Channel.members()).map_elements(
+            Channel.map_polars_struct_to_string, return_dtype=pl.String()
+        )
+    )
 
     # for c in Channel.members(MemberType.PRIMARY):
     #     if unique_channels[c].dtype == pl.String():

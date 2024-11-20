@@ -8,7 +8,7 @@ import fastexcel as fxl
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum, auto, unique
 import os
 from typing import Self
 from pathlib import Path
@@ -86,18 +86,15 @@ def read_in_stock_ratios(
         analysis_defn = analysis_defn_or_database.analysis_defn
         active_sku_info = analysis_defn_or_database.meta_info.active_sku
         all_sku_info = analysis_defn_or_database.meta_info.all_sku
-        channel_info = analysis_defn_or_database.meta_info.channel
     else:
         analysis_defn = analysis_defn_or_database
         active_sku_info = read_meta_info(analysis_defn, "active_sku")
         all_sku_info = read_meta_info(analysis_defn, "all_sku")
-        channel_info = read_meta_info(analysis_defn, "channel")
 
     return read_in_stock_ratios_given_meta_info(
         analysis_defn,
         active_sku_info,
         all_sku_info,
-        channel_info,
         read_from_disk=read_from_disk,
         delete_if_exists=delete_if_exists,
     )
@@ -479,14 +476,14 @@ class DataBase:
         #     self.dfs, self.meta_info.all_sku, SkuVariant.A_SKU
         # )
 
-        self.dfs, channel_meta = standardize_channel_info(self.dfs)
-
-        self.meta_info.channel = channel_meta
-
         if self.analysis_defn.in_stock_ratio_date is not None:
             self.dfs[DataVariant.InStockRatio] = read_in_stock_ratios(
                 self, delete_if_exists=True
             )
+
+        self.dfs, channel_meta = standardize_channel_info(self.dfs)
+
+        self.meta_info.channel = channel_meta
 
         self.filter()
 
@@ -510,9 +507,6 @@ def standardize_channel_info(
     :py:class:`polars.Enum`."""
 
     channels = None
-    # channels = pl.Series(
-    #     "channel", [], dtype=dfs[DataVariant.History]["channel"].dtype
-    # )
     for df in dfs.values():
         channels = concat_to_unified(
             channels, df.select(Channel.members(MemberType.META)).unique()
@@ -520,36 +514,45 @@ def standardize_channel_info(
 
     assert channels is not None
 
-    unique_channels = channels.unique()
-    # polars_type = Channel.polars_type_struct()
-    # unique_channels = unique_channels.with_columns(
-    #     pl.col("channel")
-    #     .map_elements(
-    #         Channel.map_polars,
-    #         return_dtype=polars_type,
-    #     )
-    #     .alias("struct_channel")
-    # ).unnest("struct_channel")
-
-    for c in Channel.members():
-        if unique_channels[c].dtype == pl.String():
-            pl_enum = pl.Enum(pl.Series(unique_channels[c].unique()))
-            unique_channels = unique_channels.with_columns(
-                pl.col(c).cast(pl_enum)
-            )
-        elif c == "country_flag":
-            pl.col(c).cast(PolarsCountryFlagType)
+    unique_channels = channels.unique().cast(Channel.polars_type_dict())  # type: ignore
+    # for c in Channel.members():
+    #     if unique_channels[c].dtype == pl.String():
+    #         pl_enum = pl.Enum(pl.Series(unique_channels[c].unique()))
+    #         unique_channels = unique_channels.with_columns(
+    #             pl.col(c).cast(pl_enum)
+    #         )
+    #     elif c == "country_flag":
+    #         pl.col(c).cast(PolarsCountryFlagType)
+    unique_channels = unique_channels.rename(
+        {"channel": "raw_channel"}
+    ).with_columns(
+        channel=pl.struct(Channel.members()).map_elements(
+            Channel.map_polars_struct_to_string, return_dtype=pl.String()
+        )
+    )
+    unique_channels = unique_channels.cast(
+        {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
+    )
 
     for key, df in dfs.items():
-        df = df.with_columns(
-            pl.col("channel").cast(unique_channels["channel"].dtype)
-        ).drop(Channel.members())
+        if "raw_channel" not in df.columns and "channel" in df.columns:
+            df = df.rename({"channel": "raw_channel"})
         df = df.join(
-            unique_channels.filter(~pl.col("platform").is_null()),
-            on="channel",
-            validate="m:1",
+            unique_channels,
+            on=Channel.members(),
+            # there are multiple entries with the same channel info
+            validate="m:m",
             join_nulls=True,
         )
+        # df = df.with_columns(
+        #     pl.col("channel").cast(unique_channels["channel"].dtype)
+        # ).drop(Channel.members())
+        # df = df.join(
+        #     unique_channels.filter(~pl.col("platform").is_null()),
+        #     on="channel",
+        #     validate="m:1",
+        #     join_nulls=True,
+        # )
         dfs[key] = df
         # sys.displayhook(df)
 

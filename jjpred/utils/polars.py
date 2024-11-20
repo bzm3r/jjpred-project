@@ -206,11 +206,19 @@ class EnumLike(SumTypeLike, Enum):
     @classmethod
     def polars_type(cls) -> pl.Enum:
         variant_labels = []
-        for variant in (
-            cls.__iter__()
-        ):  # <--- this is where the static checker is unhappy
+        for variant in cls:  # <--- this is where the static checker is unhappy
             variant_labels.append(variant.name)
         return pl.Enum(variant_labels)
+
+    @classmethod
+    def parse_as_polars_lit(cls, x: str | EnumLike) -> pl.Expr:
+        if isinstance(x, cls):
+            this = x
+        else:
+            assert isinstance(x, str)
+            this = cls.from_str(x)
+
+        return pl.lit(this.name, dtype=cls.polars_type())
 
 
 class IntFlagLike(SumTypeLike, IntFlag):

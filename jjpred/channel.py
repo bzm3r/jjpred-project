@@ -360,7 +360,12 @@ class Channel(
         kw_only=True,
         hash=False,
         compare=True,
-        metadata=FieldMeta(MemberType.PRIMARY, do_nothing, pl.String()),
+        metadata=FieldMeta(
+            MemberType.PRIMARY,
+            do_nothing,
+            Platform.polars_type(),
+            intermediate_polars_dtype=pl.String(),
+        ),
     )
     """The platform this channel is associated with."""
 
@@ -380,7 +385,12 @@ class Channel(
         kw_only=True,
         hash=False,
         compare=True,
-        metadata=FieldMeta(MemberType.PRIMARY, str, pl.String()),
+        metadata=FieldMeta(
+            MemberType.PRIMARY,
+            str,
+            DistributionMode.polars_type(),
+            intermediate_polars_dtype=pl.String(),
+        ),
     )
     """The distribution mode this channel operates in."""
 
@@ -403,3 +413,19 @@ class Channel(
             return cls(**(cls.field_defaults | channel_dict))
         else:
             raise KeyError(f"No platform in: {x}")
+
+    def pretty_string_repr(self) -> str:
+        country_flag = self.country_flag.try_to_string()
+        if country_flag is None:
+            country_flag = "??"
+
+        mode = self.mode.try_to_string()
+        if mode is None:
+            mode = "MODE=??"
+
+        return f"{self.platform} {country_flag } {mode}"
+
+    @classmethod
+    def map_polars_struct_to_string(cls, polars_struct: Any) -> str:
+        assert all([x in polars_struct.keys() for x in Channel.members()])
+        return Channel.from_dict(polars_struct).pretty_string_repr()
