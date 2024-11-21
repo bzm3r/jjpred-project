@@ -14,6 +14,7 @@ from jjpred.globalvariables import DISPATCH_CUTOFF_QTY
 from jjpred.readsupport.utils import (
     NA_FBA_SHEET,
     cast_standard,
+    parse_channels,
 )
 from jjpred.readsupport.marketing import read_config
 from jjpred.sku import Sku
@@ -195,8 +196,7 @@ def create_dispatch_info(
 
     # inventory flags (e.g. "XORO INV. LOWER THAN 12") are stored in the
     # dispatch columns. So we need to extract them out.
-    inv_flags = cast_standard(
-        [channel_info],
+    inv_flags = parse_channels(
         original_dispatch.with_columns(
             pl.when(
                 pl.col(x)
@@ -213,13 +213,12 @@ def create_dispatch_info(
             value_name="inv_flag",
         )
         .with_columns(pl.col("inv_flag").fill_null("NO_FLAG")),
-    )
+    ).drop("raw_channel")
 
     # inventory flags (e.g. "XORO INV. LOWER THAN 12") are stored in the same
     # column as the dispatch; in the last step we extracted these out. Now we
     # want to extract actual dispatch values out.
-    dispatch_values = cast_standard(
-        [channel_info],
+    dispatch_values = parse_channels(
         original_dispatch.with_columns(
             pl.when(
                 ~(
@@ -237,21 +236,20 @@ def create_dispatch_info(
             index=id_cols,
             variable_name="channel",
             value_name="calc_dispatch",
-        ),
-    )
-
-    channel_enum = pl.Enum(sorted(channel_dispatch_cols))
-    channel_map = cast_standard(
-        [channel_info],
-        pl.DataFrame(pl.Series("channel", channel_dispatch_cols))
-        .with_columns(
-            struct_channel=pl.col("channel").map_elements(
-                Channel.map_polars,
-                return_dtype=Channel.intermediate_polars_type_struct(),
-            )
         )
-        .unnest("struct_channel"),
-    ).cast({"channel": channel_enum})
+    ).drop("raw_channel")
+
+    # channel_enum = pl.Enum(sorted(channel_dispatch_cols))
+    # channel_map = parse_channels(
+    #     pl.DataFrame(pl.Series("channel", channel_dispatch_cols))
+    #     .with_columns(
+    #         struct_channel=pl.col("channel").map_elements(
+    #             Channel.map_polars,
+    #             return_dtype=Channel.intermediate_polars_type_struct(),
+    #         )
+    #     )
+    #     .unnest("struct_channel")
+    # ).drop("raw_channel")
 
     # join the inventory flags and dispatch values into a combined table (each
     # has its own column now)
@@ -266,8 +264,7 @@ def create_dispatch_info(
             validate="1:1",
             join_nulls=True,
         )
-        .cast({"channel": channel_enum})
-        .join(channel_map, on="channel", validate="m:1", join_nulls=True)
+        # .join(channel_map, on="channel", validate="m:1", join_nulls=True)
         .drop("channel")
     )
 
