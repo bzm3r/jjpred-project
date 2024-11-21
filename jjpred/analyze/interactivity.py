@@ -19,15 +19,19 @@ def make_special_first_option(options: list[str]) -> list[str]:
         return options
 
 
-def create_dropdown_selection(df: pl.DataFrame, column: str) -> alt.Parameter:
+def create_dropdown_selection(
+    df: pl.DataFrame, column: str, default_choice: str | None = None
+) -> alt.Parameter:
     options = df[column].unique().sort()
     return create_dropdown_selection_from_options(
-        column, make_special_first_option(list(options))
+        column,
+        make_special_first_option(list(options)),
+        default_choice=default_choice,
     )
 
 
 def create_dropdown_selection_from_options(
-    column: str, options: list[str]
+    column: str, options: list[str], default_choice: str | None = None
 ) -> alt.Parameter:
     assert len(options) > 0
     name = f"{column.capitalize()}"
@@ -35,7 +39,7 @@ def create_dropdown_selection_from_options(
         name + "_selector",
         fields=[column],
         bind=alt.binding_select(options=options, name=name),
-        value=options[0],
+        value=default_choice if default_choice is not None else options[0],
     )
 
     return selection

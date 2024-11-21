@@ -240,7 +240,7 @@ def create_dispatch_info(
         ),
     )
 
-    channel_enum = pl.Enum(channel_dispatch_cols)
+    channel_enum = pl.Enum(sorted(channel_dispatch_cols))
     channel_map = cast_standard(
         [channel_info],
         pl.DataFrame(pl.Series("channel", channel_dispatch_cols))
@@ -309,7 +309,9 @@ def create_dispatch_info(
             .then(None)
             .otherwise(pl.col("flag"))
         ).with_columns(
-            pl.col(x).cast(pl.Enum(original_dispatch[x].unique().drop_nulls()))
+            pl.col(x).cast(
+                pl.Enum(original_dispatch[x].unique().drop_nulls().sort())
+            )
             for x in non_sku_str_columns
         ),
     ).join(

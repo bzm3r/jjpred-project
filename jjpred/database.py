@@ -509,12 +509,36 @@ def standardize_channel_info(
     channels = None
     for df in dfs.values():
         channels = concat_to_unified(
-            channels, df.select(Channel.members(MemberType.META)).unique()
+            channels,
+            df.select(Channel.members(MemberType.META)).unique(),
         )
 
     assert channels is not None
 
-    unique_channels = channels.unique().cast(Channel.polars_type_dict())  # type: ignore
+    unique_channels = channels.unique()
+    unique_channels = unique_channels.cast(
+        {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
+    )
+    # unique_channels = channels.unique().cast(Channel.polars_type_dict())  # type: ignore
+
+    # unique_channels = unique_channels.rename(
+    #     {"channel": "raw_channel"}
+    # ).with_columns(
+    #     channel=pl.struct(Channel.members()).map_elements(
+    #         Channel.map_polars_struct_to_string, return_dtype=pl.String()
+    #     )
+    # )
+    # unique_channels = unique_channels.cast(
+    #     {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
+    # )
+
+    recast_dict = {
+        k: unique_channels[k].dtype
+        for k in ["channel"]
+        if k in unique_channels.columns
+    }
+    for key, df in dfs.items():
+        dfs[key] = df.select(cs.exclude("raw_channel")).cast(recast_dict)  # type: ignore
     # for c in Channel.members():
     #     if unique_channels[c].dtype == pl.String():
     #         pl_enum = pl.Enum(pl.Series(unique_channels[c].unique()))
@@ -523,38 +547,28 @@ def standardize_channel_info(
     #         )
     #     elif c == "country_flag":
     #         pl.col(c).cast(PolarsCountryFlagType)
-    unique_channels = unique_channels.rename(
-        {"channel": "raw_channel"}
-    ).with_columns(
-        channel=pl.struct(Channel.members()).map_elements(
-            Channel.map_polars_struct_to_string, return_dtype=pl.String()
-        )
-    )
-    unique_channels = unique_channels.cast(
-        {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
-    )
 
-    for key, df in dfs.items():
-        if "raw_channel" not in df.columns and "channel" in df.columns:
-            df = df.rename({"channel": "raw_channel"})
-        df = df.join(
-            unique_channels,
-            on=Channel.members(),
-            # there are multiple entries with the same channel info
-            validate="m:m",
-            join_nulls=True,
-        )
-        # df = df.with_columns(
-        #     pl.col("channel").cast(unique_channels["channel"].dtype)
-        # ).drop(Channel.members())
-        # df = df.join(
-        #     unique_channels.filter(~pl.col("platform").is_null()),
-        #     on="channel",
-        #     validate="m:1",
-        #     join_nulls=True,
-        # )
-        dfs[key] = df
-        # sys.displayhook(df)
+    # for key, df in dfs.items():
+    #     if "raw_channel" not in df.columns and "channel" in df.columns:
+    #         df = df.rename({"channel": "raw_channel"})
+    #     df = df.join(
+    #         unique_channels,
+    #         on=Channel.members(),
+    #         # there are multiple entries with the same channel info
+    #         validate="m:m",
+    #         join_nulls=True,
+    #     )
+    #     # df = df.with_columns(
+    #     #     pl.col("channel").cast(unique_channels["channel"].dtype)
+    #     # ).drop(Channel.members())
+    #     # df = df.join(
+    #     #     unique_channels.filter(~pl.col("platform").is_null()),
+    #     #     on="channel",
+    #     #     validate="m:1",
+    #     #     join_nulls=True,
+    #     # )
+    #     dfs[key] = df
+    #     # sys.displayhook(df)
 
     return dfs, unique_channels
 

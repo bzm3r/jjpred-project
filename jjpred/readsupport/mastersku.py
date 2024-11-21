@@ -419,7 +419,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     }
     master_sku_df = master_sku_df.cast(dtypes)  # type: ignore
 
-    unique_plans = pl.Enum(master_sku_df["pause_plan_str"].unique())
+    unique_plans = pl.Enum(master_sku_df["pause_plan_str"].unique().sort())
 
     master_sku_df = (
         master_sku_df.cast({"pause_plan_str": unique_plans})

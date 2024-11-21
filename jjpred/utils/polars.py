@@ -208,7 +208,7 @@ class EnumLike(SumTypeLike, Enum):
         variant_labels = []
         for variant in cls:  # <--- this is where the static checker is unhappy
             variant_labels.append(variant.name)
-        return pl.Enum(variant_labels)
+        return pl.Enum(sorted(variant_labels))
 
     @classmethod
     def parse_as_polars_lit(cls, x: str | EnumLike) -> pl.Expr:
@@ -440,4 +440,8 @@ def concat_to_unified(
     if existing_df is None or len(existing_df) == 0:
         return new_df
     else:
-        return existing_df.vstack(new_df.select(existing_df.columns))
+        return existing_df.vstack(
+            new_df.select(existing_df.columns).cast(
+                {k: existing_df[k].dtype for k in existing_df.columns}
+            )
+        )

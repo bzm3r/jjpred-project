@@ -68,10 +68,13 @@ def get_mean_non_zero_isr(
     agg_isr = agg_isr.filter(pl.col.max_year_isr.gt(0.0)).with_columns(
         count=pl.lit(1)
     )
-    if "janandjul.com" in agg_isr["channel"].unique():
+    jj_pretty_string = Channel.parse("janandjul.com").pretty_string_repr()
+    if jj_pretty_string in agg_isr["channel"].unique():
         agg_isr = agg_isr.vstack(
-            agg_isr.filter(pl.col.channel.eq("janandjul.com")).with_columns(
-                channel=pl.lit(channel_filter.description)
+            agg_isr.filter(pl.col.channel.eq(jj_pretty_string)).with_columns(
+                channel=pl.lit(
+                    channel_filter.description, dtype=agg_isr["channel"].dtype
+                )
             )
         )
 
@@ -145,11 +148,11 @@ def get_mean_non_zero_isr(
     #         .select(agg_isr.columns)
     #     )
 
-    channel_dtype = pl.Enum(agg_isr["channel"].unique().sort())
+    # channel_dtype = pl.Enum(agg_isr["channel"].unique().sort())
 
-    mean_non_zero_isr_per_cat = agg_isr.cast({"channel": channel_dtype})
+    # mean_non_zero_isr_per_cat = agg_isr.cast({"channel": channel_dtype})
 
-    return mean_non_zero_isr_per_cat
+    return agg_isr
 
 
 # def get_mean_non_zero_isr_per_cat(isr_info: pl.DataFrame) -> pl.DataFrame:
