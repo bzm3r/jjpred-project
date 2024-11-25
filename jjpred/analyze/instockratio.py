@@ -3,6 +3,7 @@ import polars as pl
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.analyze.modelling.utils import (
     ChannelFilter,
+    DuplicateEliminationStrategy,
     create_agg_label_default_dict,
     sum_quantity_in_order,
     get_analysis_defn_and_db,
@@ -82,6 +83,7 @@ def get_mean_non_zero_isr(
             sum_quantity_in_order(
                 analysis_defn,
                 agg_isr,
+                DuplicateEliminationStrategy.MAX,
                 ["in_stock_ratio", "count"],
                 ["print", "size", "sku_remainder"],
                 create_agg_label_default_dict(
@@ -96,6 +98,7 @@ def get_mean_non_zero_isr(
             sum_quantity_in_order(
                 analysis_defn,
                 agg_isr,
+                DuplicateEliminationStrategy.MAX,
                 ["in_stock_ratio", "count"],
                 ["channel", "print", "size", "sku_remainder"],
                 create_agg_label_default_dict(

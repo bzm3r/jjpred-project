@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
+from enum import Enum, auto, unique
 import polars as pl
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.countryflags import CountryFlags
@@ -36,9 +37,23 @@ def create_agg_label_default_dict(
     return result
 
 
+@unique
+class DuplicateEliminationStrategy(Enum):
+    MAX = auto()
+    SUM = auto()
+
+    def apply(self, column: str) -> pl.Expr:
+        match self:
+            case DuplicateEliminationStrategy.MAX:
+                return pl.col(column).max()
+            case DuplicateEliminationStrategy.SUM:
+                return pl.col(column).sum()
+
+
 def sum_quantity_in_order(
     analysis_defn: AnalysisDefn,
     df: pl.DataFrame,
+    duplicate_elimination_strategy: DuplicateEliminationStrategy,
     cols_to_sum: ScalarOrList[str],
     ordered_sum_by_cols: list[str],
     aggregated_label_for_sum_by_cols: defaultdict[str, str],
@@ -72,6 +87,8 @@ def sum_quantity_in_order(
             + ["date"]
             + cols_to_sum
         )
+        .group_by(["channel"] + Sku.members(MemberType.SECONDARY) + ["date"])
+        .agg(duplicate_elimination_strategy.apply(x) for x in cols_to_sum)
     )
 
     all_minimum_index_cols = ["category", "channel", "date"]
@@ -139,24 +156,8 @@ class ChannelFilter:
     expression: pl.Expr
 
 
-# @dataclass
-# class ChannelFilters:
-#     filters: list[ChannelFilter]
-
-#     def all_descriptions(self) -> list[str]:
-#         return [filter.description for filter in self.filters]
-
-
-# KNOWN_CHANNEL_FILTERS = Literal["_NA_MAJOR_RETAIL_", "_ALL_WHOLESALE_"]
-# CHANNEL_FILTER_LIBRARY: dict[KNOWN_CHANNEL_FILTERS, pl.Expr] = {
-#     "_NA_MAJOR_RETAIL_": (pl.col.mode == "RETAIL")
-#     & (pl.col.country_flag.and_(int(CountryFlags.CA | CountryFlags.US)) > 0)
-#     & (pl.col.platform.is_in(["Amazon", "JanAndJul"])),
-#     "_ALL_WHOLESALE_": pl.col.mode.eq("WHOLESALE"),
-# }
-
-NA_MAJOR_RETAIL = ChannelFilter(
-    "_NA_MAJOR_RETAIL_",
+NA_MAJOR_RETAIL_FILTER = ChannelFilter(
+    "_AMAZON+JJ_CA|US_",
     (pl.col.mode == "RETAIL")
     & (pl.col.country_flag.and_(int(CountryFlags.CA | CountryFlags.US)) > 0)
     & (pl.col.platform.is_in(["Amazon", "JanAndJul"])),
@@ -166,8 +167,8 @@ WHOLESALE_FILTER = ChannelFilter(
     "_ALL_WHOLESALE_", pl.col.mode.eq("WHOLESALE")
 )
 
-EU_RETAIL = ChannelFilter(
-    "_EU_RETAIL_",
+EU_RETAIL_FILTER = ChannelFilter(
+    "_AMAZON_EU_",
     (pl.col.mode == "RETAIL")
     & (
         pl.col.country_flag.and_(
@@ -177,4 +178,8 @@ EU_RETAIL = ChannelFilter(
     ),
 )
 
-KNOWN_CHANNEL_FILTERS = [NA_MAJOR_RETAIL, WHOLESALE_FILTER, EU_RETAIL]
+KNOWN_CHANNEL_FILTERS = [
+    NA_MAJOR_RETAIL_FILTER,
+    WHOLESALE_FILTER,
+    EU_RETAIL_FILTER,
+]

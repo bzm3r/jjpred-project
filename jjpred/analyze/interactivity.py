@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 import polars as pl
 import altair as alt
 
@@ -70,3 +70,32 @@ def create_checkbox_selection(
     ).add_params(selection)
 
     return selection, legend
+
+
+def create_legend_selection(
+    df: pl.DataFrame,
+    column: str,
+    column_type: Literal["nominal", "ordinal", "quantitative", "temporal"],
+    alt_color: Literal["lightgray", "transparent"],
+) -> tuple[alt.Parameter, dict[str, Any]]:  # tuple[alt.Parameter, alt.Chart]:
+    options = df[column].unique().sort()
+    assert len(options) > 0
+    name = f"{column.capitalize()}"
+
+    selection = alt.selection_point(
+        name + "_selector", fields=[column], bind="legend"
+    )
+
+    unselect_color = alt.condition(
+        selection,
+        alt.Color(column, type=column_type),
+        alt.value(alt_color),
+    )
+
+    # legend = (
+    #     alt.Chart(df)
+    #     .mark_point()
+    #     .encode(alt.Y(column).axis(orient="right"), color=unselect_color)
+    # ).add_params(selection)
+
+    return selection, unselect_color  # , legend

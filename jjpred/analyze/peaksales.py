@@ -2,6 +2,7 @@ import polars as pl
 
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.analyze.modelling.utils import (
+    DuplicateEliminationStrategy,
     create_agg_label_default_dict,
     sum_quantity_in_order,
 )
@@ -151,10 +152,10 @@ def aggregate_sales(
 
     agg_sales = (
         agg_sales.with_columns(
-            year_sales=pl.col("sales").sum().over(index_cols + ["year"]),
+            annual_sales=pl.col("sales").sum().over(index_cols + ["year"]),
             max_month_sales=pl.col("sales").max().over(index_cols + ["year"]),
         )
-        .sort("year_sales", "month")
+        .sort("annual_sales", "month")
         .with_columns(
             is_max_month=(
                 pl.col("sales").eq(pl.col("max_month_sales"))
@@ -164,7 +165,7 @@ def aggregate_sales(
     )
 
     agg_sales = agg_sales.with_columns(
-        monthly_ratio=pl.col("sales") / pl.col("year_sales"),
+        monthly_ratio=pl.col("sales") / pl.col("annual_sales"),
     )
 
     agg_sales = agg_sales.with_columns(
@@ -182,6 +183,7 @@ def aggregate_relevant_history(
     agg_sales = sum_quantity_in_order(
         analysis_defn,
         relevant_history,
+        DuplicateEliminationStrategy.MAX,
         "sales",
         ["channel", "print", "size", "sku_remainder"],
         create_agg_label_default_dict({"channel": channel_filter_description}),
@@ -241,7 +243,7 @@ def aggregate_relevant_history(
             year=pl.col.date.dt.year(), month=pl.col.date.dt.month()
         )
         .with_columns(
-            year_sales=pl.col("sales").sum().over(primary_cols + ["year"]),
+            annual_sales=pl.col("sales").sum().over(primary_cols + ["year"]),
             max_month_sales=pl.col("sales")
             .max()
             .over(primary_cols + ["year"]),
@@ -253,7 +255,7 @@ def aggregate_relevant_history(
             )
         )
         .with_columns(
-            monthly_ratio=pl.col("sales") / pl.col("year_sales"),
+            monthly_ratio=pl.col("sales") / pl.col("annual_sales"),
         )
     )
 
@@ -535,13 +537,13 @@ def calculate_peaks_per_channel_old(
 #             .otherwise(pl.col.sales)
 #         )
 #         .with_columns(
-#             year_sales=pl.col("sales").sum().over("category", "year"),
+#             annual_sales=pl.col("sales").sum().over("category", "year"),
 #             fake_year_sales=pl.col("fake_sales")
 #             .sum()
 #             .over("category", "year"),
 #             max_month_sales=pl.col("sales").max().over("category", "year"),
 #         )
-#         .sort("year_sales", "month")
+#         .sort("annual_sales", "month")
 #         .with_columns(
 #             is_max_month=(
 #                 pl.col("sales").eq(pl.col("max_month_sales"))

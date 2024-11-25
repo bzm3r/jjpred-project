@@ -130,7 +130,7 @@ def filter_and_aggregate(
     period_year_sales = (
         period_breakdown.drop("in_period")
         .group_by(cs.exclude("size", "sales"))
-        .agg(year_sales=pl.col("sales").sum())
+        .agg(annual_sales=pl.col("sales").sum())
     )
     in_period_sales = (
         period_breakdown.filter(pl.col("in_period"))
@@ -143,9 +143,9 @@ def filter_and_aggregate(
             in_period_sales, on=["category", "print", "year"]
         )
         .with_columns(
-            in_period_sales=pl.col("in_period_sales") / pl.col("year_sales")
+            in_period_sales=pl.col("in_period_sales") / pl.col("annual_sales")
         )
-        .drop("year_sales")
+        .drop("annual_sales")
     ).filter(pl.col("in_period_sales").is_not_nan())
 
     channel_breakdown = (
@@ -162,12 +162,12 @@ def filter_and_aggregate(
             .group_by(cs.exclude("sales"))
             .agg(pl.col("sales").sum())
             .with_columns(
-                year_sales=pl.col("sales")
+                annual_sales=pl.col("sales")
                 .sum()
                 .over("category", "print", "year")
             )
             .with_columns(
-                sales_proportion=(pl.col("sales") / pl.col("year_sales"))
+                sales_proportion=(pl.col("sales") / pl.col("annual_sales"))
             )
         )
         .cast({"size": pl.Enum(["S", "M", "L", "XL"])})
@@ -175,7 +175,7 @@ def filter_and_aggregate(
         .select(
             ["category", "print", "size"]
             + ["year"]
-            + ["sales", "year_sales", "sales_proportion"]
+            + ["sales", "annual_sales", "sales_proportion"]
         )
     )
     return (sales_trend, channel_breakdown, period_breakdown)

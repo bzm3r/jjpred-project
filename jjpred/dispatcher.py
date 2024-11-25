@@ -505,7 +505,8 @@ class Dispatcher:
             )
 
             # FINE AUTOSPLIT LOGIC: removed for now after discussion with Matt
-
+            # This was meant to make sure that auto-splits do not spill into the
+            # minimum quantity meant to be kept in a warehouse.
             # if (
             #     requires_fine_splitting is not None
             #     or len(requires_fine_splitting) > 0
