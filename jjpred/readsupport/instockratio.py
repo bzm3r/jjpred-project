@@ -95,18 +95,39 @@ def read_in_stock_ratios_given_meta_info(
             )
     assert unified_sheet is not None
 
-    warehouse_df, other_df = binary_partition_strict(
+    local_warehouse_df, non_warehouse_df = binary_partition_strict(
         unified_sheet.df, pl.col.channel.eq("JJ Warehouse")
     )
-    warehouse_df = warehouse_df.drop("channel").with_columns(
+    local_warehouse_df = local_warehouse_df.drop("channel").with_columns(
         channel=pl.lit("Warehouse CA")
     )
-    jj_df = warehouse_df.drop("channel").with_columns(
-        channel=pl.lit("janandjul.com")
+    # jj_df = local_warehouse_df.drop("channel").with_columns(
+    #     channel=pl.lit("janandjul.com")
+    # )
+
+    local_warehouse_dependent = [
+        "janandjul.com",
+        "Wholesale",
+        "Faire.com",
+        "Vancouver Showroom",
+    ]
+    extra_dfs = []
+    for channel in local_warehouse_dependent:
+        extra_dfs.append(
+            local_warehouse_df.with_columns(
+                channel=pl.lit(
+                    channel, dtype=local_warehouse_df["channel"].dtype
+                )
+            ).select(non_warehouse_df.columns)
+        )
+
+    unified_sheet.df = pl.concat(
+        [non_warehouse_df, local_warehouse_df.select(non_warehouse_df.columns)]
+        + extra_dfs
     )
-    unified_sheet.df = other_df.vstack(
-        warehouse_df.select(other_df.columns)
-    ).vstack(jj_df.select(other_df.columns))
+    # unified_sheet.df = other_df.vstack(
+    #     warehouse_df.select(other_df.columns)
+    # ).vstack(jj_df.select(other_df.columns))
 
     isr_df = unpivot_dates(
         unified_sheet.df,

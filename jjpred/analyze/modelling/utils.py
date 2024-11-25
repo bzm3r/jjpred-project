@@ -160,7 +160,7 @@ NA_MAJOR_RETAIL_FILTER = ChannelFilter(
     "_AMAZON+JJ_CA|US_",
     (pl.col.mode == "RETAIL")
     & (pl.col.country_flag.and_(int(CountryFlags.CA | CountryFlags.US)) > 0)
-    & (pl.col.platform.is_in(["Amazon", "JanAndJul"])),
+    & (pl.col.platform.is_in(["Amazon", "JanAndJul", "PopUp"])),
 )
 
 WHOLESALE_FILTER = ChannelFilter(

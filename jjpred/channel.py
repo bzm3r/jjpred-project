@@ -235,9 +235,7 @@ class Platform(PlatformAttrs, EnumLike):
             [
                 "pop-up shop",
                 "popup",
-                "Jan and Jul Vancouver",
-                "J&J Vancouver",
-                "JJ Vancouver",
+                "vancouver showroom",
             ],
             FixedCountries(CountryFlags.CA),
         ),
@@ -415,7 +413,11 @@ class Channel(
             raise KeyError(f"No platform in: {x}")
 
     def pretty_string_repr(self) -> str:
-        country_flag = self.country_flag.try_to_string()
+        country_flag = (
+            self.country_flag.try_to_string()
+            if self.country_flag is not None
+            else None
+        )
         if country_flag is None:
             country_flag = "??"
 

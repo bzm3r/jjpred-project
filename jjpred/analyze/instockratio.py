@@ -19,7 +19,7 @@ def get_isr_info(
     read_db_from_disk: bool = True,
 ) -> pl.DataFrame:
     # raw_isr = read_in_stock_ratios(db, read_from_disk=False)
-    analysis_defn, db = get_analysis_defn_and_db(
+    _, db = get_analysis_defn_and_db(
         analysis_defn_or_db, read_db_from_disk=read_db_from_disk
     )
 
@@ -41,6 +41,25 @@ def get_isr_info(
             .otherwise(pl.lit(None))
         )
     )
+
+    # local_warehouse_dependent = [
+    #     Channel.parse(x).pretty_string_repr()
+    #     for x in ["janandjul.com", "Wholesale", "Vancouver Showroom"]
+    # ]
+
+    # local_warehouse_isr = isr_df.filter(
+    #     pl.col.channel.eq(Channel.parse("warehouse").pretty_string_repr())
+    # ).drop("channel")
+
+    # isr_df_channels = isr_df["channel"].unique()
+
+    # for channel in local_warehouse_dependent:
+    #     if channel not in isr_df_channels:
+    #         isr_df = isr_df.vstack(
+    #             local_warehouse_isr.with_columns(
+    #                 channel=pl.lit(channel, dtype=isr_df["channel"].dtype)
+    #             ).select(isr_df.columns)
+    #         )
 
     isr_df_with_year = isr_df.with_columns(
         year=pl.col.date.dt.year()
@@ -69,8 +88,12 @@ def get_mean_non_zero_isr(
     agg_isr = agg_isr.filter(pl.col.max_year_isr.gt(0.0)).with_columns(
         count=pl.lit(1)
     )
+
     jj_pretty_string = Channel.parse("janandjul.com").pretty_string_repr()
     if jj_pretty_string in agg_isr["channel"].unique():
+        # If "janandjul.com" is in the channels of this dataframe, then its
+        # in-stock ratio values (same as local warehouse) should be taken as the
+        # aggregated in-stock ratio
         agg_isr = agg_isr.vstack(
             agg_isr.filter(pl.col.channel.eq(jj_pretty_string)).with_columns(
                 channel=pl.lit(
