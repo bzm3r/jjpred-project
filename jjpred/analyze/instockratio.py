@@ -108,7 +108,7 @@ def get_mean_non_zero_isr(
                 agg_isr,
                 DuplicateEliminationStrategy.MAX,
                 ["in_stock_ratio", "count"],
-                ["print", "size", "sku_remainder"],
+                ["print", "size"],
                 create_agg_label_default_dict(
                     {"channel": channel_filter.description}
                 ),
@@ -123,7 +123,7 @@ def get_mean_non_zero_isr(
                 agg_isr,
                 DuplicateEliminationStrategy.MAX,
                 ["in_stock_ratio", "count"],
-                ["channel", "print", "size", "sku_remainder"],
+                ["channel", "print", "size"],
                 create_agg_label_default_dict(
                     {"channel": channel_filter.description}
                 ),

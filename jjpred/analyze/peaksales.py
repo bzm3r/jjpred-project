@@ -185,7 +185,7 @@ def aggregate_relevant_history(
         relevant_history,
         DuplicateEliminationStrategy.MAX,
         "sales",
-        ["channel", "print", "size", "sku_remainder"],
+        ["channel", "print", "size"],
         create_agg_label_default_dict({"channel": channel_filter_description}),
     )
     # agg_sales = (
@@ -236,7 +236,7 @@ def aggregate_relevant_history(
         == 0
     )
 
-    primary_cols = ["channel"] + Sku.members(MemberType.SECONDARY)
+    primary_cols = ["channel"] + Sku.members(MemberType.PRIMARY)
 
     agg_sales = (
         agg_sales.with_columns(
@@ -324,7 +324,7 @@ def calculate_peaks_per_channel(
 
     sales_with_peaks = calculate_peaks(
         agg_sales,
-        ["channel", "category", "print", "size", "sku_remainder"],
+        ["channel", "category", "print", "size"],
         num_digits_to_round_monthly_ratio,
         first_day(analysis_defn.date),
     )

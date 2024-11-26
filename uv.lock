@@ -612,6 +612,7 @@ dependencies = [
     { name = "shinylive" },
     { name = "shinywidgets" },
     { name = "sphinx" },
+    { name = "vega-datasets" },
     { name = "vegafusion", extra = ["embed"] },
     { name = "xlsxwriter" },
 ]
@@ -636,6 +637,7 @@ requires-dist = [
     { name = "shinylive", specifier = ">=0.7.1" },
     { name = "shinywidgets", specifier = ">=0.3.4" },
     { name = "sphinx", specifier = ">=8.0.2" },
+    { name = "vega-datasets", specifier = ">=0.9.0" },
     { name = "vegafusion", extras = ["embed"], specifier = ">=1.6.9" },
     { name = "xlsxwriter", specifier = ">=3.2.0" },
 ]
@@ -2116,6 +2118,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e0/fc/1d785078eefd6945f3e5bab5c076e4230698046231eb0f3747bc5c8fa992/uvicorn-0.32.0.tar.gz", hash = "sha256:f78b36b143c16f54ccdb8190d0a26b5f1901fe5a3c777e1ab29f26391af8551e", size = 77564 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/14/78bd0e95dd2444b6caacbca2b730671d4295ccb628ef58b81bee903629df/uvicorn-0.32.0-py3-none-any.whl", hash = "sha256:60b8f3a5ac027dcd31448f411ced12b5ef452c646f76f02f8cc3f25d8d26fd82", size = 63723 },
+]
+
+[[package]]
+name = "vega-datasets"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pandas" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/a0/ce608d9a5b82fce2ebaa2311136b1e1d1dc2807f501bbdfa56bd174fff76/vega_datasets-0.9.0.tar.gz", hash = "sha256:9dbe9834208e8ec32ab44970df315de9102861e4cda13d8e143aab7a80d93fc0", size = 215013 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/9f/ca52771fe972e0dcc5167fedb609940e01516066938ff2ee28b273ae4f29/vega_datasets-0.9.0-py3-none-any.whl", hash = "sha256:3d7c63917be6ca9b154b565f4779a31fedce57b01b5b9d99d8a34a7608062a1d", size = 210822 },
 ]
 
 [[package]]

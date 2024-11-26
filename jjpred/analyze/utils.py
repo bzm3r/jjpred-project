@@ -6,4 +6,6 @@ type AltairChart = (
     | alt.HConcatChart
     | alt.ConcatChart
     | alt.LayerChart
+    | alt.FacetChart
+    | alt.RepeatChart
 )

@@ -1,14 +1,14 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto, unique
+import sys
 import polars as pl
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.countryflags import CountryFlags
-from jjpred.database import DataBase
-from jjpred.datagroups import ALL_SKU_IDS, WHOLE_SKU_IDS
+from jjpred.database import DataBase, read_meta_info
 from jjpred.sku import Sku
 from jjpred.structlike import MemberType
-from jjpred.utils.fileio import read_meta_info
+from jjpred.utils.polars import find_dupes
 from jjpred.utils.typ import as_list, ScalarOrList, as_polars_type
 
 
@@ -50,6 +50,36 @@ class DuplicateEliminationStrategy(Enum):
                 return pl.col(column).sum()
 
 
+def get_checked_sku_info(
+    analysis_defn_or_db: AnalysisDefn | DataBase,
+) -> pl.DataFrame:
+    if isinstance(analysis_defn_or_db, DataBase):
+        active_sku_info = analysis_defn_or_db.meta_info.active_sku
+    else:
+        active_sku_info = read_meta_info(analysis_defn_or_db, "active_sku")
+
+    sku_info = (
+        active_sku_info.select(
+            ["a_sku"] + Sku.members(MemberType.PRIMARY),
+        )
+        .group_by("a_sku")
+        .agg(pl.col(x).unique() for x in Sku.members(MemberType.PRIMARY))
+    )
+
+    for y in [x for x in Sku.members(MemberType.PRIMARY)]:
+        dupes = sku_info.filter(pl.col(y).list.len().gt(1))
+        if len(dupes) > 0:
+            print(f"{y}:")
+            sys.displayhook(dupes)
+            raise ValueError("Found dupes in SKU info!")
+
+    sku_info = sku_info.with_columns(
+        pl.col(x).list.first() for x in Sku.members(MemberType.PRIMARY)
+    )
+
+    return sku_info
+
+
 def sum_quantity_in_order(
     analysis_defn: AnalysisDefn,
     df: pl.DataFrame,
@@ -71,23 +101,27 @@ def sum_quantity_in_order(
 
     cols_to_sum = as_list(cols_to_sum)
 
+    if any([x not in df.columns for x in Sku.members(MemberType.PRIMARY)]):
+        missing = [
+            x for x in Sku.members(MemberType.PRIMARY) if x not in df.columns
+        ]
+        sku_info = get_checked_sku_info(analysis_defn)
+        df = df.join(
+            sku_info.select(["a_sku"] + missing),
+            on="a_sku",
+            how="left",
+            # LHS has multiple a_sku entries (per date, per channel, etc.)
+            validate="m:1",
+        )
+
     df = (
         df.select(
-            ["channel"] + WHOLE_SKU_IDS + ["category", "date"] + cols_to_sum
-        )
-        .join(
-            read_meta_info(analysis_defn, "all_sku").select(
-                [c for c in ALL_SKU_IDS if c != "category"]
-            ),
-            on=WHOLE_SKU_IDS,
-        )
-        .select(
             ["channel"]
-            + Sku.members(MemberType.SECONDARY)
+            + Sku.members(MemberType.PRIMARY)
             + ["date"]
             + cols_to_sum
         )
-        .group_by(["channel"] + Sku.members(MemberType.SECONDARY) + ["date"])
+        .group_by(["channel"] + Sku.members(MemberType.PRIMARY) + ["date"])
         .agg(duplicate_elimination_strategy.apply(x) for x in cols_to_sum)
     )
 
@@ -183,3 +217,12 @@ KNOWN_CHANNEL_FILTERS = [
     WHOLESALE_FILTER,
     EU_RETAIL_FILTER,
 ]
+
+
+def check_sales_data_for_dupes(sales_data: pl.DataFrame) -> pl.DataFrame:
+    find_dupes(
+        sales_data,
+        ["channel", "date", "isr_agg_type"] + Sku.members(MemberType.PRIMARY),
+        raise_error=True,
+    )
+    return sales_data
