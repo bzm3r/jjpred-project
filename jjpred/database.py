@@ -8,7 +8,7 @@ import fastexcel as fxl
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum, auto, unique
+from enum import Enum, auto
 import os
 from typing import Self
 from pathlib import Path
@@ -17,7 +17,6 @@ import polars as pl
 import polars.selectors as cs
 from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
 from jjpred.channel import Channel
-from jjpred.channel import PolarsCountryFlagType
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
@@ -80,7 +79,8 @@ def read_in_stock_ratios(
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
 ) -> pl.DataFrame:
-    """Read in-stock ratios from the ``All Marketplace by MSKU - InStockRatio`` file."""
+    """Read in-stock ratios from the ``All Marketplace by MSKU - InStockRatio``
+    file."""
 
     if isinstance(analysis_defn_or_database, DataBase):
         analysis_defn = analysis_defn_or_database.analysis_defn
@@ -488,7 +488,9 @@ class DataBase:
         self.filter()
 
     def read_meta_dfs(self) -> bool:
-        """Read saved meta information dataframes."""
+        """Read saved meta information dataframes.
+
+        Returns whether all expected meta information was successfully found."""
         self.meta_info = MetaInfo()
         for meta_name in self.meta_info.fields():
             path = gen_meta_info_path(self.analysis_defn, meta_name)

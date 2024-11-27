@@ -28,6 +28,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
+    convert_dict_to_polars_df,
     sanitize_excel_extraction,
 )
 from jjpred.utils.typ import RuntimeCheckableDataclass
@@ -39,20 +40,21 @@ def column_renamer(x: str) -> str:
     if "fbasku" in x:
         return f"fba_sku_{x.split("_")[-1]}"
 
-    for y in [
+    for compare_return_pair in [
         ("seasons_sku", "season_history"),
         "category",
         "status",
-        "print",
+        ("print_sku", "print"),
+        ("print_name", "print_name"),
         "size",
         ("msku", "m_sku"),
         ("adjust", "a_sku"),
         ("pause_plan", "pause_plan_str"),
     ]:
-        if isinstance(y, tuple):
-            compare, return_str = y
+        if isinstance(compare_return_pair, tuple):
+            compare, return_str = compare_return_pair
         else:
-            compare, return_str = y, y
+            compare, return_str = compare_return_pair, compare_return_pair
 
         if compare in x:
             return return_str
@@ -89,6 +91,12 @@ class MasterSkuInfo(RuntimeCheckableDataclass):
     SKUs."""
     ignored_sku: pl.DataFrame = field(init=False)
     """Ignored SKUs."""
+    print_name_map: pl.DataFrame = field(init=False)
+    """Print names taken from the Master SKU file, mapped in some cases to adjusted
+names because they are otherwise unnecessarily long."""
+    numeric_size_map: pl.DataFrame = field(init=False)
+    """Sizes mapped to numeric values. Useful for sorting by size especially when
+plotting."""
 
 
 def generate_save_paths(analysis_defn: AnalysisDefn) -> tuple[Path, ...]:
@@ -174,6 +182,73 @@ def filter_m_and_u_types(all_sku_info: pl.DataFrame) -> pl.DataFrame:
 MASTER_SKU_DF_HEADER_ROW: int = 3
 """The header row of the Master SKU file (0-based index)."""
 
+ADJUSTED_PRINT_NAMES: dict[str, str] = {
+    "Bear w/Cream Lining": "Bear, Cream Lining",
+    "Bear w/Grey Lining": "Bear, Grey Lining",
+    "Black w/ Black Trim": "Black, Black Trim",
+    "Black w/Cream Lining": "Black, Cream Lining",
+    "Black w/Grey Lining": "Black, Grey Lining",
+    "Blue w/ self trim": "Blue, self trim",
+    "Bunny w/Cream Lining": "Bunny, Cream Lining",
+    "Bunny w/Grey Lining": "Bunny, Grey Lining",
+    "Cream (Twinning Beanie)": "Cream",
+    "Grey (Twinning Beanie)": "Grey",
+    "Grey w/Cream Lining": "Grey, Cream Lining",
+    "Grey w/Grey Lining": "Grey, Grey Lining",
+    "Large  Herringbone": "Large Herringbone",
+    "Mustard (Twinning Beanie)": "Mustard",
+    "Navy w/ Navy Trim": "Navy, Navy Trim",
+    "Pink / Pale Pink (knit shoes)": "Pink/Pale Pink",
+    "Purple  (lighter purple)": "Lighter Purple",
+    "Purple w/Cream Lining": "Purple, Cream Lining",
+    "Purple w/Grey Lining": "Purple, Grey Lining",
+    "Rainbow w/ Pink Trim": "Rainbow, Pink Trim",
+    "Shark w/ Navy Trim": "Shark, Navy Trim",
+}
+"""Print names taken from the Master SKU file, mapped in some cases to adjusted
+names because they are otherwise unnecessarily long."""
+
+NUMERIC_SIZE: dict[str, float] = {
+    "10Y": 10,
+    "12Y": 12,
+    "12m": 12,
+    "14Y": 14,
+    "16Y": 16,
+    "18m": 18,
+    "1T": 1,
+    "20E": 20,
+    "21E": 21,
+    "22E": 22,
+    "2T": 2,
+    "3T": 3,
+    "4E": 4,
+    "4T": 4,
+    "5E": 5,
+    "5T": 5,
+    "6E": 6,
+    "6Y": 6,
+    "6m": 6,
+    "7T": 7,
+    "7Y": 7,
+    "8T": 8,
+    "8Y": 8,
+    "JR1": 14,  # JR1 is one size larger than 13
+    "JR2": 15,
+    "JR3": 16,
+    "JR4": 17,
+    "XS": 1,
+    "S": 2,
+    "M": 3,
+    "L": 4,
+    "XL": 5,
+    "XXL": 6,
+    "OS": 1,
+}
+"""Sizes mapped to numeric values. Useful for sorting by size especially when
+plotting. Sizes that do not appear here are either: 1) easily parsed into a
+numeric value (e.g. size "10.5" can be straightforwardly parsed into ``10.5``),
+or 2) have not yet been given a mapping.."""
+
 
 def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     """Read the master information excel file."""
@@ -198,6 +273,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
                     "msku status",
                     "seasons sku",
                     "print sku",
+                    "print name",
                     "category sku",
                     "size",
                     "msku",
@@ -268,7 +344,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         # .drop("a_print", "a_size", "a_sku_remainder")
     )
 
-    # mark special categories
+    # === mark special categories ===
     unique_categories = reduce(
         lambda x, y: x.extend(y),
         [master_sku_df[f"{y}category"].unique() for y in ["", "a_", "m_"]],
@@ -317,7 +393,9 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         #   "a_category", "m_category"
         # )
     )
+    # === === ===
 
+    # === casting columns as enum ===
     related_columns = {}
     for z in Sku.members(MemberType.META):
         related_columns[z] = [
@@ -336,7 +414,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
             if c in related_columns[z]:
                 category_per_related_column[c] = z
 
-    other_casting_columns = ["status"]
+    other_casting_columns = ["status", "print_name"]
 
     default_values_for_related = {}
     for z in Sku.members(MemberType.META):
@@ -370,44 +448,6 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         k: v.sort() for k, v in unique_values_for_related.items()
     } | {k: master_sku_df[k].unique().sort() for k in other_casting_columns}
 
-    # duplicate_status_a_sku = find_dupes(
-    #     master_sku_df.select(
-    #         Sku.members(MemberType.SECONDARY) + ["a_sku", "m_sku", "status"]
-    #     ),
-    #     ["a_sku"],
-    # )["a_sku"].unique()
-    # # sys.displayhook(
-    # #     find_dupes(
-    # #         master_sku_df.select(
-    # #             Sku.members(MemberType.SECONDARY)
-    # #             + ["a_sku", "m_sku", "status"]
-    # #         ),
-    # #         ["a_sku"],
-    # #     )
-    # # )
-    # master_sku_df = master_sku_df.filter(
-    #     ~pl.col("a_sku")
-    #     .is_in(duplicate_status_a_sku)
-    #     .and_(pl.col("status").ne("active"))
-    # )
-
-    # dupes = find_dupes(
-    #     master_sku_df, ["print", "size", "category", "a_sku"]
-    # ).select("a_sku", "m_sku")
-    # # sys.displayhook(
-    # #     find_dupes(master_sku_df, ["print", "size", "category", "a_sku"])
-    # # )
-    # master_sku_df = master_sku_df.filter(
-    #     ~(
-    #         pl.col("a_sku")
-    #         .is_in(dupes["a_sku"])
-    #         .and_(pl.col("a_sku").ne(pl.col("m_sku")))
-    #     )
-    # )
-    # find_dupes(
-    #     master_sku_df, ["print", "size", "category", "a_sku"], raise_error=True
-    # )
-
     dtypes: Mapping[str, pl.DataType] = {
         k: pl.Enum(unique_values[category_per_related_column[k]].sort())
         for k in related_casting_columns
@@ -418,7 +458,9 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         if k in master_sku_df.columns
     }
     master_sku_df = master_sku_df.cast(dtypes)  # type: ignore
+    # === === ==
 
+    # === parse pause plans ==
     unique_plans = pl.Enum(master_sku_df["pause_plan_str"].unique().sort())
 
     master_sku_df = (
@@ -444,6 +486,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         )
         .drop("pause_plan_str")
     )
+    # === === ==
 
     # Sometimes "season history" will contain
     # information such as `24F-Taiwan`, or `24-Taiwan`, and in general, one can
@@ -498,6 +541,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         how="left",
         validate="m:1",
     )
+    # === === ==
 
     sku_columns = Sku.members(MemberType.SECONDARY) + ["a_sku", "m_sku"]
 
@@ -541,6 +585,9 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         # we manually inspected "tally_fraction", and then determined that the
         # following categories should be marked FW, even though they
         # have some PO that happened in SS
+        #
+        # later on, we just read from the CONFIG file to determine seasonality
+        # of items
         latest_seasons=pl.when(pl.col.category.is_in(["WSF", "WJT", "IHT"]))
         .then(pl.lit("F"))
         .otherwise(pl.col.latest_seasons)
@@ -603,6 +650,61 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         country_flag, on="country", how="left", validate="m:1", join_nulls=True
     ).drop("country")
 
+    print_name_map = (
+        master_sku_df.select("print", "print_name")
+        .unique()
+        .join(
+            convert_dict_to_polars_df(
+                ADJUSTED_PRINT_NAMES, "print_name", "adjusted_print_name"
+            ).cast({"print_name": master_sku_df["print_name"].dtype}),
+            how="left",
+            on="print_name",
+        )
+        .with_columns(
+            adjusted_print_name=pl.when(pl.col.adjusted_print_name.is_null())
+            .then(pl.col.print_name.cast(pl.String()))
+            .otherwise(pl.col.adjusted_print_name)
+        )
+    )
+    print_name_map = (
+        print_name_map.cast(
+            {
+                "adjusted_print_name": pl.Enum(
+                    print_name_map["adjusted_print_name"].unique().sort()
+                )
+            }
+        )
+        .drop("print_name")
+        .rename({"adjusted_print_name": "print_name"})
+    )
+
+    numeric_size_map = (
+        master_sku_df.select("size")
+        .unique()
+        .join(
+            convert_dict_to_polars_df(
+                NUMERIC_SIZE, "size", "numeric_size"
+            ).cast(
+                {
+                    "size": master_sku_df["size"].dtype,
+                    "numeric_size": pl.Float32(),
+                }
+            ),
+            on=["size"],
+            how="left",
+        )
+        .with_columns(
+            numeric_size=pl.when(pl.col.numeric_size.is_null())
+            .then(pl.col.size.cast(pl.Float32(), strict=False))
+            .otherwise(pl.col.numeric_size)
+        )
+    )
+
+    problem_sizes = numeric_size_map.filter(pl.col.numeric_size.is_null())
+    if len(problem_sizes) > 0:
+        sys.displayhook(problem_sizes)
+        raise ValueError("Some sizes are not mapped to a numeric size!")
+
     master_sku_df = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
     result = MasterSkuInfo()
     result.active_sku = master_sku_df.filter(
@@ -611,6 +713,8 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
     result.fba_sku = fba_sku
     result.ignored_sku = will_ignore
+    result.print_name_map = print_name_map
+    result.numeric_size_map = numeric_size_map
 
     return result
 

@@ -445,3 +445,14 @@ def concat_to_unified(
                 {k: existing_df[k].dtype for k in existing_df.columns}
             )
         )
+
+
+def convert_dict_to_polars_df(
+    input_dict: dict[Any, Any], key_column_name: str, value_column_name: str
+) -> pl.DataFrame:
+    return pl.from_dicts(
+        [
+            {key_column_name: k, value_column_name: v}
+            for k, v in input_dict.items()
+        ]
+    )
