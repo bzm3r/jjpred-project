@@ -598,8 +598,10 @@ def check_dispatch_results(
         "multi_a_sku": multi_a_sku_df,
     }
 
-    now = datetime.datetime.now().strftime("%Y-%b-%d_%H%M%S")
-    result_path = Path(f"check_results_{str(analysis_defn)}_{now}.xlsx")
+    # now = datetime.datetime.now().strftime("%Y-%b-%d_%H%M%S")
+    result_path = Path(
+        f"check_results_{analysis_defn.tag_with_output_time()}.xlsx"
+    )
     print(f"Saving check results to: {result_path}")
 
     if result_path.exists():

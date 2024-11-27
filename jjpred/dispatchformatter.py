@@ -21,7 +21,7 @@ def determine_season(month: int) -> str:
 
 
 def format_dispatch_for_netsuite(
-    dispatch_date: DateLike,
+    analysis_date: DateLike,
     dispatch_results: pl.DataFrame,
     country_flag: CountryFlags,
 ) -> pl.DataFrame:
@@ -38,7 +38,7 @@ def format_dispatch_for_netsuite(
     # than a group of countries
     assert len(country_str.split("|")) == 1, country_str.split("|")
 
-    date: Date = Date.from_datelike(dispatch_date)
+    date: Date = Date.from_datelike(analysis_date)
 
     assert dispatch_results["dispatch"].dtype == pl.Int64()
     formatted_results = (

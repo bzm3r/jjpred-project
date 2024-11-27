@@ -648,12 +648,12 @@ class Dispatcher:
 
         sheets = {
             "US": format_dispatch_for_netsuite(
-                self.analysis_defn.dispatch_date,
+                self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.US,
             ),
             "CA": format_dispatch_for_netsuite(
-                self.analysis_defn.dispatch_date,
+                self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.CA,
             ),
