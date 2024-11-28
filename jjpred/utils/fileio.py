@@ -1,14 +1,19 @@
 """Utilities for doing file input/output of Polars dataframes or
 Excel workbooks."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
+
 import polars as pl
+import xlsxwriter as xlw  # type: ignore
 
 from jjpred.analysisdefn import AnalysisDefn
+from jjpred.countryflags import CountryFlags
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
 from jjpred.utils.datetime import Date, DateLike
+from jjpred.utils.excel import convert_df_for_excel
+from jjpred.utils.polars import get_columns_in_df
 
 
 def delete_or_read_df(
@@ -27,12 +32,14 @@ def read_df(save_path: Path) -> pl.DataFrame:
     return pl.read_parquet(save_path, memory_map=False)
 
 
-def try_read_df(save_path: Path) -> pl.DataFrame | None:
+def try_read_df(save_path: Path, verbose: bool = True) -> pl.DataFrame | None:
     """Try reading a Polars dataframe at the given path. If the read fails,
     return ``None``."""
     try:
         return read_df(save_path)
     except OSError:
+        if verbose:
+            print(f"Could not find {save_path=}")
         return None
 
 
@@ -60,6 +67,23 @@ def write_df(overwrite: bool, save_path: Path, df: pl.DataFrame) -> Path:
 
     print(f"Saving to {save_path}...")
     df.write_parquet(save_path)
+    return save_path
+
+
+def write_excel(
+    save_path: Path, sheet_dict: Mapping[str, pl.DataFrame | None]
+) -> Path:
+    print(f"Saving to: {save_path}")
+
+    if save_path.exists():
+        save_path.unlink()
+    with xlw.Workbook(save_path) as workbook:
+        for key, df in sheet_dict.items():
+            if df is not None:
+                convert_df_for_excel(df).write_excel(
+                    workbook=workbook, worksheet=key
+                )
+
     return save_path
 
 
@@ -99,7 +123,7 @@ def gen_support_info_path(
     if source_name is None:
         source_part = ""
     else:
-        source_part = f"_(from={source_name})"
+        source_part = f"_src_{source_name}"
 
     return ANALYSIS_OUTPUT_FOLDER.joinpath(
         f"{str(analysis_defn)}_{support_name}_info"

@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 import polars as pl
-import xlsxwriter as xlw
 
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.channel import Channel, DistributionMode
@@ -19,6 +18,7 @@ from jjpred.datagroups import (
 from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
 from jjpred.dispatchformatter import format_dispatch_for_netsuite
+from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.globalvariables import (
     DISPATCH_CUTOFF_QTY,
 )
@@ -38,7 +38,7 @@ from jjpred.skuinfo import (
 )
 from jjpred.structlike import MemberType, StructLike
 from jjpred.utils.datetime import Date
-from jjpred.utils.fileio import write_df
+from jjpred.utils.fileio import write_df, write_excel
 from jjpred.utils.polars import (
     FilterStructs,
     find_dupes,
@@ -665,16 +665,19 @@ class Dispatcher:
             descriptor = ""
 
         if save_excel:
-            result_path = Path(
-                f"{str(self.analysis_defn)}_final_dispatch{descriptor}.xlsx"
+            result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+                Path(
+                    f"{self.analysis_defn.tag()}_final_dispatch{descriptor}.xlsx"
+                )
             )
-            print(f"Saving final dispatch to: {result_path}")
+            write_excel(result_path, sheets)
+            # print(f"Saving final dispatch to: {result_path}")
 
-            if result_path.exists():
-                result_path.unlink()
-            with xlw.Workbook(result_path) as workbook:
-                for key, df in sheets.items():
-                    if df is not None:
-                        df.write_excel(workbook=workbook, worksheet=key)
+            # if result_path.exists():
+            #     result_path.unlink()
+            # with xlw.Workbook(result_path) as workbook:
+            #     for key, df in sheets.items():
+            #         if df is not None:
+            #             df.write_excel(workbook=workbook, worksheet=key)
 
         return final_dispatch

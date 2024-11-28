@@ -4,7 +4,6 @@ comparing it with actual dispatch data."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import datetime
 import polars as pl
 import xlsxwriter as xlw  # type: ignore
 from pathlib import Path
@@ -31,7 +30,7 @@ from jjpred.datagroups import (
     SEASON_IDS,
     WHOLE_SKU_IDS,
 )
-from jjpred.countryflags import CountryFlags
+from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.globalvariables import DISPATCH_CUTOFF_QTY, MAIN_VS_THIS_TOLERANCE
 from jjpred.readsupport.mainprogram import (
     read_current_period_defn,
@@ -40,42 +39,14 @@ from jjpred.readsupport.mainprogram import (
 from jjpred.sku import Sku
 from jjpred.skuinfo import override_sku_info
 from jjpred.structlike import MemberType
-from jjpred.utils.excel import normalize_pause_plan_and_country_flags_for_excel
+from jjpred.utils.fileio import write_excel
 from jjpred.utils.polars import (
     NoOverride,
     binary_partition_strict,
     find_dupes,
-    get_columns_in_df,
     join_and_coalesce,
 )
 from jjpred.utils.typ import PolarsLit
-
-
-def country_flag_to_string(x: int) -> str:
-    """Convert country flag codes into a string representation."""
-    if x == 0:
-        return "All Active"
-    else:
-        return str(CountryFlags.from_int(x))
-
-
-def convert_df_for_excel(df: pl.DataFrame) -> pl.DataFrame:
-    """Convert a dataframe for representation as an Excel file.
-
-    We have to convert:
-     * lists of ``polars.Date``s or ``polars.Enum`` elements into
-       comma-separated string lists.
-     * country flag codes into string representations
-    """
-
-    with_converted_lists = df.with_columns(
-        pl.col(x).list.eval(pl.element().cast(pl.String())).list.join(", ")
-        for x in get_columns_in_df(df, ["current_period", "referred_by"])
-    )
-
-    return normalize_pause_plan_and_country_flags_for_excel(
-        with_converted_lists
-    )
 
 
 # TODO: make a checker which ensures that no category made a prediction based on
@@ -599,20 +570,21 @@ def check_dispatch_results(
     }
 
     # now = datetime.datetime.now().strftime("%Y-%b-%d_%H%M%S")
-    result_path = Path(
-        f"check_results_{analysis_defn.tag_with_output_time()}.xlsx"
+    result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+        Path(f"check_results_{analysis_defn.tag_with_output_time()}.xlsx")
     )
-    print(f"Saving check results to: {result_path}")
+    write_excel(result_path, (general_check | dispatch_checks))
+    # print(f"Saving check results to: {result_path}")
 
-    if result_path.exists():
-        result_path.unlink()
+    # if result_path.exists():
+    #     result_path.unlink()
 
-    with xlw.Workbook(result_path) as workbook:
-        for key, df in (general_check | dispatch_checks).items():
-            if df is not None:
-                convert_df_for_excel(df).write_excel(
-                    workbook=workbook, worksheet=key
-                )
+    # with xlw.Workbook(result_path) as workbook:
+    #     for key, df in (general_check | dispatch_checks).items():
+    #         if df is not None:
+    #             convert_df_for_excel(df).write_excel(
+    #                 workbook=workbook, worksheet=key
+    #             )
 
     return CheckResult(
         (

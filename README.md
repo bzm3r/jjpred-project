@@ -41,11 +41,11 @@ VS Code is the recommended editor for manipulating this project, and various hel
 - Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/#winget)
 - run `uv sync`
 - **unnecessary unless you really need to**:
-  - to activate the virtual environment created by `uv` manually (e.g. within a terminal), [follow the typical instructions for activating a virtual environment](https://docs.python.org/3/tutorial/venv.html); in this project's case, the virtual environment folder is called `.venv` (automatically created by `rye`), so you would run
+  - to activate the virtual environment created by `uv` manually (e.g. within a terminal), [follow the typical instructions for activating a virtual environment](https://docs.python.org/3/tutorial/venv.html); in this project's case, the virtual environment folder is called `.venv` (automatically created by `uv`), so you would run
     - (if on Linux): `source ./.venv/bin/activate`
     - (if on Windows): `./jjpred-project/.venv/Scripts/Activate.ps1`
 
-1. Create a subfolder named `AnalysisInput`
+1. Create subfolders named `AnalysisInput`/`AnalysisOutput`
 
    - download relevant Excel files into `AnalysisInput`
 

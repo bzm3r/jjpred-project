@@ -52,6 +52,7 @@ class DuplicateEliminationStrategy(Enum):
 
 def get_checked_sku_info(
     analysis_defn_or_db: AnalysisDefn | DataBase,
+    info_columns=["category", "print", "size"],
 ) -> pl.DataFrame:
     if isinstance(analysis_defn_or_db, DataBase):
         active_sku_info = analysis_defn_or_db.meta_info.active_sku
@@ -60,13 +61,13 @@ def get_checked_sku_info(
 
     sku_info = (
         active_sku_info.select(
-            ["a_sku"] + Sku.members(MemberType.PRIMARY),
+            ["a_sku"] + info_columns,
         )
         .group_by("a_sku")
-        .agg(pl.col(x).unique() for x in Sku.members(MemberType.PRIMARY))
+        .agg(pl.col(x).unique() for x in info_columns)
     )
 
-    for y in [x for x in Sku.members(MemberType.PRIMARY)]:
+    for y in [x for x in info_columns]:
         dupes = sku_info.filter(pl.col(y).list.len().gt(1))
         if len(dupes) > 0:
             print(f"{y}:")
@@ -74,7 +75,7 @@ def get_checked_sku_info(
             raise ValueError("Found dupes in SKU info!")
 
     sku_info = sku_info.with_columns(
-        pl.col(x).list.first() for x in Sku.members(MemberType.PRIMARY)
+        pl.col(x).list.first() for x in info_columns
     )
 
     return sku_info

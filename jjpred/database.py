@@ -40,7 +40,6 @@ from jjpred.utils.datetime import Date
 
 from jjpred.utils.fileio import (
     gen_meta_info_path,
-    read_df,
     read_meta_info,
     try_read_df,
     write_df,
@@ -173,7 +172,7 @@ class DataBase:
         self,
         analysis_defn: AnalysisDefn,
         filters: list[StructLike] | None = None,
-        read_from_disk=False,
+        read_from_disk=True,
     ):
         self.analysis_defn = analysis_defn
 
@@ -185,7 +184,7 @@ class DataBase:
         self.dfs: dict[DataVariant, pl.DataFrame] = dict()
 
         master_sku_result = get_master_sku_info(
-            self.analysis_defn,
+            self.analysis_defn, read_from_disk=read_from_disk
         )
         self.meta_info = MetaInfo.from_master_sku_result(master_sku_result)
 
@@ -494,8 +493,9 @@ class DataBase:
         self.meta_info = MetaInfo()
         for meta_name in self.meta_info.fields():
             path = gen_meta_info_path(self.analysis_defn, meta_name)
-            if path.exists():
-                setattr(self.meta_info, meta_name, read_df(path))
+            df = try_read_df(path)
+            if df is not None:
+                setattr(self.meta_info, meta_name, df)
             else:
                 return False
         return True

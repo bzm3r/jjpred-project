@@ -36,3 +36,30 @@ def normalize_pause_plan_and_country_flags_for_excel(
     )
 
     return df
+
+
+def country_flag_to_string(x: int) -> str:
+    """Convert country flag codes into a string representation."""
+    if x == 0:
+        return "All Active"
+    else:
+        return str(CountryFlags.from_int(x))
+
+
+def convert_df_for_excel(df: pl.DataFrame) -> pl.DataFrame:
+    """Convert a dataframe for representation as an Excel file.
+
+    We have to convert:
+     * lists of ``polars.Date``s or ``polars.Enum`` elements into
+       comma-separated string lists.
+     * country flag codes into string representations
+    """
+
+    with_converted_lists = df.with_columns(
+        pl.col(x).list.eval(pl.element().cast(pl.String())).list.join(", ")
+        for x in get_columns_in_df(df, ["current_period", "referred_by"])
+    )
+
+    return normalize_pause_plan_and_country_flags_for_excel(
+        with_converted_lists
+    )

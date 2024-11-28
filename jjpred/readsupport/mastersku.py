@@ -494,7 +494,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     # variants apart from the ones we want to explicitly recognize: F and S
     master_sku_df = (
         master_sku_df.with_columns(
-            pl.col("season_history")
+            processed_season_history=pl.col("season_history")
             .str.split(",")
             .list.eval(pl.element().str.split(" "))
             .list.eval(pl.element().explode())
@@ -512,8 +512,9 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
             )
         )
         .with_columns(
-            sku_year_history=pl.col("season_history")
-            .list.eval(pl.element().struct.field("year"))
+            sku_year_history=pl.col.processed_season_history.list.eval(
+                pl.element().struct.field("year")
+            )
             .list.unique()
             .list.drop_nulls()
             .list.sort(descending=True)
@@ -548,20 +549,24 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     latest_seasons_df = (
         (
             master_sku_df.filter(pl.col.status.eq("active"))
-            .explode("season_history")
-            .select("season_history", "sku_latest_year", *sku_columns)
+            .explode("processed_season_history")
+            .select(
+                "processed_season_history", "sku_latest_year", *sku_columns
+            )
             .filter(
-                pl.col("season_history")
+                pl.col("processed_season_history")
                 .struct.field("year")
                 .eq(pl.col("sku_latest_year"))
                 .or_(
-                    pl.col("season_history")
+                    pl.col("processed_season_history")
                     .struct.field("year")
                     .eq(pl.col("sku_latest_year") - 1)
                 )
             )
             .with_columns(
-                latest_season=pl.col("season_history").struct.field("season")
+                latest_season=pl.col("processed_season_history").struct.field(
+                    "season"
+                )
             )
         )
         .with_columns(
@@ -608,13 +613,23 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         join_nulls=True,
     ).select("category", "season")
 
-    master_sku_df = master_sku_df.join(
-        season_map,
-        on="category",
-        # there are many SKU with the same category in the LHS
-        validate="m:1",
-        join_nulls=True,
-    ).drop("season_history")
+    master_sku_df = (
+        master_sku_df.join(
+            season_map,
+            on="category",
+            # there are many SKU with the same category in the LHS
+            validate="m:1",
+            join_nulls=True,
+        )
+        .drop("processed_season_history")
+        .cast(
+            {
+                "season_history": pl.Enum(
+                    master_sku_df["season_history"].unique().sort()
+                )
+            }
+        )
+    )
 
     master_sku_df = master_sku_df.rename({"m_sku": "sku"})
 
