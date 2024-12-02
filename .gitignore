@@ -12,7 +12,8 @@ wheels/
 # others
 .ipynb_checkpoints
 excel
-Analysis*
+AnalysisInput
+AnalysisOutput
 *.parquet
 *.ipynb
 *.arrow
