@@ -8,12 +8,10 @@ import polars as pl
 import xlsxwriter as xlw  # type: ignore
 
 from jjpred.analysisdefn import AnalysisDefn
-from jjpred.countryflags import CountryFlags
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.excel import convert_df_for_excel
-from jjpred.utils.polars import get_columns_in_df
 
 
 def delete_or_read_df(

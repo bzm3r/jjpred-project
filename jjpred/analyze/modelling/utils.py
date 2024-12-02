@@ -67,16 +67,29 @@ def get_checked_sku_info(
         .agg(pl.col(x).unique() for x in info_columns)
     )
 
-    for y in [x for x in info_columns]:
-        dupes = sku_info.filter(pl.col(y).list.len().gt(1))
-        if len(dupes) > 0:
-            print(f"{y}:")
-            sys.displayhook(dupes)
-            raise ValueError("Found dupes in SKU info!")
+    if "season_history" in info_columns:
+        sku_info = sku_info.with_columns(
+            pl.col.season_history.list.sort(descending=True)
+            .list.eval(pl.element().cast(pl.String()))
+            .list.join(",")
+        )
+        sku_info = sku_info.cast(
+            {
+                "season_history": pl.Enum(
+                    sku_info["season_history"].unique().sort()
+                )
+            }
+        )
 
-    sku_info = sku_info.with_columns(
-        pl.col(x).list.first() for x in info_columns
-    )
+    for y in info_columns:
+        if isinstance(sku_info[y].dtype, pl.List):
+            dupes = sku_info.filter(pl.col(y).list.len().gt(1))
+            if len(dupes) > 0:
+                print(f"{y}:")
+                sys.displayhook(dupes)
+                raise ValueError("Found dupes in SKU info!")
+
+            sku_info = sku_info.with_columns(pl.col(y).list.first().alias(y))
 
     return sku_info
 

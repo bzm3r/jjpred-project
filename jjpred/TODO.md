@@ -3,9 +3,9 @@
 ## FEATURES
 
 - Out of Stock Flag:
-  - from date of analysis to 120 days later (4 months)
-    - this could be a variable in general
-  - mark which SKUs will be out-of-stock 120 days later
+  - predict from date of analysis to 120 days later (4 months)
+    - this should be a variable in general
+  - mark which SKUs are predicted to be out-of-stock 120 days later
 
 - should read PO data directly from PO data file
   - update: will be prepared separately/specially for consumption by this program
