@@ -324,6 +324,7 @@ class FbaRevDefn(AnalysisDefn):
         prediction_start_date_required_month_parts: int | None = None,
         prediction_end_date_required_month_parts: int | None = None,
         match_main_program_month_fractions: bool = False,
+        enable_low_current_period_isr_logic: bool = True,
         extra_descriptor: str | None = None,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
@@ -386,6 +387,10 @@ class FbaRevDefn(AnalysisDefn):
             match_main_program_month_fractions
         )
 
+        self.enable_low_current_period_isr_logic = (
+            enable_low_current_period_isr_logic
+        )
+
         if qty_box_date is not None:
             self.qty_box_date = Date.from_datelike(qty_box_date)
 
@@ -421,6 +426,7 @@ class FbaRevDefn(AnalysisDefn):
         new_overrides_e: bool = True,
         demand_ratio_rolling_update_to: DateLike | None = None,
         enable_full_box_logic: bool = True,
+        enable_low_current_period_isr_logic: bool = False,
         match_main_program_month_fractions: bool = True,
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
@@ -461,6 +467,7 @@ class FbaRevDefn(AnalysisDefn):
             enable_full_box_logic=enable_full_box_logic,
             demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
             match_main_program_month_fractions=match_main_program_month_fractions,
+            enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
         )
 
     # mon_sale_r_date: Date | None = field(default=None, compare=False)
