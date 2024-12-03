@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
+import polars as pl
+
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.channel import Channel
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
-import polars as pl
 from jjpred.readsupport.utils import (
     cast_standard,
 )

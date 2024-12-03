@@ -31,5 +31,5 @@
   "quarto.render.renderOnSave": true,
   "python.analysis.supportDocstringTemplate": true,
   "python.analysis.supportRestructuredText": true,
-  "python.analysis.extraPaths": ["./jjpred-notebooks/analysis/trends"]
+  "python.analysis.extraPaths": []
 }

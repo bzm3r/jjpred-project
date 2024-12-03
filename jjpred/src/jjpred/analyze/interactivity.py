@@ -77,7 +77,7 @@ def create_legend_selection(
     column: str,
     column_type: Literal["nominal", "ordinal", "quantitative", "temporal"],
     alt_color: Literal["lightgray", "transparent"],
-) -> tuple[alt.Parameter, dict[str, Any]]:  # tuple[alt.Parameter, alt.Chart]:
+) -> tuple[alt.Parameter, Any]:  # tuple[alt.Parameter, alt.Chart]:
     options = df[column].unique().sort()
     assert len(options) > 0
     name = f"{column.capitalize()}"

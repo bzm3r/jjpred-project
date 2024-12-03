@@ -20,6 +20,7 @@ AnalysisOutput
 *.xlsx
 *.xlsm
 
+# ignore auxiliary folders
 jjpred-*
 
 **/docs/*.rst
