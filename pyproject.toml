@@ -5,14 +5,15 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "altair>=5.5.0",
+  "analysis-tools",
   "fastexcel>=0.12.0",
   "ipykernel>=6.29.5",
   "jjpred",
-  "jjpred-analysis",
   "jupyter>=1.1.1",
   "notebook>=7.2.2",
   "numpy>=2.1.3",
   "polars>=1.16.0",
+  "quarto>=0.1.0",
   "scipy>=1.14.1",
   "vega-datasets>=0.9.0",
   "vegafusion[embed]>=2.0.1",
@@ -20,8 +21,8 @@ dependencies = [
 ]
 
 [tool.uv.workspace]
-members = ["jjpred", "jjpred-analysis"]
+members = ["jjpred", "analysis_tools"]
 
 [tool.uv.sources]
 jjpred = { workspace = true }
-jjpred-analysis = { workspace = true }
+analysis-tools = { workspace = true }

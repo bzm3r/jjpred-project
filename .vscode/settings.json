@@ -31,5 +31,5 @@
   "quarto.render.renderOnSave": true,
   "python.analysis.supportDocstringTemplate": true,
   "python.analysis.supportRestructuredText": true,
-  "python.analysis.extraPaths": []
+  "python.analysis.extraPaths": ["jjpred/src", "analysis_tools/src"]
 }

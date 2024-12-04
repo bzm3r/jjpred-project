@@ -3,14 +3,8 @@ name = "jjpred"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "Brian Merchant", email = "bzm3r@proton.me" }
-]
 requires-python = ">=3.12"
 dependencies = []
-
-[project.scripts]
-jjpred = "jjpred:main"
 
 [build-system]
 requires = ["hatchling"]

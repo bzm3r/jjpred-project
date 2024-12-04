@@ -1,10 +1,8 @@
 from collections import defaultdict
-from dataclasses import dataclass
 from enum import Enum, auto, unique
 import sys
 import polars as pl
 from jjpred.analysisdefn import AnalysisDefn
-from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase, read_meta_info
 from jjpred.sku import Sku
 from jjpred.structlike import MemberType
@@ -196,41 +194,6 @@ def enum_extend_vstack(
                 )
 
     return df.vstack(other_df.select(df.columns))
-
-
-@dataclass
-class ChannelFilter:
-    description: str
-    expression: pl.Expr
-
-
-NA_MAJOR_RETAIL_FILTER = ChannelFilter(
-    "_AMAZON+JJ_CA|US_",
-    (pl.col.mode == "RETAIL")
-    & (pl.col.country_flag.and_(int(CountryFlags.CA | CountryFlags.US)) > 0)
-    & (pl.col.platform.is_in(["Amazon", "JanAndJul", "PopUp"])),
-)
-
-WHOLESALE_FILTER = ChannelFilter(
-    "_ALL_WHOLESALE_", pl.col.mode.eq("WHOLESALE")
-)
-
-EU_RETAIL_FILTER = ChannelFilter(
-    "_AMAZON_EU_",
-    (pl.col.mode == "RETAIL")
-    & (
-        pl.col.country_flag.and_(
-            int(CountryFlags.DE | CountryFlags.EU | CountryFlags.UK)
-        )
-        > 0
-    ),
-)
-
-KNOWN_CHANNEL_FILTERS = [
-    NA_MAJOR_RETAIL_FILTER,
-    WHOLESALE_FILTER,
-    EU_RETAIL_FILTER,
-]
 
 
 def check_sales_data_for_dupes(sales_data: pl.DataFrame) -> pl.DataFrame:
