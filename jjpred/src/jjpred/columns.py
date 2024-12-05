@@ -378,7 +378,7 @@ HISTORY_YEAR_MONTH_LABEL_DEFN = LabelDefn(
 IN_STOCK_RATIO_YEAR_MONTH_STOCK_DAYS_LABEL_DEFN = LabelDefn(
     "year_month_stock_days",
     ReMatcher.from_pattern(
-        "year_month_stock_ratio_label_defn",
+        "year_month_stock_days_label_defn",
         CompiledPattern(
             StringPattern(r"\d{4}")
             .named("year")
@@ -393,6 +393,24 @@ IN_STOCK_RATIO_YEAR_MONTH_STOCK_DAYS_LABEL_DEFN = LabelDefn(
     ),
     transformers=defaultdict(lambda: Transformer(use_dict), {}),
 )
+
+# IN_STOCK_RATIO_YTD_STOCK_DAYS_LABEL_DEFN = LabelDefn(
+#     "ytd_stock_days",
+#     ReMatcher.from_pattern(
+#         "ytd_stock_days_label_defn",
+#         CompiledPattern(
+#             StringPattern(r"\d{4}")
+#             .named("year")
+#             .concatenate(
+#                 StringPattern(r" Year-to-Date In-Stock Days").no_capture(),
+#             ),
+#             ReMatchResult,
+#             flags=re.IGNORECASE,
+#         ),
+#         ReMatchCondition.WideAll,
+#     ),
+#     transformers=defaultdict(lambda: Transformer(use_dict), {}),
+# )
 
 INV_CHANNEL_LABEL_DEFN = LabelDefn(
     "channel",
