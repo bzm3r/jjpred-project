@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import polars as pl
-import xlsxwriter as xlw  # type: ignore
 from pathlib import Path
 
 from jjpred.analysisdefn import FbaRevDefn
