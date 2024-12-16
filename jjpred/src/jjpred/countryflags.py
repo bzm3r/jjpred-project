@@ -49,6 +49,21 @@ class CountryFlags(IntFlagLike):
     US = auto()
     """United States"""
 
+    def try_to_string(self) -> str | None:
+        if self == CountryFlags.all_regions():
+            return "ALL_REGION"
+        else:
+            return self.name
+
+    @classmethod
+    def all_regions(cls) -> CountryFlags:
+        country_flag = CountryFlags(0)
+        for x in CountryFlags:
+            if x != CountryFlags.GlobalUS:
+                country_flag |= x
+
+        return country_flag
+
     def string_pattern(self) -> StringPattern:
         """The string pattern (regular expression) used to match for a
         particular country."""

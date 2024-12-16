@@ -43,6 +43,9 @@ class DistributionMode(EnumLike):
     WAREHOUSE = auto()
     """Warehouse."""
     NO_MODE = auto()
+    """No mode information."""
+    ALL_MODE = auto()
+    """All mode information was blurred."""
 
 
 # TODO: figure out why using anything but a pl.Int64() fails.
@@ -207,7 +210,7 @@ class Platform(PlatformAttrs, EnumLike):
     Amazon = (
         ChannelMatcher(
             ["amazon", "amz"],
-            PossibleCountries([case for case in CountryFlags]),
+            PossibleCountries([x for x in CountryFlags]),
         ),
         DistributionMode.RETAIL,
     )
@@ -262,7 +265,7 @@ class Platform(PlatformAttrs, EnumLike):
     Wholesale = (
         ChannelMatcher(
             ["wholesale"],
-            None,
+            FixedCountries(CountryFlags.all_regions()),
         ),
         DistributionMode.WHOLESALE,
     )
@@ -278,7 +281,7 @@ class Platform(PlatformAttrs, EnumLike):
     AllChannels = (
         ChannelMatcher(
             ["all channels"],
-            FixedCountries(CountryFlags(CountryFlags.max_int())),
+            FixedCountries(CountryFlags.all_regions() | CountryFlags.GlobalUS),
         ),
         DistributionMode.NO_MODE,
     )
@@ -418,8 +421,11 @@ class Channel(
             if self.country_flag is not None
             else None
         )
+
         if country_flag is None:
-            country_flag = "??"
+            country_flag = "COUNTRY=??"
+        elif country_flag == CountryFlags.all_regions():
+            country_flag = "ALL_REGION"
 
         mode = self.mode.try_to_string()
         if mode is None:

@@ -28,6 +28,7 @@ from jjpred.predictiontypes import PredictionType
 from jjpred.readsupport.utils import cast_standard
 from jjpred.readsupport.predictiontypes import read_prediction_types
 from jjpred.skuinfo import initialize_sku_info
+from jjpred.utils.datamanipulation import merge_wholesale
 from jjpred.utils.groupeddata import (
     CategoryGroupProtocol,
     CategoryGroups,
@@ -733,6 +734,8 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
     (monthly) ratios."""
     data: dict[Channel, PredictionInputs] = {}
     """Data used to generate predictions, per channel."""
+    merge_faire_and_wholesale_into_wholesale: bool = True
+    """Whether to merge Faire.com and Wholesale data into the Wholesale channel."""
 
     def __init__(
         self,
@@ -741,6 +744,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         strategy_groups_per_channel: ChannelStrategyGroups,
         po_data: pl.DataFrame,
         latest_dates: LatestDates | None = None,
+        merge_faire_and_wholesale_into_wholesale: bool = True,
     ) -> None:
         self.db = db
         self.analysis_defn = analysis_defn
@@ -751,7 +755,16 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             self.db, self.prediction_type_meta_date
         )
 
-        self.history_data = self.db.dfs[DataVariant.History].drop("channel")
+        self.history_data = self.db.dfs[DataVariant.History]
+
+        if merge_faire_and_wholesale_into_wholesale:
+            self.history_data = merge_wholesale(
+                self.history_data,
+                ["a_sku", "date", "category"],
+                [pl.col.sales.sum()],
+            )
+
+        self.history_data = self.history_data.drop("channel")
         find_dupes(
             self.history_data,
             ["a_sku", "date"] + Channel.members(),
@@ -789,6 +802,13 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
     def generate_data_using_latest_dates(
         self, latest_dates: LatestDates | None = None
     ) -> Predictor:
+        """Create a predictor that uses current period sales and latest demand
+        (monthly) ratios based on an optional given date.
+
+        :param latest_dates: The latest dates used to calculate current period
+            sales and latest demand (monthly) ratios, defaults to None. If None,
+            it uses the latest available date.
+        """
         return Predictor(
             self.analysis_defn,
             self.db,
@@ -1397,6 +1417,8 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 )
                 assert not data_existence_issue["po_data_exists_issue"].any()
                 assert not data_existence_issue["e_data_exists_issue"].any()
+
+                assert len(expected_demand_df) > 0
 
                 performance_flag_df = (
                     expected_demand_df.filter(

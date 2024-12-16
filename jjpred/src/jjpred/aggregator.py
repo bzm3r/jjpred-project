@@ -41,6 +41,16 @@ class Aggregator:
 type AggregatorLike = Callable[[pl.DataFrame], pl.DataFrame] | Aggregator
 
 
+def agg_do_nothing(history: pl.DataFrame) -> pl.DataFrame:
+    """Aggregates historical sales by category across all channels in the
+    given historical sales dataframe.
+    """
+    return history.group_by(
+        "category",
+        "date",
+    ).agg(pl.col("sales").sum())
+
+
 def agg_retail(history: pl.DataFrame) -> pl.DataFrame:
     """Aggregates historical sales by category across all retail channels in the
     given historical sales dataframe.
@@ -53,6 +63,70 @@ def agg_retail(history: pl.DataFrame) -> pl.DataFrame:
         )
         .agg(pl.col("sales").sum())
     )
+
+
+def agg_wholesale(history: pl.DataFrame) -> pl.DataFrame:
+    """Aggregates historical sales by category across all retail channels in the
+    given historical sales dataframe.
+    """
+    return (
+        history.filter(pl.col("mode").eq(DistributionMode.WHOLESALE.name))
+        .group_by(
+            "category",
+            "date",
+        )
+        .agg(pl.col("sales").sum())
+    )
+
+
+class UsingChannels(Aggregator):
+    """Aggregates sales by category across ``focus_channels`` channels
+    in the given sales dataframe. If ``focus_channels`` is ``None``, then it
+    does not filter at all."""
+
+    focus_channels: list[Channel] | None
+    channel_filter: FilterStructs | None
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.focus_channels == other.focus_channels
+        return False
+
+    def __init__(
+        self, focus_channels: ScalarOrList[Channel | str] | None = None
+    ):
+        """Aggregates sales by category across all retail channels
+        in the given sales dataframe.
+
+        :param focus_channels: _description_, defaults to None
+        :type focus_channels: ScalarOrList[Channel  |  str] | None, optional
+        """
+        if focus_channels is not None:
+            self.focus_channels = [
+                Channel.parse(ch) for ch in as_list(focus_channels)
+            ]
+            self.channel_filter = FilterStructs(set(self.focus_channels))
+        else:
+            self.focus_channels = focus_channels
+            self.channel_filter = None
+
+        focus_channels_reprs = [
+            str(ch) for ch in normalize_optional(self.focus_channels, [])
+        ]
+        super().__init__("agg: " + f"filter_channels: {focus_channels_reprs}")
+
+    def __call__(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Aggregates sales by category across all retail channels
+        in the given sales dataframe.
+
+        Args:
+            df (pl.DataFrame): dataframe containing sales data.
+
+        Returns:
+            pl.DataFrame
+        """
+        df = struct_filter(df, self.channel_filter)
+        return agg_do_nothing(df)
 
 
 class UsingRetail(Aggregator):
@@ -156,6 +230,32 @@ class UsingAllRetail(UsingRetail):
         Returns:
             pl.DataFrame
         """
+        return agg_retail(df)
+
+
+class UsingWholesale(Aggregator):
+    """Aggregates sales by category across all CA/US retail channels
+    in the given sales dataframe."""
+
+    def __init__(self):
+        super().__init__("agg: all wholesale channels")
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, self.__class__)
+
+    def __call__(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Aggregates sales by category across all wholesale channels
+        in the given sales dataframe.
+
+        Args:
+            df (pl.DataFrame): dataframe containing sales data.
+
+        Returns:
+            pl.DataFrame
+        """
+        df = df.filter(
+            pl.col("mode").eq(DistributionMode.WHOLESALE.name),
+        )
         return agg_retail(df)
 
 

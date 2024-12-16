@@ -217,6 +217,11 @@ class DataBase:
         return self.dfs[DataVariant.History]
 
     @property
+    def in_stock_ratio(self) -> pl.DataFrame:
+        """Get the in stock ratio dataframe."""
+        return self.dfs[DataVariant.InStockRatio]
+
+    @property
     def inventory(self) -> pl.DataFrame:
         """Get the inventory dataframe."""
         return self.dfs[DataVariant.Inventory]

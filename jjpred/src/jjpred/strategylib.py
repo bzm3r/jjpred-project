@@ -6,8 +6,6 @@ from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import total_ordering
-from typing import Self
-import polars as pl
 
 from jjpred.aggregator import (
     Aggregator,
@@ -16,21 +14,13 @@ from jjpred.aggregator import (
     UsingRetail,
 )
 from jjpred.channel import Channel
-from jjpred.globalvariables import OFF_SEASONS
 from jjpred.inputstrategy import (
     InputStrategy,
     TimePeriod,
-    RefillType,
     UndeterminedTimePeriod,
 )
-from jjpred.seasons import Season
 from jjpred.sku import Category
 
-from jjpred.utils.datetime import (
-    Date,
-    DateLike,
-    Month,
-)
 from jjpred.utils.multidict import MultiDict
 
 
@@ -67,6 +57,7 @@ class StrategyId:
 
 LATEST = StrategyId("latest")
 AUG_BIG = StrategyId("aug_big")
+PO_DOUBLE_CHECK = StrategyId("po_double_check")
 
 ALL_CHANNEL_AGGREGATOR = UsingAllChannels()
 ALL_CAN_US_RETAIL_AGGREGATOR = UsingCanUSRetail()
@@ -108,7 +99,7 @@ CURRENT_PERIODS: MultiDict[Category, TimePeriod | UndeterminedTimePeriod] = (
                 "AHJ",
                 "SPW",
             ): UndeterminedTimePeriod("2024-MAR-01"),
-            ("BSL",): TimePeriod("2024-JUL-01", "2024-SEP-01"),
+            ("BSL",): UndeterminedTimePeriod("2024-AUG-01"),
             (
                 "WPS",
                 "WSS",
@@ -193,72 +184,247 @@ REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
 (containing monthly sales ratio sheet) Excel file."""
 
 
-@dataclass
-class InSeason:
-    """Keeps track of which season labels are considered in season, based on
-    refill type and dispatch date/month."""
-
-    data: dict[Month, dict[RefillType, list[Season]]]
-    """Inner datatype used to keep track of how in-season information."""
-
-    def set_month(
-        self, dispatch_month: Month, value: dict[RefillType, list[Season]]
-    ):
-        """Set the season labels considered in-season for a dispatch month."""
-        self.data[dispatch_month] = value
-
-    def get_in_season_for_month(
-        self, dispatch_month: Month, refill_type: RefillType
-    ) -> list[Season]:
-        """Given the month the dispatch is being executed in, and the type of
-        refill, get a list of the season labels considered in-season."""
-        return self.data[dispatch_month][refill_type]
-
-    def get_in_season_for_date(
-        self, dispatch_date: DateLike, refill_type: RefillType
-    ) -> pl.Series:
-        """Given the date of dispatch, calculate which season labels for SKUs
-        are in-season."""
-        dispatch_date = Date.from_datelike(dispatch_date)
-        return pl.Series(
-            "season",
-            [
-                x.name
-                for x in self.get_in_season_for_month(
-                    dispatch_date.month, refill_type
-                )
-            ],
-            dtype=Season.polars_type(),
-        )
-
-    @classmethod
-    def from_off_season_info(cls, data: dict[Month, Season | None]) -> Self:
-        """Generate in-season information based on off-season information."""
-        result = cls({})
-        for month, off_season in data.items():
-            if off_season is None:
-                off_seasons = []
-            else:
-                off_seasons = [off_season]
-
-            result.set_month(
-                month,
-                dict(
-                    (refill_type, refill_type.in_season()(off_seasons))
-                    for refill_type in RefillType
-                ),
-            )
-        return result
-
-
-IN_SEASON_INFO: InSeason = InSeason.from_off_season_info(OFF_SEASONS)
-"""Mapping containing information about what season labels are in-season, based
-on the dispatch month and refill type being considered."""
-
 # from historic_extract.ipynb
 PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
     Channel, Mapping[Category, Aggregator]
 ] = {
+    Channel.parse("Amazon CA RETAIL"): MultiDict(
+        data={
+            (
+                "XBK",
+                "XBM",
+                "LBS",
+                "FPM",
+                "BCV",
+                "UT1",
+                "USA",
+                "UG1",
+                "UJ1",
+                "UV2",
+                "HXP",
+            ): ALL_CHANNEL_AGGREGATOR,
+        }
+    ).as_dict(),
+    Channel.parse("JanAndJul CA|US RETAIL"): MultiDict(
+        data={
+            (
+                "XBK",
+                "XBM",
+                "LBS",
+                "FPM",
+                "BCV",
+                "UT1",
+                "USA",
+                "UG1",
+                "UJ1",
+                "UV2",
+            ): ALL_CHANNEL_AGGREGATOR,
+            (
+                "FMR",
+                "KEH",
+                "WSF",
+                "BSW",
+                "BSA",
+                "BRC",
+                "BTB",
+                "KMT",
+                "WMT",
+                "WSS",
+                "UST",
+                "HBU",
+                "HLC",
+                "HXC",
+                "HXU",
+                "HXP",
+                "GUX",
+                "HBS",
+                "SKG",
+                "SPW",
+                "SJF",
+            ): AMAZON_CA_AGGREGATOR,
+        }
+    ).as_dict(),
+    Channel.parse("Wholesale None WHOLESALE"): MultiDict(
+        data={
+            ("XBM", "LBS", "FPM", "BCV"): ALL_CHANNEL_AGGREGATOR,
+            (
+                "UST",
+                "HBU",
+                "HLC",
+                "HXC",
+                "HXU",
+                "HXP",
+            ): AMAZON_CA_AGGREGATOR,
+        }
+    ).as_dict(),
+    Channel.parse("Amazon EU RETAIL"): MultiDict(
+        data={
+            (
+                "AJA",
+                "WPO",
+                "WJO",
+                "GBX",
+                "GHA",
+                "ISJ",
+                "FHA",
+                "FAN",
+                "BST",
+                "IPS",
+                "XWG",
+                "XLB",
+                "XPC",
+                "XBK",
+                "XBM",
+                "LBP",
+                "LBT",
+                "IPC",
+                "ISS",
+                "ISB",
+                "SMF",
+                "SWS",
+                "ICP",
+                "LBS",
+                "LAN",
+                "LAB",
+                "FSM",
+                "FPM",
+                "FJM",
+                "FMR",
+                "BTT",
+                "KEH",
+                "AWWJ",
+                "BCV",
+                "WGS",
+                "WBS",
+                "WBF",
+                "WSF",
+                "WJT",
+                "BSW",
+                "BSA",
+                "BRC",
+                "SKT",
+                "BTL",
+                "BTB",
+                "KMT",
+                "IHT",
+                "WRM",
+                "WMT",
+                "WSS",
+                "WPS",
+                "WPF",
+                "WJA",
+                "UST",
+                "HBU",
+                "HLC",
+                "HXC",
+                "HXU",
+                "HJS",
+                "AJS",
+                "ACB",
+                "ACA",
+                "AAA",
+                "UT1",
+                "USA",
+                "UG1",
+                "UJ1",
+                "UV2",
+                "HLH",
+                "HXP",
+                "GUA",
+                "GUX",
+                "HBS",
+                "SKX",
+                "SKG",
+                "SPW",
+                "SJF",
+                "SKB",
+            ): AMAZON_CA_AGGREGATOR
+        }
+    ).as_dict(),
+    Channel.parse("Amazon UK RETAIL"): MultiDict(
+        data={
+            (
+                "AJA",
+                "WPO",
+                "WJO",
+                "GBX",
+                "GHA",
+                "ISJ",
+                "FHA",
+                "FAN",
+                "BST",
+                "IPS",
+                "XWG",
+                "XLB",
+                "XPC",
+                "XBK",
+                "XBM",
+                "LBP",
+                "LBT",
+                "IPC",
+                "ISS",
+                "ISB",
+                "SMF",
+                "SWS",
+                "ICP",
+                "LBS",
+                "LAN",
+                "LAB",
+                "FSM",
+                "FPM",
+                "FJM",
+                "FMR",
+                "BTT",
+                "KEH",
+                "AWWJ",
+                "BCV",
+                "WGS",
+                "WBS",
+                "WBF",
+                "WSF",
+                "WJT",
+                "BSW",
+                "BSA",
+                "BRC",
+                "SKT",
+                "BTL",
+                "BTB",
+                "KMT",
+                "IHT",
+                "WRM",
+                "WMT",
+                "WSS",
+                "WPS",
+                "WPF",
+                "WJA",
+                "UST",
+                "HBU",
+                "HLC",
+                "HXC",
+                "HXU",
+                "HJS",
+                "AJS",
+                "ACB",
+                "ACA",
+                "AAA",
+                "UT1",
+                "USA",
+                "UG1",
+                "UJ1",
+                "UV2",
+                "HLH",
+                "HXP",
+                "GUA",
+                "GUX",
+                "HBS",
+                "SKX",
+                "SKG",
+                "SPW",
+                "SJF",
+                "SKB",
+            ): AMAZON_CA_AGGREGATOR
+        }
+    ).as_dict(),
     Channel.parse("Amazon US RETAIL"): MultiDict(
         data={
             (
@@ -277,23 +443,6 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
             ("FMR", "KEH", "BSW", "BSA", "BRC", "KMT"): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
-    Channel.parse("Amazon CA RETAIL"): MultiDict(
-        data={
-            (
-                "XBK",
-                "XBM",
-                "LBS",
-                "FPM",
-                "BCV",
-                "UT1",
-                "USA",
-                "UG1",
-                "UJ1",
-                "UV2",
-                "HXP",
-            ): ALL_CHANNEL_AGGREGATOR
-        }
-    ).as_dict(),
 }
 """Sometimes, some channels use the same aggregation strategy (i.e. the sames
 historical sales data) as another channel, rather than the default of using
@@ -302,7 +451,7 @@ their own channel's data."""
 STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
     LATEST: [
         InputStrategy(
-            Channel.from_str("Amazon.com"),
+            Channel.from_str(channel),
             REFERENCE_CATEGORIES.as_dict(),
             defaultdict(
                 lambda: UndeterminedTimePeriod("2024-FEB"),
@@ -310,17 +459,15 @@ STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
             ),
             2023,
             PER_CHANNEL_REFERENCE_CHANNELS,
-        ),
-        InputStrategy(
-            Channel.from_str("Amazon.ca"),
-            REFERENCE_CATEGORIES.as_dict(),
-            defaultdict(
-                lambda: UndeterminedTimePeriod("2024-FEB"),
-                CURRENT_PERIODS.as_dict(),
-            ),
-            2023,
-            PER_CHANNEL_REFERENCE_CHANNELS,
-        ),
+        )
+        for channel in [
+            "Amazon.com",
+            "Amazon.ca",
+            "janandjul.com",
+            "Wholesale",
+            "amazon.co.uk",
+            "amazon.eu",
+        ]
     ],
 }
 

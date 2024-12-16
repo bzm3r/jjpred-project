@@ -3,6 +3,8 @@
 For example, suppose we have a dictionary: ``{"a": 0, "b": 0, "c": 1}``, then we
 can interconvert it between ``{("a", "b"): 0, ("c",): 1}`` ("multi-dict")."""
 
+from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Self
 
@@ -37,8 +39,14 @@ class MultiDict[T, U]:
         else:
             raise ValueError(f"Cannot combine: {self=} | {other=}")
 
-    def as_dict(self) -> dict[T, U]:
-        result = {}
+    def as_dict(
+        self, default_factory: Callable[..., U] | None = None
+    ) -> dict[T, U] | defaultdict[T, U]:
+        if default_factory is not None:
+            result = defaultdict(default_factory)
+        else:
+            result = {}
+
         for key, item in self.data.items():
             if isinstance(key, tuple):
                 for k in key:

@@ -12,8 +12,8 @@ from typing import Any, Self, cast
 import polars as pl
 import datetime as dt
 
-from jjpred.aggregator import Aggregator, UsingRetail
-from jjpred.channel import Channel
+from jjpred.aggregator import Aggregator, UsingChannels, UsingRetail
+from jjpred.channel import Channel, DistributionMode
 from jjpred.globalvariables import (
     WEEKLY_PREDICTION_OFFSET,
     SEASON_START_PREDICTION_OFFSET,
@@ -330,7 +330,7 @@ class InputStrategy(PrettyPrint):
         ):
             aggregators = dict(aggregators)
             self.aggregators = defaultdict(
-                lambda: UsingRetail(
+                lambda: UsingChannels(
                     cast(ScalarOrList[Channel | str], self.channels)
                 ),
                 aggregators,
