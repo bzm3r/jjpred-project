@@ -619,6 +619,7 @@ class Dispatcher:
         save_excel: bool = True,
         dispatch_filter: pl.Expr | None = None,
         descriptor: str | None = None,
+        save_csv: bool = True,
     ) -> pl.DataFrame:
         """Prepare an Excel file in the expected dispatch output format based on
         calculated dispatch.
@@ -671,6 +672,14 @@ class Dispatcher:
                 )
             )
             write_excel(result_path, sheets)
+        if save_csv:
+            for x in sheets.keys():
+                result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+                    Path(
+                        f"TO_SRR_FBA{x}{self.analysis_defn.dispatch_date.fmt_flat()}.csv"
+                    )
+                )
+                sheets[x].write_csv(result_path)
             # print(f"Saving final dispatch to: {result_path}")
 
             # if result_path.exists():

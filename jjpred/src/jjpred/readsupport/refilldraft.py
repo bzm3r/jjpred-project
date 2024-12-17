@@ -142,6 +142,7 @@ def read_raw_dispatch_from_excel(
 
 def read_final_dispatch(
     analysis_defn: FbaRevDefn,
+    target_channels: list[str | Channel] = ["amazon.com", "amazon.ca"],
 ) -> pl.DataFrame:
     """Read the dispatch from a ``REFILL DRAFT PLAN`` Excel file."""
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
@@ -156,7 +157,7 @@ def read_final_dispatch(
 
     dispatch_df = pl.DataFrame()
 
-    for channel in ["Amazon.com", "Amazon.ca"]:
+    for channel in target_channels:
         ch = Channel.parse(channel)
         dispatch_type = (
             DispatchType.FINAL_US
@@ -417,6 +418,7 @@ def read_dispatch_from_refill_draft(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = False,
     delete_if_exists: bool = False,
+    target_channels: list[str | Channel] = ["amazon.ca", "amazon.com"],
 ) -> pl.DataFrame:
     save_path = gen_support_info_path(
         analysis_defn,
@@ -445,7 +447,9 @@ def read_dispatch_from_refill_draft(
         pl.col("flag").fill_null("NO_FLAG"),
     )
 
-    final_dispatch = read_final_dispatch(analysis_defn)
+    final_dispatch = read_final_dispatch(
+        analysis_defn, target_channels=target_channels
+    )
 
     return create_dispatch_info(
         analysis_defn,

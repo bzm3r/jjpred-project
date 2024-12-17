@@ -98,8 +98,7 @@ CURRENT_PERIODS: MultiDict[Category, TimePeriod | UndeterminedTimePeriod] = (
                 "AJS",
                 "AHJ",
                 "SPW",
-            ): UndeterminedTimePeriod("2024-MAR-01"),
-            ("BSL",): UndeterminedTimePeriod("2024-AUG-01"),
+            ): TimePeriod("2024-MAR-01", "2024-NOV-01"),
             (
                 "WPS",
                 "WSS",
@@ -143,10 +142,10 @@ CURRENT_PERIODS: MultiDict[Category, TimePeriod | UndeterminedTimePeriod] = (
                 "FAN",
                 "FHA",
                 "ISJ",
+                "BCV",
             ): UndeterminedTimePeriod("2024-SEP-01"),
-            ("BCV",): UndeterminedTimePeriod("2024-JUN-01"),
-            ("SWS", "XBM", "XBK", "XLB", "XPC"): UndeterminedTimePeriod(
-                "2024-JAN-01"
+            ("BSL", "SWS", "XBM", "XBK", "XLB", "XPC"): UndeterminedTimePeriod(
+                "2024-AUG-01"
             ),
         }
     )

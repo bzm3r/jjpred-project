@@ -101,6 +101,7 @@ STARTS_WITH_M_OK_LIST = []
 ignored."""
 
 IGNORE_CATEGORY_LIST = [
+    "DEAL-MISC-KCS",
     "DEAL-MISC",
     "STORE",
     "GUB-AST",
