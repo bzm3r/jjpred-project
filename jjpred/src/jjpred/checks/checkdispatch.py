@@ -142,12 +142,12 @@ def check_dispatch_results(
     """
     active_results = jjpred_dispatch.filter(pl.col("is_active"))
 
-    # skus_in_main_program = (
-    #     read_excel_predictions(analysis_defn, read_from_disk=read_from_disk)
-    #     .select("sku")
-    #     .unique()
-    #     .with_columns(in_main_program=pl.lit(True))
-    # )
+    skus_in_main_program = (
+        read_excel_predictions(analysis_defn, read_from_disk=read_from_disk)
+        .select("sku")
+        .unique()
+        .with_columns(in_main_program=pl.lit(True))
+    )
     bad_date_defn = (
         read_current_period_defn(analysis_defn, read_from_disk=read_from_disk)
         .filter((pl.col("start") - pl.col("end")).eq(0))
@@ -155,12 +155,12 @@ def check_dispatch_results(
         .with_columns(pl.lit(True).alias("missing_current_period_defn"))
     )
 
-    # active_results = override_sku_info(
-    #     active_results,
-    #     skus_in_main_program,
-    #     fill_null_value=PolarsLit(False),
-    #     dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
-    # )
+    active_results = override_sku_info(
+        active_results,
+        skus_in_main_program,
+        fill_null_value=PolarsLit(False),
+        dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
+    )
     active_results = override_sku_info(
         active_results,
         bad_date_defn,
@@ -304,24 +304,24 @@ def check_dispatch_results(
         )
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
-        # "Main program missing": active_results.filter(
-        #     ~pl.col("in_main_program") & pl.col("is_current_print")
-        #     | (
-        #         ~pl.col("in_main_program")
-        #         & ~(pl.col("is_current_print") | pl.col("is_next_year_print"))
-        #         & pl.col("wh_dispatchable").gt(0)
-        #     )
-        # )
-        # .select(
-        #     ALL_SKU_IDS
-        #     + SEASON_IDS
-        #     + PAUSE_FLAGS
-        #     + PAUSE_PLAN_IDS
-        #     + MAIN_PROGRAM_INFO
-        #     + ["wh_stock"]
-        # )
-        # .unique()
-        # .sort(all_sku_ids),
+        "Main program missing": active_results.filter(
+            ~pl.col("in_main_program") & pl.col("is_current_print")
+            | (
+                ~pl.col("in_main_program")
+                & ~(pl.col("is_current_print") | pl.col("is_next_year_print"))
+                & pl.col("wh_dispatchable").gt(0)
+            )
+        )
+        .select(
+            ALL_SKU_IDS
+            + SEASON_IDS
+            + PAUSE_FLAGS
+            + PAUSE_PLAN_IDS
+            + MAIN_PROGRAM_INFO
+            + ["wh_stock"]
+        )
+        .unique()
+        .sort(all_sku_ids),
         "Missing Current Period": unpaused_results.filter(
             pl.col("missing_current_period_defn") & pl.col("is_current_print")
         )
@@ -426,12 +426,7 @@ def check_dispatch_results(
         with_actual_dispatch = (
             join_and_coalesce(
                 results_with_check_flags,
-                actual_dispatch.filter(
-                    ~(
-                        pl.col.sku.eq("XBM-SPD-OS")
-                        & pl.col.actual_final_dispatch.eq(6)
-                    )
-                ),
+                actual_dispatch,
                 NoOverride(),
                 join_nulls=True,
                 dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
