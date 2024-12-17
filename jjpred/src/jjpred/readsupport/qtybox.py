@@ -186,6 +186,9 @@ def read_qty_box(
             ).filter(~(pl.col.qty_box.is_null() | pl.col.qty_box.eq(0)))
         )
     qty_box_df = pl.concat(sheet_dfs)
+    print(qty_box_df.filter(pl.col.size.is_null()))
+    print("filling null size with OS")
+    qty_box_df = qty_box_df.with_columns(pl.col.size.fill_null("OS"))
 
     # Check if any dupes have different `qty_box`` based on season.
     # We are currently assuming that the `qty_box`` size is the same regardless

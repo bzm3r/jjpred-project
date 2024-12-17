@@ -469,7 +469,8 @@ def read_excel_predictions(
             )
             .unpivot(index="sku")
             .rename({"variable": "month", "value": "predicted_demand"})
-            .cast({"month": pl.Int8(), "predicted_demand": pl.Int64()})
+            .cast({"month": pl.Int8()})
+            .cast({"predicted_demand": pl.Int64()}, strict=False)
             .with_columns(**{k: pl.lit(v) for k, v in ch.as_dict().items()})
         )
 

@@ -60,7 +60,7 @@ OFF_SEASONS: dict[Month, Season | None] = {
 """Map from dispatch month to season labels that are considered
 "off-season" in that particular month."""
 
-
+# This is read by main_program_new_categories.ipynb
 NEW_CATEGORIES = [
     "AJA",
     "BSL",
@@ -68,27 +68,27 @@ NEW_CATEGORIES = [
     "DRC",
     "FAN",
     "FHA",
+    "IHT",  # temporarily adding IHT
     "IPC",
     "IPS",
     "ISB",
     "ISJ",
     "ISS",
-    "KMT",
     "LAB",
     "LAN",
     "LBP",
     "LBT",
+    "SKX",
+    "SMF",
     "SSW",
     "SWS",
     "WGS",
-    "WMT",
     "WRM",
     "XBK",
     "XBM",
     "XLB",
     "XPC",
     "XWG",
-    "IHT",  # temporarily adding IHT
 ]
 """Categories marked "NEW" as per marketing, so we use "NE" type prediction for
 these, if they are in the "PO"-based prediction phase of the year."""
