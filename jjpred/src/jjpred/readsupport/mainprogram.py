@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+import re
 from time import strptime
 from typing import Literal, NamedTuple
 
@@ -38,6 +40,7 @@ from jjpred.utils.polars import (
     sanitize_excel_extraction,
 )
 from jjpred.utils.typ import as_list, as_polars_type
+import fastexcel as fxl
 
 
 MAIN_PROGRAM_FILE: str = (
@@ -85,6 +88,13 @@ def get_po_season(
         return Season.FW, Season.SS
 
 
+@dataclass
+class CandidatePOSheet:
+    season: Season
+    year: int
+    name: str
+
+
 def read_po(
     analysis_defn: FbaRevDefn | tuple[AnalysisDefn, DateLike],
     read_from_disk: bool = True,
@@ -130,11 +140,32 @@ def read_po(
 
     per_cat = pl.DataFrame()
     per_sku = pl.DataFrame()
-    seasons = ["SS", "FW"]
+    seasons = [Season.SS, Season.FW]
+
+    main_program_sheet_names = fxl.read_excel(mainprogram_path).sheet_names
+    candidate_sheets = []
+    for sheet_name in main_program_sheet_names:
+        match = re.match(r"(?P<year>\d{2})(?P<season>SS|FW)_PO", sheet_name)
+        if match is not None:
+            gd = match.groupdict()
+            candidate_sheets.append(
+                CandidatePOSheet(
+                    Season.from_str(gd["season"]), int(gd["year"]), sheet_name
+                )
+            )
+
+    season_sheets: dict[Season, CandidatePOSheet] = {}
     for season in seasons:
+        for sheet in candidate_sheets:
+            if sheet.season == season:
+                year = season_sheets.get(season)
+                if year is None or year > sheet.year:
+                    season_sheets[season] = sheet
+
+    for candidate_sheet in season_sheets.values():
         po_headers = pl.read_excel(
             mainprogram_path,
-            sheet_name=f"24{season}_PO",
+            sheet_name=candidate_sheet.name,
             read_options={
                 "header_row": 0,
                 "n_rows": 1,
@@ -146,20 +177,27 @@ def read_po(
         intermediate_names = []
         final_names = {}
         for k, v in rename_map.items():
-            for x in ["category", "sku", "amazon.com", "amazon.ca"]:
-                if x in v.lower() and not any(
-                    [y in v.lower() for y in ["ratio"]]
-                ):
+            v = v.lower()
+            for x in [
+                "category",
+                "sku",
+                "amazon.com",
+                "amazon.ca",
+                "amazon.uk",
+                "amazon.co.uk",
+                "amazon.de",
+            ]:
+                if x in v and not any([y in v for y in ["ratio"]]):
                     if "amazon" in x:
                         final_names[v] = v.split(" ")[-1]
                         intermediate_names.append(v)
                     else:
-                        intermediate_names.append(x)
+                        intermediate_names.append(x.lower())
                     use_columns.append(k)
 
         raw_season_po = pl.read_excel(
             mainprogram_path,
-            sheet_name=f"24{season}_PO",
+            sheet_name=candidate_sheet.name,
             read_options={
                 "header_row": 0,
                 "skip_rows": 1,
@@ -176,14 +214,25 @@ def read_po(
                     )
                 }
             )
-        ).with_columns(po_season=pl.lit(season))
+        ).with_columns(po_season=pl.lit(candidate_sheet.season.name))
         del raw_season_po
 
-        for channel in ["Amazon.com", "Amazon.ca"]:
+        for channel in [
+            "amazon.com",
+            "amazon.ca",
+            "amazon.uk",
+            "amazon.co.uk",
+            "amazon.de",
+        ]:
             ch = Channel.parse(channel)
             this_columns = cs.expand_selector(
                 season_po, cs.contains("category", "sku", "po_season", channel)
             )
+
+            if len(this_columns) <= 3:
+                # we were not able to pick up any channel specific columns
+                continue
+
             cat_info = (
                 season_po.select(this_columns)
                 .rename(

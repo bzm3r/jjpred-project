@@ -84,9 +84,11 @@ class CountryFlags(IntFlagLike):
                         country_string_pattern(["cn", "china", "total cn"])
                     )
                 case CountryFlags.DE:
-                    patterns.append(country_string_pattern(["de", "germany"]))
-                case CountryFlags.EU:
-                    patterns.append(country_string_pattern(["eu"]))
+                    patterns.append(
+                        country_string_pattern(["eu", "de", "germany"])
+                    )
+                # case CountryFlags.EU:
+                #     patterns.append(country_string_pattern(["eu"]))
                 case CountryFlags.MX:
                     patterns.append(
                         country_string_pattern(["mx", "mexico", r"com\.mx"])
