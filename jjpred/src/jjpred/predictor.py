@@ -67,16 +67,44 @@ from jjpred.readsheet import DataVariant
 
 
 @dataclass
+class MonthPart:
+    """A month-part is some portion of a month; possibly the whole month. The
+    end date is always not included in period. For example: a month-part
+    starting at 2024-DEC-01 and ending at 2025-JAN-01 includes all the days in
+    December not including the first day of January."""
+
+    start: Date
+    """Start of the month-part."""
+    end: Date
+    """End of the month-part. Must be greater than the start date, and must
+    either be some date in the same month as the start date, or the first day of
+   the next month."""
+
+    def __init__(self, start: Date, end: Date):
+        assert (start < end) and (
+            (start.month == end.month)
+            or (
+                (
+                    (start.month + 1) == end.month
+                    or (start.month == 12 and end.month == 1)
+                )
+                and end.day == 1
+            )
+        ), (start, end)
+        self.start = start
+        self.end = end
+
+
+@dataclass
 class PeriodBreakdown:
-    """Breakdown a period across months, and from each month some days."""
+    """Breakdown a period across months, into month-parts."""
 
     start_date: Date
     """Start of the period."""
     end_date: Date
     """End of the period."""
-    sub_periods: list[tuple[Date, Date]]
-    """The sub-periods (marked by month boundaries) that this period is divided
-    into."""
+    sub_periods: list[MonthPart]
+    """The month-parts that this period is divided into."""
     df: pl.DataFrame
     """Dataframe containing all relevant information of this period's
     breakdown."""
@@ -100,7 +128,7 @@ class PeriodBreakdown:
 
     @classmethod
     def __simple__(cls, start_date: Date, end_date: Date) -> Self:
-        periods = [(start_date, end_date)]
+        periods = [MonthPart(start_date, end_date)]
 
         if start_date == end_date:
             dates = []
