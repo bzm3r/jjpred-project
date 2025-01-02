@@ -423,6 +423,11 @@ def check_dispatch_results(
             }
         )
         # shared_id_cols = [x for x in ALL_IDS if x in actual_dispatch.columns]
+
+        find_dupes(
+            actual_dispatch, ["sku"] + Channel.members(), raise_error=True
+        )
+
         with_actual_dispatch = (
             join_and_coalesce(
                 results_with_check_flags,

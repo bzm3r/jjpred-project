@@ -454,7 +454,6 @@ STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
                 lambda: UndeterminedTimePeriod("2024-FEB"),
                 CURRENT_PERIODS.as_dict(),
             ),
-            2023,
             PER_CHANNEL_REFERENCE_CHANNELS,
         )
         for channel in [

@@ -48,7 +48,7 @@ MAIN_PROGRAM_FILE: str = (
 )
 
 
-def gen_mainprogram_path(
+def get_mainprogram_path(
     file_date: DateLike, max_tries: int = 30, start: int = 15
 ) -> Path:
     """Get the path of the main program file (``FBA Inventory Opimization Recall
@@ -130,13 +130,13 @@ def read_po(
     if isinstance(analysis_defn, FbaRevDefn):
         active_sku_info = read_meta_info(analysis_defn, "active_sku")
         channel_info = read_meta_info(analysis_defn, "channel")
-        mainprogram_path = gen_mainprogram_path(
+        mainprogram_path = get_mainprogram_path(
             analysis_defn.get_mainprogram_date()
         )
     else:
         active_sku_info = read_meta_info(analysis_defn[0], "active_sku")
         channel_info = read_meta_info(analysis_defn[0], "channel")
-        mainprogram_path = gen_mainprogram_path(analysis_defn[1])
+        mainprogram_path = get_mainprogram_path(analysis_defn[1])
 
     per_cat = pl.DataFrame()
     per_sku = pl.DataFrame()
@@ -398,7 +398,7 @@ def read_excel_predictions(
 
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
     channel_info = read_meta_info(analysis_defn, "channel")
-    mainprogram_path = gen_mainprogram_path(
+    mainprogram_path = get_mainprogram_path(
         analysis_defn.get_mainprogram_date()
     )
 
@@ -589,7 +589,7 @@ def read_current_period_defn(
 
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
     channel_info = read_meta_info(analysis_defn, "channel")
-    mainprogram_path = gen_mainprogram_path(
+    mainprogram_path = get_mainprogram_path(
         analysis_defn.get_mainprogram_date()
     )
 
@@ -704,7 +704,7 @@ def read_qty_box(
 
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
     channel_info = read_meta_info(analysis_defn, "channel")
-    mainprogram_path = gen_mainprogram_path(
+    mainprogram_path = get_mainprogram_path(
         analysis_defn.get_mainprogram_date()
     )
 

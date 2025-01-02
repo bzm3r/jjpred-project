@@ -12,8 +12,8 @@ from typing import Any, Self, cast
 import polars as pl
 import datetime as dt
 
-from jjpred.aggregator import Aggregator, UsingChannels, UsingRetail
-from jjpred.channel import Channel, DistributionMode
+from jjpred.aggregator import Aggregator, UsingChannels
+from jjpred.channel import Channel
 from jjpred.globalvariables import (
     WEEKLY_PREDICTION_OFFSET,
     SEASON_START_PREDICTION_OFFSET,
@@ -209,9 +209,7 @@ class TimePeriod:
         return cls(start_date, end_date)
 
     @classmethod
-    def make_history_period(
-        cls, historical_year: int, dispatch_date: Date
-    ) -> HistoryTimePeriod:
+    def make_history_period(cls, dispatch_date: Date) -> HistoryTimePeriod:
         """A history time period has two parts: the historical year (12 time
         points) and the working year (most recent (completed) month in year of
         dispatch date)."""
@@ -224,6 +222,8 @@ class TimePeriod:
             working_year_end = YearMonthDay(
                 dispatch_date.year, dispatch_date.month, 1
             )
+
+        historical_year = dispatch_date.year - 1
 
         return HistoryTimePeriod(
             cls(
@@ -291,7 +291,6 @@ class InputStrategy(PrettyPrint):
     channels: list[Channel]
     referred_to_primary_map: dict[Category, Category]
     current_periods: defaultdict[Category, TimePeriod | UndeterminedTimePeriod]
-    history_years: defaultdict[Category, int]
     aggregators: defaultdict[Category, Aggregator]
 
     def __pprint_items__(self) -> dict[str, Any]:
@@ -303,7 +302,6 @@ class InputStrategy(PrettyPrint):
         referred_to_primary_map: dict[Category, Category],
         current: TimePeriod
         | defaultdict[Category, TimePeriod | UndeterminedTimePeriod],
-        history_year: int | defaultdict[Category, int],
         per_channel_aggregator_map: Mapping[
             Channel, Aggregator | Mapping[Category, Aggregator]
         ],
@@ -314,14 +312,11 @@ class InputStrategy(PrettyPrint):
         )
 
         self.current_periods = normalize_default_dict(current)
-        self.history_years = normalize_default_dict(history_year)
 
         if not isinstance(current, defaultdict):
             self.current_periods = defaultdict(lambda: current, {})
         else:
             self.current_periods
-        if not isinstance(history_year, defaultdict):
-            self.history_years = defaultdict(lambda: history_year, {})
 
         aggregators = per_channel_aggregator_map[Channel.parse(channel)]
         if not (

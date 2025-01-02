@@ -9,6 +9,10 @@ from jjpred.sku import Category
 
 @runtime_checkable
 class CategoryGroupProtocol(Protocol):
+    """We often want to organize data by groups of categories. This protocol
+    specifies some basic functions that should be provide by a class that
+    organizes data by groups of categories."""
+
     def category_exists(self, category: Category) -> bool:
         return category in self.all_categories
 
@@ -23,6 +27,8 @@ class CategoryGroupProtocol(Protocol):
 
 
 class CategoryGroups[T: CategoryGroupProtocol]:
+    """A list of classes that organize data by groups of categories."""
+
     data: list[T] = []
 
     def __init__(self, groups: list[T] = []) -> None:

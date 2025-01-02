@@ -1672,7 +1672,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         expected_demand_df,
                         overperformer_demand,
                         OverrideLeft(["a_sku", "sku"] + Channel.members()),
-                    ).with_columns()
+                    )
                 else:
                     assert not self.analysis_defn.overperformer_settings.active
 

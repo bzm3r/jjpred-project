@@ -1,17 +1,17 @@
 # TODO
 
 - script to automatically copy Quarto rendered documents to their final location once they are done rendering
-- come up with a coherent way to get sku_info from all_sku information (i.e. unique per category, per print, per size)
 
-## FEATURES
+## NOTEBOOKS
 
-- Change Historical Year input in strategylib.py to use the last year compared to the analysis date year
+Some features might be better to make as a separate notebook, since they build upon the prediction infrastructure?
 
 - Out of Stock Flag:
-
   - predict from date of analysis to 120 days later (4 months)
     - this should be a variable in general
   - mark which SKUs are predicted to be out-of-stock 120 days later
+
+## FEATURES
 
 - should read PO data directly from PO data file
 

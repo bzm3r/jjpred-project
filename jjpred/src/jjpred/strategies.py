@@ -55,7 +55,6 @@ class StrategyGroup(CategoryGroupProtocol):
     current_periods: MultiDict[
         Category, TimePeriod | UndeterminedTimePeriod
     ] = field(compare=False, hash=False)
-    history_year: int = field(compare=True, hash=True)
     aggregator: Aggregator = field(compare=True, hash=True)
     primary_to_referred: dict[Category, list[Category]] = field(
         default_factory=dict, compare=False, hash=False, init=False
@@ -116,7 +115,6 @@ class StrategyGroup(CategoryGroupProtocol):
         self.__all_categories__ += other.__all_categories__
         self.__rebuild_category_types__ = True
         self.current_periods = self.current_periods | other.current_periods
-        assert self.history_year == other.history_year
         assert self.aggregator == other.aggregator
         # for k, v in other.primary_to_referred.items():
         #     self.insert_referred_category(k, v)
@@ -213,9 +211,7 @@ class StrategyGroup(CategoryGroupProtocol):
         history_df: pl.DataFrame,
         dispatch_date: Date,
     ) -> HistoricalDfs:
-        history_time_period = TimePeriod.make_history_period(
-            self.history_year, dispatch_date
-        )
+        history_time_period = TimePeriod.make_history_period(dispatch_date)
         historical = self.aggregator(
             history_df.filter(
                 pl.col("category").is_in(self.primary_cats),
@@ -288,7 +284,6 @@ class StrategyGroup(CategoryGroupProtocol):
     def is_similar(self, other) -> bool:
         return (
             self.channel == other.channel
-            and self.history_year == other.history_year
             and self.aggregator == other.aggregator
         )
 
@@ -322,12 +317,12 @@ def collate_groups(
 ) -> pl.DataFrame:
     stacked_df = pl.DataFrame()
 
-    gs = category_groups.category_groups()
-    if len(gs) > 0:
-        stacked_df = gs[0].data
+    groups = category_groups.category_groups()
+    if len(groups) > 0:
+        stacked_df = groups[0].data
 
-        for g in gs[1:]:
-            stacked_df = stacked_df.vstack(g.data)
+        for group in groups[1:]:
+            stacked_df = stacked_df.vstack(group.data)
 
     return stacked_df
 
@@ -386,7 +381,6 @@ class StrategyGroups(CategoryGroups[StrategyGroup]):
                         + [category]
                     }
                 ),
-                input_strategy.history_years[category],
                 input_strategy.aggregators[category],
             )
 
@@ -402,7 +396,6 @@ class StrategyGroups(CategoryGroups[StrategyGroup]):
         current_periods: MultiDict[
             Category, TimePeriod | UndeterminedTimePeriod
         ],
-        history_year: int,
         aggregator: Aggregator,
     ):
         inserted = False
@@ -411,7 +404,6 @@ class StrategyGroups(CategoryGroups[StrategyGroup]):
             self.channel,
             [category],
             current_periods,
-            history_year,
             aggregator,
         )
 
