@@ -1,5 +1,8 @@
 # TODO
 
+- script to automatically copy Quarto rendered documents to their final location once they are done rendering
+- come up with a coherent way to get sku_info from all_sku information (i.e. unique per category, per print, per size)
+
 ## FEATURES
 
 - Change Historical Year input in strategylib.py to use the last year compared to the analysis date year

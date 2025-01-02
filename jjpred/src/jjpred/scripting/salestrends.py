@@ -27,7 +27,7 @@ type ChannelFilterKey = (
     | Literal["All CA/US Retail"]
     | Literal["Non-CA/US Retail"]
     | Literal["Amazon.co.uk"]
-    | Literal["Amazon.eu"]
+    | Literal["Amazon.de"]
     | Literal["Amazon.com.au"]
     | Literal["Amazon EU/UK"]
     | Literal["Wholesale"]
@@ -38,7 +38,7 @@ CHANNEL_FILTERS: dict[
 ] = {
     "Amazon CA": ["Amazon CA"],
     "Amazon US": ["Amazon US"],
-    "Amazon EU/UK": ["Amazon.co.uk", "Amazon.eu"],
+    "Amazon EU/UK": ["Amazon.co.uk", "Amazon.eu", "Amazon.uk", "Amazon.de"],
     "Amazon CA/US": ["Amazon.ca", "Amazon.com"],
     "All CA/US Retail": pl.col("country_flag")
     .and_(CountryFlags.CA | CountryFlags.US)
@@ -51,7 +51,7 @@ CHANNEL_FILTERS: dict[
     & pl.col("mode").eq("RETAIL"),
     "Amazon.co.uk": ["Amazon.co.uk"],
     "Amazon.com.au": ["Amazon.com.au"],
-    "Amazon.eu": ["Amazon.eu"],
+    "Amazon.de": ["Amazon.de"],
     "Wholesale": pl.col("mode").eq("WHOLESALE"),
 }
 

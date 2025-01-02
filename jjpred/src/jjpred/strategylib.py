@@ -339,7 +339,7 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
             ): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
-    Channel.parse("Amazon EU RETAIL"): MultiDict(
+    Channel.parse("Amazon DE RETAIL"): MultiDict(
         data={
             (
                 "AJA",
@@ -458,12 +458,12 @@ STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
             PER_CHANNEL_REFERENCE_CHANNELS,
         )
         for channel in [
-            "Amazon.com",
-            "Amazon.ca",
+            "amazon.com",
+            "amazon.ca",
             "janandjul.com",
-            "Wholesale",
+            "wholesale",
             "amazon.co.uk",
-            "amazon.eu",
+            "amazon.de",
         ]
     ],
 }
