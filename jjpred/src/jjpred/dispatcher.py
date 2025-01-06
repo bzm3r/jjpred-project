@@ -605,8 +605,10 @@ class Dispatcher:
 
         write_df(
             overwrite,
-            Path(
-                f"calculated_dispatch_{self.analysis_defn.tag_with_output_time()}.parquet"
+            ANALYSIS_OUTPUT_FOLDER.joinpath(
+                Path(
+                    f"calculated_dispatch_{self.analysis_defn.tag_with_output_time()}.parquet"
+                )
             ),
             self.all_sku_info,
         )

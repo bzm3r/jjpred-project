@@ -53,6 +53,7 @@ class RefillType(EnumLike):
     """Custom refills should be created with a date so that they can be
     reproduced and used later."""
     CUSTOM_2024_NOV_04 = auto()
+    CUSTOM_2025_JAN_06 = auto()
 
     @classmethod
     def match(cls, x: str) -> Self:
@@ -78,6 +79,10 @@ class RefillType(EnumLike):
                 start_date = Date.from_datelike(start_date)
                 assert start_date == Date.from_datelike("2024-NOV-01")
                 return Date.from_datelike("2025-JAN-15")
+            case RefillType.CUSTOM_2025_JAN_06:
+                start_date = Date.from_datelike(start_date)
+                assert start_date == Date.from_datelike("2024-JAN-06")
+                return Date.from_datelike("2025-APR-01")
             case value:
                 raise ValueError(f"No logic to handle case {value}.")
 
@@ -91,6 +96,7 @@ class RefillType(EnumLike):
                 | RefillType.SEASON_START
                 | RefillType.CUSTOM_2024_SEP_10
                 | RefillType.CUSTOM_2024_NOV_04
+                | RefillType.CUSTOM_2025_JAN_06
             ):
                 return lambda off_seasons: Season.all_seasons()
             case RefillType.WEEKLY:
