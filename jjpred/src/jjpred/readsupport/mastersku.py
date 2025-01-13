@@ -258,6 +258,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         )
     )
 
+    assert master_sku_path.is_file()
     header_df = pl.read_excel(
         master_sku_path,
         sheet_name="MasterFile",

@@ -158,14 +158,14 @@ def read_po(
     for season in seasons:
         for sheet in candidate_sheets:
             if sheet.season == season:
-                year = season_sheets.get(season)
-                if year is None or year > sheet.year:
+                existing_sheet = season_sheets.get(season)
+                if existing_sheet is None or existing_sheet.year < sheet.year:
                     season_sheets[season] = sheet
 
-    for candidate_sheet in season_sheets.values():
+    for existing_sheet in season_sheets.values():
         po_headers = pl.read_excel(
             mainprogram_path,
-            sheet_name=candidate_sheet.name,
+            sheet_name=existing_sheet.name,
             read_options={
                 "header_row": 0,
                 "n_rows": 1,
@@ -197,7 +197,7 @@ def read_po(
 
         raw_season_po = pl.read_excel(
             mainprogram_path,
-            sheet_name=candidate_sheet.name,
+            sheet_name=existing_sheet.name,
             read_options={
                 "header_row": 0,
                 "skip_rows": 1,
@@ -214,7 +214,7 @@ def read_po(
                     )
                 }
             )
-        ).with_columns(po_season=pl.lit(candidate_sheet.season.name))
+        ).with_columns(po_season=pl.lit(existing_sheet.season.name))
         del raw_season_po
 
         for channel in [

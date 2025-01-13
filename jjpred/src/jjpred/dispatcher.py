@@ -75,7 +75,10 @@ def calculate_required(
             pl.col("refill_request"),
         )
     ).with_columns(
-        uses_refill_request=pl.col("requesting").eq(pl.col("refill_request"))
+        uses_refill_request=(
+            pl.col("requesting").eq(pl.col("refill_request"))
+            & pl.col.refill_request.gt(0)
+        )
     )
 
     df = df.with_columns(

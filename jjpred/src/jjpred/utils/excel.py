@@ -3,9 +3,10 @@
 import polars as pl
 from jjpred.countryflags import CountryFlags
 from jjpred.utils.polars import get_columns_in_df
+from jjpred.utils.typ import as_list
 
 
-def map_pause_plan(x: int) -> str:
+def map_pause_plan_int(x: int) -> str:
     """Convert country flag codes representing a pause plan into a string."""
     if x == 0:
         return "All Active"
@@ -13,12 +14,28 @@ def map_pause_plan(x: int) -> str:
         return str(CountryFlags.from_int(x))
 
 
-def map_country_flag(x: int) -> str:
+def map_pause_plan(x: int | list[int] | pl.Series) -> str:
+    """Convert country flag codes representing a pause plan into a string."""
+    if isinstance(x, pl.Series):
+        x = list(x)
+    assert isinstance(x, int | list)
+    return ",".join([map_pause_plan_int(y) for y in as_list(x)])
+
+
+def map_country_flag_int(x: int) -> str:
     """Convert country flag codes representing a pause plan into a string."""
     if x == 0:
         return "NO_COUNTRY"
     else:
         return str(CountryFlags.from_int(x))
+
+
+def map_country_flag(x: int | list[int]) -> str:
+    """Convert country flag codes representing a pause plan into a string."""
+    if isinstance(x, pl.Series):
+        x = list(x)
+    assert isinstance(x, int | list)
+    return ",".join([map_country_flag_int(y) for y in as_list(x)])
 
 
 def normalize_pause_plan_and_country_flags_for_excel(

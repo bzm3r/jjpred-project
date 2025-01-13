@@ -81,7 +81,7 @@ class MonthPart:
    the next month."""
 
     def __init__(self, start: Date, end: Date):
-        assert (start < end) and (
+        assert (start <= end) and (
             (start.month == end.month)
             or (
                 (
@@ -1626,7 +1626,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     )
                     .with_columns(
                         expected_demand=pl.when(
-                            pl.col.uses_e
+                            (pl.col.uses_e & ~pl.col.po_overrides_e)
                             | pl.col.ce_uses_e
                             | pl.col.e_overrides_po
                         )
@@ -1635,7 +1635,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     )
                     .with_columns(
                         expected_demand=pl.when(
-                            pl.col.uses_po
+                            (pl.col.uses_po & ~pl.col.e_overrides_po)
                             | pl.col.ce_uses_po
                             | pl.col.po_overrides_e
                         )

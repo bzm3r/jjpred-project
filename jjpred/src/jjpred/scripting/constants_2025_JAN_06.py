@@ -8,7 +8,7 @@ from jjpred.inputstrategy import RefillType
 
 analysis_defn = FbaRevDefn.new_comparison_analysis(
     "2025-JAN-06",
-    "2025-JAN-06",
+    "2025-JAN-01",
     "2024-NOV-13",
     None,
     "2025-JAN-06",

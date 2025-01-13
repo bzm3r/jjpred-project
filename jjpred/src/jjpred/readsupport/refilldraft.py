@@ -201,8 +201,9 @@ def create_dispatch_info(
         original_dispatch.with_columns(
             pl.when(
                 pl.col(x)
-                .ne(0)
-                .and_(pl.col(x).cast(pl.Int64(), strict=False).is_null())
+                .str.strip_chars()
+                .cast(pl.Int64(), strict=False)
+                .is_null()
             )
             .then(pl.col(x))
             .otherwise(None)
@@ -224,8 +225,9 @@ def create_dispatch_info(
             pl.when(
                 ~(
                     pl.col(x)
-                    .ne(0)
-                    .and_(pl.col(x).cast(pl.Int64(), strict=False).is_null())
+                    .str.strip_chars()
+                    .cast(pl.Int64(), strict=False)
+                    .is_null()
                 )
             )
             .then(pl.col(x))
