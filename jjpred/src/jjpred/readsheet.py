@@ -61,10 +61,18 @@ class DataVariantMeta(NamedTuple):
     """Meta-information associated with a particular sheet type."""
 
     suffix: str
+    """Sheet name suffix.
+
+    For example: for HCF0-SKU the ``suffix`` is SKU. For HCF0-SKU-WK the
+    ``suffix`` is SKU-WK."""
     col_defns: ColumnDefns = ColumnDefns([], [])
+    """Defines the ID vs DATA columns in a sheet."""
     header_range: tuple[int, int] = (0, 0)
+    """The rows which should be combined to create header labels"""
     min_row: int = 0
     max_row: Callable[[int], int] = lambda _: 0
+    skip_intermediate_columns: list[re.Pattern[str]] = []
+    """Some intermediate columns should be skipped if they match."""
 
 
 @dataclass
@@ -152,7 +160,11 @@ class DataVariant(DataVariantMeta, Enum):
         HISTORY_SHEET_COLUMN_DEFNS,
         (0, 2),
         2,
-        lambda max_row: max_row - 3,  # we want to ignore summary rows
+        lambda max_row: max_row - 3,  # we want to ignore summary rows,
+        [
+            re.compile(r"^Per Sales Channel$"),
+            re.compile(r"^\d{4} Sales Quantity$"),
+        ],
     )
     """A sheet containing historical sales information."""
     Inventory = (
@@ -161,6 +173,7 @@ class DataVariant(DataVariantMeta, Enum):
         (1, 2),
         2,
         lambda max_row: max_row,
+        [],
     )
     """A sheet containing channel inventory information."""
     InStockRatio = (
@@ -169,6 +182,10 @@ class DataVariant(DataVariantMeta, Enum):
         (0, 2),
         2,
         lambda max_row: max_row,
+        [
+            re.compile(r"^Per Warehouse Location$"),
+            re.compile(r"^\d{4}$"),
+        ],
     )
     Totals = ""
     """A sheet containing total sales information. (Ignored.)"""
@@ -234,7 +251,15 @@ class DataVariant(DataVariantMeta, Enum):
         if len(null_columns) > 0:
             header_df = header_df.select(cs.exclude(null_columns))
 
-        original_to_intermediate = fill_unnamed_cols(header_df)
+        original_to_intermediate = dict(
+            [
+                (k, v)
+                for k, v in fill_unnamed_cols(header_df).items()
+                if all(
+                    x.match(v) is None for x in self.skip_intermediate_columns
+                )
+            ]
+        )
         header_df = self.rename_raw_headers(
             original_to_intermediate, header_df
         )

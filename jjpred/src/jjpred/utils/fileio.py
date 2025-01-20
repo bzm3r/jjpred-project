@@ -8,7 +8,7 @@ import polars as pl
 import xlsxwriter as xlw  # type: ignore
 
 from jjpred.analysisdefn import AnalysisDefn
-from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
+from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER, BRIAN_TWK_FOLDER
 from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.excel import convert_df_for_excel
@@ -128,6 +128,17 @@ def gen_support_info_path(
         + source_part
         + date_part
         + f".{DEFAULT_STORAGE_FORMAT}"
+    )
+
+
+def gen_isr_info_path(year: int | None) -> Path:
+    if year is None:
+        year_info = ""
+    else:
+        year_info = "_" + str(year)
+
+    return BRIAN_TWK_FOLDER.joinpath("InStockRatioData").joinpath(
+        f"isr{year_info}.parquet"
     )
 
 

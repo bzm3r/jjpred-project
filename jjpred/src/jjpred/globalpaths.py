@@ -27,6 +27,14 @@ def get_main_folder(assumed_folder_name: str) -> Path:
     )
 
 
+BRIAN_HOME_FOLDER: Path = Path("C:\\Users\\bhmer_hr1owv0")
+
+BRIAN_ONEDRIVE_FOLDER: Path = BRIAN_HOME_FOLDER.joinpath(
+    "OneDrive - Jan and Jul"
+)
+
+BRIAN_TWK_FOLDER: Path = BRIAN_ONEDRIVE_FOLDER.joinpath("TWK-Brian")
+
 MAIN_FOLDER: Path = get_main_folder(ASSUMED_FOLDER_NAME)
 """Full path of the main folder."""
 
