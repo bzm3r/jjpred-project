@@ -7,16 +7,16 @@ from jjpred.analysisdefn import FbaRevDefn
 from jjpred.inputstrategy import RefillType
 
 analysis_defn = FbaRevDefn.new_comparison_analysis(
-    analysis_date="2025-JAN-06",
-    dispatch_date="2025-JAN-01",
+    analysis_date="2025-JAN-20",
+    dispatch_date="2025-JAN-20",
     config_date="2024-NOV-13",
     prediction_type_meta_date=None,
-    real_analysis_date="2025-JAN-06",
-    refill_type=RefillType.CUSTOM_2025_JAN_06,
+    real_analysis_date="2025-JAN-20",
+    refill_type=RefillType.WEEKLY,
     new_overrides_e=True,
     check_dispatch_date=False,
     match_main_program_month_fractions=True,
-    in_stock_ratio_date="2024-DEC-02",
+    in_stock_ratio_date="2025-JAN-19",
 )
 
 # analysis_date: DateLike = "2024-OCT-15"

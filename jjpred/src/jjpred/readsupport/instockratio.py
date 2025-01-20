@@ -22,15 +22,16 @@ from jjpred.readsupport.utils import (
 from jjpred.structlike import MemberType
 from jjpred.utils.fileio import (
     delete_or_read_df,
-    gen_isr_info_path,
+    gen_isr_year_info_path,
     gen_support_info_path,
+    read_df,
     write_df,
 )
-from jjpred.utils.polars import binary_partition_strict
+from jjpred.utils.polars import binary_partition_strict, find_dupes
 from jjpred.utils.datetime import Date, DateLike
 
 
-IN_STOCK_RATIO_PATH_TEMPLATE = (
+ISR_EXCEL_PATH_TEMPLATE = (
     "All Marketplace by MSKU - InStockRatio - {date}.xlsx"
 )
 """In-Stock Ratio file should have format like:
@@ -40,21 +41,38 @@ IN_STOCK_RATIO_PATH_TEMPLATE = (
 Where the date has format: ``YYYY-MMM-DD``. For example: ``2024-OCT-21``.
 """
 
+COMPLETE_ISR_PATH_TEMPLATE = "complete_isr_{date}.parquet"
+"""Complete In Stock Ratio parquet file should have format like:
 
-def gen_in_stock_ratio_path(date: DateLike) -> Path:
+``complete_isr_{date}.paruqet``
+
+Where the date has format: ``YYYY-MMM-DD``. For example: ``2024-OCT-21``.
+"""
+
+
+def gen_isr_excel_path(date: DateLike) -> Path:
     file_path = Path(
-        IN_STOCK_RATIO_PATH_TEMPLATE.format(
+        ISR_EXCEL_PATH_TEMPLATE.format(
             date=Date.from_datelike(date).fmt_default()
         )
     )
     return ANALYSIS_INPUT_FOLDER.joinpath(file_path)
 
 
-def read_in_stock_ratio_info_raw(raw_isr_date: DateLike, year: int | None):
+def gen_complete_isr_path(date: DateLike) -> Path:
+    file_path = Path(
+        COMPLETE_ISR_PATH_TEMPLATE.format(
+            date=Date.from_datelike(date).fmt_default()
+        )
+    )
+    return ANALYSIS_INPUT_FOLDER.joinpath(file_path)
+
+
+def read_isr_year_info_raw(raw_isr_date: DateLike, year: int | None):
     """Read in-stock ratios from the ``All Marketplace by MSKU - InStockRatio``
     file, given required meta-information directly."""
 
-    excel_path = gen_in_stock_ratio_path(raw_isr_date)
+    excel_path = gen_isr_excel_path(raw_isr_date)
 
     unified_sheet = None
 
@@ -129,7 +147,7 @@ def read_in_stock_ratio_info_raw(raw_isr_date: DateLike, year: int | None):
     return isr_df
 
 
-def process_raw_in_stock_ratios(
+def process_isr_year_info_raw(
     master_sku_info: MasterSkuInfo,
     raw_isr: pl.DataFrame,
 ) -> pl.DataFrame:
@@ -199,7 +217,7 @@ def process_raw_in_stock_ratios(
     return isr_df
 
 
-def read_in_stock_ratio_info(
+def read_isr_year_info(
     analysis_defn: AnalysisDefn,
     raw_isr_date: DateLike,
     read_master_sku_info_from_disk: bool = True,
@@ -207,7 +225,7 @@ def read_in_stock_ratio_info(
     delete_if_exists: bool = False,
     year: int | None = None,
 ) -> pl.DataFrame:
-    isr_path = gen_isr_info_path(year)
+    isr_path = gen_isr_year_info_path(year)
 
     if read_from_disk or delete_if_exists:
         isr_df = delete_or_read_df(delete_if_exists, isr_path)
@@ -216,20 +234,31 @@ def read_in_stock_ratio_info(
         if isr_df is not None:  # and per_cat is not None:
             return isr_df
 
-    raw_isr = read_in_stock_ratio_info_raw(raw_isr_date, year)
+    raw_isr = read_isr_year_info_raw(raw_isr_date, year)
 
     master_sku_info = get_master_sku_info(
         analysis_defn, read_from_disk=read_master_sku_info_from_disk
     )
 
-    isr_df = process_raw_in_stock_ratios(master_sku_info, raw_isr)
+    isr_df = process_isr_year_info_raw(master_sku_info, raw_isr)
 
     write_df(True, isr_path, isr_df)
 
     return isr_df
 
 
-def read_in_stock_ratios_given_meta_info(
+def read_complete_isr_info(analysis_defn: AnalysisDefn) -> pl.DataFrame:
+    analaysis_isr_date = analysis_defn.in_stock_ratio_date
+    assert analaysis_isr_date is not None
+
+    complete_isr_path = gen_complete_isr_path(analaysis_isr_date)
+
+    complete_isr = read_df(complete_isr_path)
+
+    return complete_isr
+
+
+def read_isr_from_excel_file_given_meta_info(
     analysis_defn: AnalysisDefn,
     active_sku_info: pl.DataFrame,
     all_sku_info: pl.DataFrame,
@@ -255,7 +284,7 @@ def read_in_stock_ratios_given_meta_info(
         if isr_df is not None:  # and per_cat is not None:
             return isr_df
 
-    excel_path = gen_in_stock_ratio_path(analysis_defn.in_stock_ratio_date)
+    excel_path = gen_isr_excel_path(analysis_defn.in_stock_ratio_date)
 
     unified_sheet = None
 
@@ -367,6 +396,9 @@ def read_in_stock_ratios_given_meta_info(
         strict=False,  # skip any SKUs that are not in the active_sku_info list
     ).filter(~(pl.col.sku.is_null() | pl.col.a_sku.is_null()))
 
+    find_dupes(
+        active_sku_info.select("sku", "a_sku"), ["a_sku"], raise_error=True
+    )
     isr_df = isr_df.join(
         active_sku_info.select(
             WHOLE_SKU_IDS + ["sku_year_history", "a_category"]

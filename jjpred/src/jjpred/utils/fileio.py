@@ -131,7 +131,7 @@ def gen_support_info_path(
     )
 
 
-def gen_isr_info_path(year: int | None) -> Path:
+def gen_isr_year_info_path(year: int | None) -> Path:
     if year is None:
         year_info = ""
     else:

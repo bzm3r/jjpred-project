@@ -21,7 +21,8 @@ from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
 from jjpred.readsupport.instockratio import (
-    read_in_stock_ratios_given_meta_info,
+    read_complete_isr_info,
+    read_isr_from_excel_file_given_meta_info,
 )
 from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.readsupport.marketing import read_config
@@ -90,7 +91,7 @@ def read_in_stock_ratios(
         active_sku_info = read_meta_info(analysis_defn, "active_sku")
         all_sku_info = read_meta_info(analysis_defn, "all_sku")
 
-    return read_in_stock_ratios_given_meta_info(
+    return read_isr_from_excel_file_given_meta_info(
         analysis_defn,
         active_sku_info,
         all_sku_info,
@@ -481,8 +482,8 @@ class DataBase:
         # )
 
         if self.analysis_defn.in_stock_ratio_date is not None:
-            self.dfs[DataVariant.InStockRatio] = read_in_stock_ratios(
-                self, delete_if_exists=True
+            self.dfs[DataVariant.InStockRatio] = read_complete_isr_info(
+                self.analysis_defn
             )
 
         self.dfs, channel_meta = standardize_channel_info(self.dfs)
