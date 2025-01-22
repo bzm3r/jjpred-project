@@ -3,6 +3,7 @@ information, usually by reading a ``All Marketplace All SKU Categories``
 file."""
 
 from __future__ import annotations
+import datetime
 
 import fastexcel as fxl
 
@@ -13,6 +14,7 @@ import os
 from typing import Self
 from pathlib import Path
 
+from pandas import DataFrame
 import polars as pl
 import polars.selectors as cs
 from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
@@ -155,6 +157,45 @@ class SkuVariant(Enum):
     """Corresponds to ``adjust_sku``."""
     M_SKU = auto()
     """Corresponds to ``merchant_sku``."""
+
+
+def recast_older_df_types_based_on_newer_df(
+    newer_df: pl.DataFrame, older_df: pl.DataFrame
+) -> pl.DataFrame:
+    return older_df.cast(
+        {col_name: newer_df[col_name].dtype for col_name in older_df.columns}
+    )
+
+
+def concatenate_older_df(
+    newer_df: pl.DataFrame, older_df: pl.DataFrame
+) -> pl.DataFrame:
+    newer_dates = newer_df["date"].unique().sort()
+    older_dates = older_df["date"].unique().sort()
+
+    if len(older_dates) == 0:
+        return newer_df
+
+    max_newer_date = newer_dates.max()
+    max_older_date = older_dates.max()
+
+    assert isinstance(max_newer_date, datetime.date)
+    assert isinstance(max_older_date, datetime.date)
+    assert max_newer_date >= max_older_date  # type: ignore
+
+    relevant_older_df = older_df.filter(
+        ~pl.col.date.is_in(newer_df["date"].unique().sort())
+    )
+
+    if len(relevant_older_df) > 0:
+        return newer_df.vstack(
+            recast_older_df_types_based_on_newer_df(
+                newer_df,
+                relevant_older_df,
+            )
+        )
+    else:
+        return newer_df
 
 
 class DataBase:
@@ -505,6 +546,15 @@ class DataBase:
             else:
                 return False
         return True
+
+    def concatenate_older(self, older: DataBase) -> DataBase:
+        for dv in DataVariant.required():
+            if "date" in self.dfs[dv]:
+                assert "date" in older.dfs[dv]
+                self.dfs[dv] = concatenate_older_df(
+                    self.dfs[dv], older.dfs[dv]
+                )
+        return self
 
 
 def standardize_channel_info(

@@ -38,7 +38,7 @@ def column_renamer(x: str) -> str:
     """Renames columns as relevant for the Master SKU file."""
     x = re.sub(r"\s+", "_", x.lower())
     if "fbasku" in x:
-        return f"fba_sku_{x.split("_")[-1]}"
+        return f"fba_sku_{x.split('_')[-1]}"
 
     for compare_return_pair in [
         ("seasons_sku", "season_history"),
@@ -195,7 +195,7 @@ ADJUSTED_PRINT_NAMES: dict[str, str] = {
     "Grey (Twinning Beanie)": "Grey",
     "Grey w/Cream Lining": "Grey, Cream Lining",
     "Grey w/Grey Lining": "Grey, Grey Lining",
-    "Large  Herringbone": "Large Herringbone",
+    # "Large  Herringbone": "Large Herringbone",
     "Mustard (Twinning Beanie)": "Mustard",
     "Navy w/ Navy Trim": "Navy, Navy Trim",
     "Pink / Pale Pink (knit shoes)": "Pink/Pale Pink",
@@ -254,7 +254,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     """Read the master information excel file."""
     master_sku_path = ANALYSIS_INPUT_FOLDER.joinpath(
         Path(
-            f"1-MasterSKU-All-Product-{Date.from_datelike(master_sku_date).strftime("%Y-%m-%d")}.xlsx"
+            f"1-MasterSKU-All-Product-{Date.from_datelike(master_sku_date).strftime('%Y-%m-%d')}.xlsx"
         )
     )
 

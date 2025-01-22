@@ -7,11 +7,11 @@ from jjpred.analysisdefn import FbaRevDefn
 from jjpred.inputstrategy import RefillType
 
 analysis_defn = FbaRevDefn.new_comparison_analysis(
-    analysis_date="2025-JAN-20",
+    analysis_date="2025-JAN-21",
     dispatch_date="2025-JAN-20",
     config_date="2024-NOV-13",
     prediction_type_meta_date=None,
-    real_analysis_date="2025-JAN-20",
+    real_analysis_date="2025-JAN-21",
     refill_type=RefillType.WEEKLY,
     new_overrides_e=True,
     check_dispatch_date=False,

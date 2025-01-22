@@ -78,7 +78,7 @@ NEW_CATEGORIES = [
     "LAN",
     "LBP",
     "LBT",
-    "SKX",
+    # "SKX",
     "SMF",
     "SSW",
     "SWS",
