@@ -666,6 +666,16 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         country_flag, on="country", how="left", validate="m:1", join_nulls=True
     ).drop("country")
 
+    assert (
+        len(
+            master_sku_df.select("print", "print_name")
+            .group_by("print")
+            .agg(pl.col.print_name.unique())
+            .filter(pl.col.print_name.list.len().gt(1))
+        )
+        == 0
+    )
+
     print_name_map = (
         master_sku_df.select("print", "print_name")
         .unique()
