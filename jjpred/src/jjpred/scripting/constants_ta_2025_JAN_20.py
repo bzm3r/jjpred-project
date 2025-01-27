@@ -6,10 +6,10 @@ from jjpred.analysisdefn import AnalysisDefn
 
 analysis_defn = AnalysisDefn(
     basic_descriptor="trend_analysis",
-    date="2025-JAN-06",
-    master_sku_date="2024-JAN-06",
-    sales_and_inventory_date="2025-JAN-06",
-    warehouse_inventory_date="2024-JAN-06",
+    date="2025-JAN-20",
+    master_sku_date="2025-JAN-21",
+    sales_and_inventory_date="2025-JAN-21",
+    warehouse_inventory_date="2025-JAN-21",
     config_date="2024-NOV-13",
     in_stock_ratio_date="2025-JAN-19",
 )
