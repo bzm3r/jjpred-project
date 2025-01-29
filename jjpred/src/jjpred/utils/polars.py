@@ -433,7 +433,7 @@ def join_and_coalesce(
     return processed_df
 
 
-def concat_to_unified(
+def vstack_to_unified(
     existing_df: pl.DataFrame | None, new_df: pl.DataFrame
 ) -> pl.DataFrame:
     """Concatenate Polars dataframe to an existing dataframe."""

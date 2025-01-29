@@ -35,7 +35,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
-    concat_to_unified,
+    vstack_to_unified,
     find_dupes,
     sanitize_excel_extraction,
 )
@@ -259,11 +259,11 @@ def read_po(
                 .with_columns(**ch.to_columns())
             )
 
-            per_cat = concat_to_unified(
+            per_cat = vstack_to_unified(
                 per_cat,
                 cat_info,
             )
-            per_sku = concat_to_unified(
+            per_sku = vstack_to_unified(
                 per_sku,
                 sku_info,
             )
@@ -523,11 +523,11 @@ def read_excel_predictions(
             .with_columns(**{k: pl.lit(v) for k, v in ch.as_dict().items()})
         )
 
-        prediction_type = concat_to_unified(
+        prediction_type = vstack_to_unified(
             prediction_type,
             cast_standard([active_sku_info, channel_info], pd_type_info),
         )
-        predicted_demand = concat_to_unified(
+        predicted_demand = vstack_to_unified(
             predicted_demand,
             cast_standard([active_sku_info, channel_info], pd_info),
         )

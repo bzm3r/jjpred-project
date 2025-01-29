@@ -26,7 +26,7 @@ from jjpred.utils.fileio import (
     read_meta_info,
     write_df,
 )
-from jjpred.utils.polars import concat_to_unified, sanitize_excel_extraction
+from jjpred.utils.polars import vstack_to_unified, sanitize_excel_extraction
 from jjpred.utils.typ import as_list, as_polars_type
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 
@@ -164,7 +164,7 @@ def read_final_dispatch(
             if ch.country_flag == CountryFlags.US
             else DispatchType.FINAL_CA
         )
-        dispatch_df = concat_to_unified(
+        dispatch_df = vstack_to_unified(
             dispatch_df,
             cast_standard(
                 [active_sku_info, channel_info],

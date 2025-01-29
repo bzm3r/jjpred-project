@@ -48,7 +48,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
-    concat_to_unified,
+    vstack_to_unified,
     struct_filter,
 )
 from jjpred.utils.typ import as_polars_type, normalize_optional
@@ -566,7 +566,7 @@ def standardize_channel_info(
 
     channels = None
     for df in dfs.values():
-        channels = concat_to_unified(
+        channels = vstack_to_unified(
             channels,
             df.select(Channel.members(MemberType.META)).unique(),
         )

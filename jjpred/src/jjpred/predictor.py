@@ -54,7 +54,7 @@ from jjpred.utils.multidict import MultiDict
 from jjpred.utils.polars import (
     NoOverride,
     OverrideLeft,
-    concat_to_unified,
+    vstack_to_unified,
     find_dupes,
     join_and_coalesce,
 )
@@ -620,7 +620,7 @@ class PredictionInput(CategoryGroupProtocol):
         """Expected year sales (across all category groups)."""
         result = None
         for _, eys in self.expected_year_sales.data.items():
-            result = concat_to_unified(result, eys.expected_year_sales)
+            result = vstack_to_unified(result, eys.expected_year_sales)
 
         assert isinstance(result, pl.DataFrame)
         return result
@@ -891,7 +891,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     _,
                     current,
                 ) in pd_inputs.currents.data.items():
-                    monthly_sales_df = concat_to_unified(
+                    monthly_sales_df = vstack_to_unified(
                         monthly_sales_df, current.monthly_sales
                     )
 
@@ -924,7 +924,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 current_total_sales: None | pl.DataFrame = None
 
                 for _, current in pd_inputs.currents.data.items():
-                    current_total_sales = concat_to_unified(
+                    current_total_sales = vstack_to_unified(
                         current_total_sales, current.total_sales
                     )
 
@@ -1100,7 +1100,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                             ),
                         )
                     )
-                    category_type_df = concat_to_unified(
+                    category_type_df = vstack_to_unified(
                         category_type_df, result_df
                     )
 

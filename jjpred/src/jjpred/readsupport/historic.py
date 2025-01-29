@@ -24,7 +24,7 @@ from jjpred.utils.fileio import (
 )
 from jjpred.utils.multidict import MultiDict
 from jjpred.utils.polars import (
-    concat_to_unified,
+    vstack_to_unified,
     sanitize_excel_extraction,
     struct_filter,
 )
@@ -156,7 +156,7 @@ def read_mon_sale_r_params(
                 }
             )
         )
-        calc_params_df = concat_to_unified(
+        calc_params_df = vstack_to_unified(
             calc_params_df,
             this_df,
         )
@@ -277,7 +277,7 @@ def read_demand_ratios(
             .cast({"month": pl.Int8(), "demand_ratio": pl.Float64()})
             .with_columns(**ch.to_columns(remove_defaults=False))
         )
-        monthly_demand_ratio_df = concat_to_unified(
+        monthly_demand_ratio_df = vstack_to_unified(
             monthly_demand_ratio_df,
             this_df,
         )

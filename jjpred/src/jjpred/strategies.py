@@ -29,7 +29,7 @@ from jjpred.utils.groupeddata import (
     ChannelCategoryData,
 )
 from jjpred.utils.multidict import MultiDict
-from jjpred.utils.polars import concat_to_unified, struct_filter
+from jjpred.utils.polars import vstack_to_unified, struct_filter
 from jjpred.utils.typ import (
     as_polars_type,
 )
@@ -202,7 +202,7 @@ class StrategyGroup(CategoryGroupProtocol):
                 )
                 .explode("category")
             )
-            return concat_to_unified(df, extra)
+            return vstack_to_unified(df, extra)
 
         return df
 
@@ -339,7 +339,7 @@ def collate_groups_per_channel(
         collated = collate_groups(group_dfs)
         if attach_channel:
             collated = collated.with_columns(**channel.to_columns())
-        result = concat_to_unified(result, collated)
+        result = vstack_to_unified(result, collated)
 
     return result
 
