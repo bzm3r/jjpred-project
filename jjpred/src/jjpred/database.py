@@ -14,7 +14,6 @@ import os
 from typing import Self
 from pathlib import Path
 
-from pandas import DataFrame
 import polars as pl
 import polars.selectors as cs
 from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
