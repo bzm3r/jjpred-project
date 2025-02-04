@@ -155,7 +155,7 @@ class AnalysisDefn:
         self._hash = str(self).__hash__()
 
     def __str__(self) -> str:
-        return f"{self.basic_descriptor}_analysis_date={str(self.date)}"
+        return self.tag()
 
     def __hash__(self) -> int:
         return self._hash

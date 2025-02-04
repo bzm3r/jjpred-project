@@ -68,7 +68,9 @@ def gen_complete_isr_path(date: DateLike) -> Path:
     return ANALYSIS_INPUT_FOLDER.joinpath(file_path)
 
 
-def read_isr_year_info_raw(raw_isr_date: DateLike, year: int | None):
+def read_isr_year_info_raw(
+    raw_isr_date: DateLike, years: int | list[int] | None
+):
     """Read in-stock ratios from the ``All Marketplace by MSKU - InStockRatio``
     file, given required meta-information directly."""
 
@@ -141,8 +143,11 @@ def read_isr_year_info_raw(raw_isr_date: DateLike, year: int | None):
         pl.col("in_stock_days").sum()
     )
 
-    if year is not None:
-        isr_df = isr_df.filter(pl.col.date.dt.year().eq(year))
+    if years is not None:
+        if not isinstance(years, list):
+            years = [years]
+
+        isr_df = isr_df.filter(pl.col.date.dt.year().is_in(years))
 
     return isr_df
 
@@ -223,9 +228,9 @@ def read_isr_year_info(
     read_master_sku_info_from_disk: bool = True,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
-    year: int | None = None,
+    years: int | list[int] | None = None,
 ) -> pl.DataFrame:
-    isr_path = gen_isr_year_info_path(year)
+    isr_path = gen_isr_year_info_path(years)
 
     if read_from_disk or delete_if_exists:
         isr_df = delete_or_read_df(delete_if_exists, isr_path)
@@ -234,7 +239,7 @@ def read_isr_year_info(
         if isr_df is not None:  # and per_cat is not None:
             return isr_df
 
-    raw_isr = read_isr_year_info_raw(raw_isr_date, year)
+    raw_isr = read_isr_year_info_raw(raw_isr_date, years)
 
     master_sku_info = get_master_sku_info(
         analysis_defn, read_from_disk=read_master_sku_info_from_disk

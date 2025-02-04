@@ -160,11 +160,13 @@ def gen_support_info_path(
     # )
 
 
-def gen_isr_year_info_path(year: int | None) -> Path:
-    if year is None:
+def gen_isr_year_info_path(years: int | list[int] | None) -> Path:
+    if years is None:
         year_info = ""
     else:
-        year_info = "_" + str(year)
+        if not isinstance(years, list):
+            years = [years]
+        year_info = "_" + "-".join(str(x) for x in years)
 
     return BRIAN_TWK_FOLDER.joinpath("InStockRatioData").joinpath(
         f"isr{year_info}.parquet"

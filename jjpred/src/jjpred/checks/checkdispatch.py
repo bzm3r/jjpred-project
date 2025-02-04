@@ -142,31 +142,45 @@ def check_dispatch_results(
     """
     active_results = jjpred_dispatch.filter(pl.col("is_active"))
 
-    skus_in_main_program = (
-        read_excel_predictions(analysis_defn, read_from_disk=read_from_disk)
-        .select("sku")
-        .unique()
-        .with_columns(in_main_program=pl.lit(True))
-    )
-    bad_date_defn = (
-        read_current_period_defn(analysis_defn, read_from_disk=read_from_disk)
-        .filter((pl.col("start") - pl.col("end")).eq(0))
-        .select("category")
-        .with_columns(pl.lit(True).alias("missing_current_period_defn"))
-    )
+    skus_in_main_program = None
+    bad_date_defn = None
+    try:
+        skus_in_main_program = (
+            read_excel_predictions(
+                analysis_defn, read_from_disk=read_from_disk
+            )
+            .select("sku")
+            .unique()
+            .with_columns(in_main_program=pl.lit(True))
+        )
 
-    active_results = override_sku_info(
-        active_results,
-        skus_in_main_program,
-        fill_null_value=PolarsLit(False),
-        dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
-    )
-    active_results = override_sku_info(
-        active_results,
-        bad_date_defn,
-        fill_null_value=PolarsLit(False),
-        dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
-    )
+        bad_date_defn = (
+            read_current_period_defn(
+                analysis_defn, read_from_disk=read_from_disk
+            )
+            .filter((pl.col("start") - pl.col("end")).eq(0))
+            .select("category")
+            .with_columns(pl.lit(True).alias("missing_current_period_defn"))
+        )
+
+    except (OSError, ValueError) as e:
+        print(e)
+        skus_in_main_program = None
+
+    if skus_in_main_program is not None and bad_date_defn is not None:
+        active_results = override_sku_info(
+            active_results,
+            skus_in_main_program,
+            fill_null_value=PolarsLit(False),
+            dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
+        )
+
+        active_results = override_sku_info(
+            active_results,
+            bad_date_defn,
+            fill_null_value=PolarsLit(False),
+            dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
+        )
 
     unpaused_results = active_results.filter(
         ~pl.col("is_master_paused") & ~pl.col("is_config_paused")
@@ -321,7 +335,9 @@ def check_dispatch_results(
             + ["wh_stock"]
         )
         .unique()
-        .sort(all_sku_ids),
+        .sort(all_sku_ids)
+        if "in_main_program" in active_results
+        else pl.DataFrame(),
         "Missing Current Period": unpaused_results.filter(
             pl.col("missing_current_period_defn") & pl.col("is_current_print")
         )
@@ -334,7 +350,9 @@ def check_dispatch_results(
             ]
         )
         .unique()
-        .sort(["category"]),
+        .sort(["category"])
+        if "missing_current_period_defn" in unpaused_results
+        else pl.DataFrame(),
         "AMZ INV missing": unpaused_results.filter(
             pl.col("no_ch_stock_info")
             & (

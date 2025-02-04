@@ -87,7 +87,7 @@ class RefillType(EnumLike):
             case RefillType.CUSTOM_2025_FEB_03:
                 start_date = Date.from_datelike(start_date)
                 assert start_date == Date.from_datelike("2025-FEB-01")
-                return Date.from_datelike("2025-APR-01")
+                return Date.from_datelike("2025-MAY-01")
             case value:
                 raise ValueError(f"No logic to handle case {value}.")
 

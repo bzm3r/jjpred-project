@@ -681,7 +681,7 @@ class Dispatcher:
             for x in sheets.keys():
                 result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
                     Path(
-                        f"TO_SRR_FBA{x}{self.analysis_defn.dispatch_date.fmt_flat()}.csv"
+                        f"TO_SRR_FBA{x}{self.analysis_defn.date.fmt_flat()}.csv"
                     )
                 )
                 sheets[x].write_csv(result_path)

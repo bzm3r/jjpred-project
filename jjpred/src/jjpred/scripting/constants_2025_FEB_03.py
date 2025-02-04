@@ -6,18 +6,39 @@ from __future__ import annotations
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.inputstrategy import RefillType
 
-analysis_defn = FbaRevDefn.new_comparison_analysis(
-    analysis_date="2025-FEB-03",
+analysis_defn = FbaRevDefn(
+    analysis_date="2025-FEB-04",
+    master_sku_date="2025-FEB-03",
+    sales_and_inventory_date="2025-FEB-03",
     dispatch_date="2025-FEB-01",
-    config_date="2024-FEB-03",
+    warehouse_inventory_date="2025-FEB-04",
+    config_date="2025-FEB-03",
     prediction_type_meta_date=None,
-    real_analysis_date="2025-FEB-03",
-    refill_type=RefillType.WEEKLY,
+    in_stock_ratio_date="2025-FEB-04",
+    mon_sale_r_date=None,
+    mainprogram_date="2025-FEB-04",
+    refill_draft_date="2025-FEB-04",
+    po_date=None,
+    refill_type=RefillType.CUSTOM_2025_FEB_03,
     new_overrides_e=True,
     check_dispatch_date=False,
     match_main_program_month_fractions=True,
-    in_stock_ratio_date="2025-JAN-19",
+    extra_descriptor="po_reorg",
 )
+
+# analysis_defn = FbaRevDefn.new_comparison_analysis(
+#     analysis_date="2025-FEB-03",
+#     dispatch_date="2025-FEB-01",
+#     config_date="2025-FEB-03",
+#     prediction_type_meta_date=None,
+#     real_analysis_date="2025-FEB-03",
+#     refill_type=RefillType.CUSTOM_2025_FEB_03,
+#     new_overrides_e=True,
+#     check_dispatch_date=False,
+#     match_main_program_month_fractions=True,
+#     in_stock_ratio_date="2025-JAN-19",
+#     extra_descriptor="po_reorg",
+# )
 
 # analysis_date: DateLike = "2024-OCT-15"
 # dispatch_date: DateLike = Date.from_datelike("2024-OCT-15")
