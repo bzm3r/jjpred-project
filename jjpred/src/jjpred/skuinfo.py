@@ -12,9 +12,11 @@ full list of all the objects generated is given in :py:mod:`datagroups`.
 from __future__ import annotations
 
 from collections import defaultdict
+import sys
+from typing import Literal
 import polars as pl
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import (
     ALL_SKU_AND_CHANNEL_IDS,
@@ -345,3 +347,82 @@ def attach_inventory_info(
     )
 
     return all_sku_info
+
+
+def fetch_master_sku_info(
+    analysis_defn_or_db: AnalysisDefn | DataBase,
+    info_type: Literal["active_sku", "all_sku"],
+) -> pl.DataFrame:
+    if isinstance(analysis_defn_or_db, AnalysisDefn):
+        fetched_sku_info = read_meta_info(analysis_defn_or_db, info_type)
+    else:
+        fetched_sku_info = analysis_defn_or_db.meta_info.__getattribute__(
+            info_type
+        )
+    return fetched_sku_info
+
+
+def get_checked_sku_info(
+    analysis_defn_or_db: AnalysisDefn | DataBase,
+    only_active_sku: bool,
+    info_columns: list[str] = ["season_history"],
+) -> pl.DataFrame:
+    if only_active_sku:
+        info_type = "active_sku"
+    else:
+        info_type = "all_sku"
+
+    master_sku_info = fetch_master_sku_info(analysis_defn_or_db, info_type)
+
+    cat_print_size = Sku.members(MemberType.PRIMARY)
+    info_columns = [
+        x
+        for x in info_columns
+        if ((x in master_sku_info.columns) and (x not in cat_print_size))
+    ]
+
+    sku_info = (
+        master_sku_info.sort("sku_latest_year")
+        .with_columns(
+            print=pl.when(pl.col.category.eq("BRC") & pl.col.print.eq("YEL"))
+            .then(pl.lit("YLW", dtype=master_sku_info["print"].dtype))
+            .otherwise(pl.col.print)
+        )
+        .with_columns(
+            rank=pl.col.sku_latest_year.rank("ordinal").over("a_sku")
+        )
+        .with_columns(max_rank=pl.col.rank.max().over("a_sku"))
+        .filter(pl.col.rank.eq(pl.col.max_rank))
+        .drop("max_rank")
+        .select(
+            ["a_sku"] + cat_print_size + info_columns,
+        )
+        .group_by("a_sku")
+        .agg(pl.col(x).unique() for x in cat_print_size + info_columns)
+    )
+
+    if "season_history" in info_columns:
+        sku_info = sku_info.with_columns(
+            pl.col.season_history.list.sort(descending=True)
+            .list.eval(pl.element().cast(pl.String()))
+            .list.join(",")
+        )
+        sku_info = sku_info.cast(
+            {
+                "season_history": pl.Enum(
+                    sku_info["season_history"].unique().sort()
+                )
+            }
+        )
+
+    for y in cat_print_size + info_columns:
+        if isinstance(sku_info[y].dtype, pl.List):
+            dupes = sku_info.filter(pl.col(y).list.len().gt(1))
+            if len(dupes) > 0:
+                print(f"{y}:")
+                sys.displayhook(dupes)
+                raise ValueError("Found dupes in SKU info!")
+
+            sku_info = sku_info.with_columns(pl.col(y).list.first().alias(y))
+
+    return sku_info

@@ -65,6 +65,13 @@ class LatestDates:
             return self.sales_history_latest_date
 
 
+def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
+    if date_like is not None:
+        return Date.from_datelike(date_like)
+    else:
+        return None
+
+
 @total_ordering
 @dataclass
 class AnalysisDefn:
@@ -94,6 +101,9 @@ class AnalysisDefn:
     )
     """Date of associated in-stock ratio information file."""
 
+    po_date: Date | None = field(default=None, compare=False, init=False)
+    """Date of associated static PO data file."""
+
     latest_dates: LatestDates = field(init=False)
     """Latest dates for: default current period end dates and monthly ratio
     rolling update point."""
@@ -113,6 +123,7 @@ class AnalysisDefn:
         latest_dates: LatestDates | None = None,
         config_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
+        po_date: DateLike | None = None,
         extra_descriptor: str | None = None,
     ):
         self.basic_descriptor = basic_descriptor
@@ -125,15 +136,11 @@ class AnalysisDefn:
             warehouse_inventory_date
         )
 
-        if config_date is not None:
-            self.config_date = Date.from_datelike(config_date)
-        else:
-            self.config_date = None
-
-        if in_stock_ratio_date is not None:
-            self.in_stock_ratio_date = Date.from_datelike(in_stock_ratio_date)
-        else:
-            self.in_stock_ratio_date = None
+        self.config_date = normalize_optional_datelike(config_date)
+        self.in_stock_ratio_date = normalize_optional_datelike(
+            in_stock_ratio_date
+        )
+        self.po_date = normalize_optional_datelike(po_date)
 
         if latest_dates is None:
             self.latest_dates = LatestDates(self.date)
@@ -315,6 +322,7 @@ class FbaRevDefn(AnalysisDefn):
         mainprogram_date: DateLike | None = None,
         refill_draft_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
+        po_date: DateLike | None = None,
         outperformer_settings: OutperformerSettings = OutperformerSettings(
             False
         ),
@@ -402,6 +410,7 @@ class FbaRevDefn(AnalysisDefn):
             warehouse_inventory_date,
             config_date=config_date,
             in_stock_ratio_date=in_stock_ratio_date,
+            po_date=po_date,
             latest_dates=latest_dates,
             extra_descriptor=extra_descriptor,
         )
@@ -420,6 +429,7 @@ class FbaRevDefn(AnalysisDefn):
         prediction_end_date_required_month_parts: int | None = None,
         extra_descriptor: str | None = None,
         in_stock_ratio_date: DateLike | None = None,
+        po_date: DateLike | None = None,
         outperformer_settings: OutperformerSettings = OutperformerSettings(
             False
         ),
@@ -463,6 +473,7 @@ class FbaRevDefn(AnalysisDefn):
             extra_descriptor=extra_descriptor,
             new_overrides_e=new_overrides_e,
             in_stock_ratio_date=in_stock_ratio_date,
+            po_date=po_date,
             outperformer_settings=outperformer_settings,
             enable_full_box_logic=enable_full_box_logic,
             demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,

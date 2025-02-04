@@ -2,6 +2,7 @@
 Excel workbooks."""
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
@@ -107,6 +108,25 @@ def gen_meta_info_path(analysis_defn: AnalysisDefn, meta_name: str) -> Path:
     )
 
 
+@dataclass
+class Placeholder:
+    name: str
+
+
+def gen_support_info_path_from_tags(
+    analysis_defn_tag: str,
+    support_name_tag: str,
+    support_file_date_tag: str,
+    source_name_tag: str,
+) -> Path:
+    return ANALYSIS_OUTPUT_FOLDER.joinpath(
+        f"{str(analysis_defn_tag)}_{support_name_tag}_info"
+        + source_name_tag
+        + support_file_date_tag
+        + f".{DEFAULT_STORAGE_FORMAT}"
+    )
+
+
 def gen_support_info_path(
     analysis_defn: AnalysisDefn,
     support_name: str,
@@ -114,21 +134,30 @@ def gen_support_info_path(
     source_name: str | None = None,
 ) -> Path:
     if support_file_date is not None:
-        date_part = f"_{str(Date.from_datelike(support_file_date))}"
+        support_file_date_tag = (
+            f"_{str(Date.from_datelike(support_file_date))}"
+        )
     else:
-        date_part = ""
+        support_file_date_tag = ""
 
     if source_name is None:
-        source_part = ""
+        source_name_tag = ""
     else:
-        source_part = f"_src_{source_name}"
+        source_name_tag = f"_src_{source_name}"
 
-    return ANALYSIS_OUTPUT_FOLDER.joinpath(
-        f"{str(analysis_defn)}_{support_name}_info"
-        + source_part
-        + date_part
-        + f".{DEFAULT_STORAGE_FORMAT}"
+    return gen_support_info_path_from_tags(
+        str(analysis_defn),
+        support_name,
+        source_name_tag,
+        support_file_date_tag,
     )
+
+    # return ANALYSIS_OUTPUT_FOLDER.joinpath(
+    #     f"{str(analysis_defn)}_{support_name}_info"
+    #     + source_part
+    #     + date_part
+    #     + f".{DEFAULT_STORAGE_FORMAT}"
+    # )
 
 
 def gen_isr_year_info_path(year: int | None) -> Path:

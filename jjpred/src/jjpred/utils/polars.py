@@ -110,7 +110,7 @@ def binary_partition_strict(
     """Partition a dataframe based on a predicate (True/False) Polars
     expression. Raises errors if the dataframe cannot be "purely" partitioned
     into parts that either evaluate True/False, but instead there is a part that
-    also evalues to ``None`` (i.e. there is predicate expression given sometimes
+    also evalues to ``None`` (i.e. predicate expression given sometimes
     encounters missing data)."""
     groups = binary_partition(df, *predicate_expr)
     assert len(groups.keys()) == 2

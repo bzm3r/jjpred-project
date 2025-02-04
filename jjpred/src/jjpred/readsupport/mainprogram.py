@@ -96,27 +96,27 @@ class CandidatePOSheet:
 
 
 def read_po(
-    analysis_defn: FbaRevDefn | tuple[AnalysisDefn, DateLike],
+    analysis_defn_and_dispatch_date: FbaRevDefn
+    | tuple[AnalysisDefn, DateLike],
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
 ) -> pl.DataFrame:
     """Read PO data from the main program ``FBA Inventory Opimization Recall
     and Replenish`` file."""
 
-    if isinstance(analysis_defn, FbaRevDefn):
-        per_sku_path = gen_support_info_path(
-            analysis_defn,
-            "per_sku_po",
-            analysis_defn.get_mainprogram_date(),
-            source_name="mainprogram",
-        )
+    if isinstance(analysis_defn_and_dispatch_date, FbaRevDefn):
+        analysis_defn = analysis_defn_and_dispatch_date
+        dispatch_date = analysis_defn_and_dispatch_date.dispatch_date
     else:
-        per_sku_path = gen_support_info_path(
-            analysis_defn[0],
-            "per_sku_po",
-            analysis_defn[1],
-            source_name="mainprogram",
-        )
+        analysis_defn = analysis_defn_and_dispatch_date[0]
+        dispatch_date = Date.from_datelike(analysis_defn_and_dispatch_date[1])
+
+    per_sku_path = gen_support_info_path(
+        analysis_defn,
+        "per_sku_po",
+        dispatch_date,
+        source_name="mainprogram",
+    )
     # per_cat_path = gen_support_info_path(
     #     analysis_defn, "per_cat_po", mainprogram_date
     # )
@@ -127,16 +127,26 @@ def read_po(
         if per_sku is not None:  # and per_cat is not None:
             return per_sku
 
-    if isinstance(analysis_defn, FbaRevDefn):
-        active_sku_info = read_meta_info(analysis_defn, "active_sku")
-        channel_info = read_meta_info(analysis_defn, "channel")
+    if isinstance(analysis_defn_and_dispatch_date, FbaRevDefn):
+        active_sku_info = read_meta_info(
+            analysis_defn_and_dispatch_date, "active_sku"
+        )
+        channel_info = read_meta_info(
+            analysis_defn_and_dispatch_date, "channel"
+        )
         mainprogram_path = get_mainprogram_path(
-            analysis_defn.get_mainprogram_date()
+            analysis_defn_and_dispatch_date.get_mainprogram_date()
         )
     else:
-        active_sku_info = read_meta_info(analysis_defn[0], "active_sku")
-        channel_info = read_meta_info(analysis_defn[0], "channel")
-        mainprogram_path = get_mainprogram_path(analysis_defn[1])
+        active_sku_info = read_meta_info(
+            analysis_defn_and_dispatch_date[0], "active_sku"
+        )
+        channel_info = read_meta_info(
+            analysis_defn_and_dispatch_date[0], "channel"
+        )
+        mainprogram_path = get_mainprogram_path(
+            analysis_defn_and_dispatch_date[1]
+        )
 
     per_cat = pl.DataFrame()
     per_sku = pl.DataFrame()
@@ -320,12 +330,7 @@ def read_po(
         join_nulls=True,
     )
 
-    if isinstance(analysis_defn, FbaRevDefn):
-        dispatch_season, other_season = get_po_season(
-            analysis_defn.dispatch_date
-        )
-    else:
-        dispatch_season, other_season = get_po_season(analysis_defn[0].date)
+    dispatch_season, other_season = get_po_season(dispatch_date)
 
     dispatch_season_info = per_sku.filter(
         pl.col.po_season.eq(dispatch_season.name)
