@@ -152,6 +152,7 @@ CURRENT_PERIODS: MultiDict[Category, TimePeriod | UndeterminedTimePeriod] = (
             ("XBM", "XBK", "XLB", "XPC"): UndeterminedTimePeriod(
                 "2024-AUG-01"
             ),
+            ("XWG",): UndeterminedTimePeriod("2024-NOV-01"),
         }
     )
 )

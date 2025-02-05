@@ -493,19 +493,19 @@ def check_dispatch_results(
                 pl.col.actual_final_dispatch.gt(pl.col.wh_dispatchable),
             )
         )
-        diff_low_isr, with_actual_dispatch = binary_partition_strict(
-            with_actual_dispatch,
-            # (
-            #     (
-            #         pl.col.actual_final_dispatch.eq(0)
-            #         & pl.col.dispatch.gt(0)
-            #         & ~pl.col.within_tolerance
-            #     )
-            #     | (~pl.col.within_tolerance)
-            # )
-            # & pl.col.uses_low_isr.sum().gt(0),
-            pl.col.uses_low_isr.sum().gt(0) & ~pl.col.dispatch_below_cutoff,
-        )
+        # diff_low_isr, with_actual_dispatch = binary_partition_strict(
+        #     with_actual_dispatch,
+        #     # (
+        #     #     (
+        #     #         pl.col.actual_final_dispatch.eq(0)
+        #     #         & pl.col.dispatch.gt(0)
+        #     #         & ~pl.col.within_tolerance
+        #     #     )
+        #     #     | (~pl.col.within_tolerance)
+        #     # )
+        #     # & pl.col.has_low_isr.sum().gt(0),
+        #     pl.col.has_low_isr.sum().gt(0) & ~pl.col.dispatch_below_cutoff,
+        # )
         not_in_jjpred, with_actual_dispatch = binary_partition_strict(
             with_actual_dispatch,
             pl.col.actual_final_dispatch.ge(DISPATCH_CUTOFF_QTY)

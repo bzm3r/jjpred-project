@@ -64,7 +64,7 @@ PREDICTION_CHECK_FLAGS = [
     "uses_e",
     "uses_po",
     "uses_ne",
-    "uses_low_isr",
+    "has_low_isr",
     "e_overrides_po",
     "po_overrides_e",
     "ce_forced_to_use_e",

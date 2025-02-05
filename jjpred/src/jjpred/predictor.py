@@ -1556,7 +1556,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
 
                 if self.analysis_defn.enable_low_current_period_isr_logic:
                     expected_demand_df = expected_demand_df.with_columns(
-                        uses_low_isr=pl.when(
+                        has_low_isr=pl.when(
                             pl.col.mean_current_period_isr.is_not_null()
                             & pl.col.mean_current_period_isr.lt(0.5)
                         )
@@ -1565,7 +1565,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     )
                 else:
                     expected_demand_df = expected_demand_df.with_columns(
-                        uses_low_isr=pl.lit(False),
+                        has_low_isr=pl.lit(False),
                     )
 
                 expected_demand_df = (
@@ -1644,7 +1644,8 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     )
                     .with_columns(
                         expected_demand=pl.when(
-                            pl.col.uses_ne | pl.col.uses_low_isr
+                            pl.col.uses_ne
+                            | (pl.col.uses_e & pl.col.has_low_isr)
                         )
                         .then(
                             pl.max_horizontal(
@@ -1680,7 +1681,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                             pl.col.po_overrides_e.sum(),
                             pl.col.ce_uses_e.sum(),
                             pl.col.ce_uses_po.sum(),
-                            pl.col.uses_low_isr.sum(),
+                            pl.col.has_low_isr.sum(),
                             pl.col.demand_based_on_e.sum(),
                             pl.col.demand_based_on_po.sum(),
                             pl.col.mean_current_period_isr,
