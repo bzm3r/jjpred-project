@@ -27,7 +27,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import vstack_to_unified, sanitize_excel_extraction
-from jjpred.utils.typ import as_list, as_polars_type
+from jjpred.utils.typ import normalize_as_list, as_polars_type
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 
 
@@ -93,7 +93,7 @@ def read_raw_dispatch_from_excel(
                 ["abnormal", "flag"],
                 ["final", "replenish", "details"],
             ]:
-                if all([y in col.lower() for y in as_list(x)]):
+                if all([y in col.lower() for y in normalize_as_list(x)]):
                     if x == "merchant":
                         intermediate = "sku"
                     elif "abnormal" in x:

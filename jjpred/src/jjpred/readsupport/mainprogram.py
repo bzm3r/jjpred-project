@@ -39,7 +39,7 @@ from jjpred.utils.polars import (
     find_dupes,
     sanitize_excel_extraction,
 )
-from jjpred.utils.typ import as_list, as_polars_type
+from jjpred.utils.typ import normalize_as_list, as_polars_type
 import fastexcel as fxl
 
 
@@ -611,7 +611,7 @@ def read_current_period_defn(
     intermediate_names = []
     for col in sheet_headers.columns:
         for x in ["status", ["manual", "adjust"]]:
-            if all([y in col.lower() for y in as_list(x)]):
+            if all([y in col.lower() for y in normalize_as_list(x)]):
                 if x == "status":
                     intermediate_names.append("category")
                 else:
@@ -726,7 +726,7 @@ def read_qty_box(
     intermediate_names = []
     for col in sheet_headers.columns:
         for x in ["merchant", ["qty", "box"]]:
-            if all([y in col.lower() for y in as_list(x)]):
+            if all([y in col.lower() for y in normalize_as_list(x)]):
                 if x == "merchant":
                     intermediate_names.append("sku")
                 else:

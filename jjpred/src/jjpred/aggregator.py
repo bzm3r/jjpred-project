@@ -13,7 +13,7 @@ from jjpred.countryflags import CountryFlags
 from jjpred.utils.polars import FilterStructs, struct_filter
 from jjpred.utils.typ import (
     ScalarOrList,
-    as_list,
+    normalize_as_list,
     normalize_optional,
 )
 
@@ -103,7 +103,7 @@ class UsingChannels(Aggregator):
         """
         if focus_channels is not None:
             self.focus_channels = [
-                Channel.parse(ch) for ch in as_list(focus_channels)
+                Channel.parse(ch) for ch in normalize_as_list(focus_channels)
             ]
             self.channel_filter = FilterStructs(set(self.focus_channels))
         else:
@@ -156,7 +156,7 @@ class UsingRetail(Aggregator):
         """
         if focus_channels is not None:
             self.focus_channels = [
-                Channel.parse(ch) for ch in as_list(focus_channels)
+                Channel.parse(ch) for ch in normalize_as_list(focus_channels)
             ]
             self.channel_filter = FilterStructs(set(self.focus_channels))
         else:

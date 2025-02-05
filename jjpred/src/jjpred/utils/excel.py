@@ -3,7 +3,7 @@
 import polars as pl
 from jjpred.countryflags import CountryFlags
 from jjpred.utils.polars import get_columns_in_df
-from jjpred.utils.typ import as_list
+from jjpred.utils.typ import normalize_as_list
 
 
 def map_pause_plan_int(x: int) -> str:
@@ -19,7 +19,7 @@ def map_pause_plan(x: int | list[int] | pl.Series) -> str:
     if isinstance(x, pl.Series):
         x = list(x)
     assert isinstance(x, int | list)
-    return ",".join([map_pause_plan_int(y) for y in as_list(x)])
+    return ",".join([map_pause_plan_int(y) for y in normalize_as_list(x)])
 
 
 def map_country_flag_int(x: int) -> str:
@@ -35,7 +35,7 @@ def map_country_flag(x: int | list[int]) -> str:
     if isinstance(x, pl.Series):
         x = list(x)
     assert isinstance(x, int | list)
-    return ",".join([map_country_flag_int(y) for y in as_list(x)])
+    return ",".join([map_country_flag_int(y) for y in normalize_as_list(x)])
 
 
 def normalize_pause_plan_and_country_flags_for_excel(

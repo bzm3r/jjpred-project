@@ -16,7 +16,7 @@ from jjpred.countryflags import CountryFlags
 from jjpred.inputstrategy import TimePeriod
 from jjpred.utils.datetime import Date, Month
 from jjpred.utils.polars import struct_filter
-from jjpred.utils.typ import ScalarOrList, as_list
+from jjpred.utils.typ import ScalarOrList, normalize_as_list
 
 
 type ChannelFilterKey = (
@@ -67,7 +67,7 @@ def filter_and_aggregate(
     channels = CHANNEL_FILTERS[channel_filter]
     if not isinstance(channels, pl.Expr):
         parsed_channels: list[Channel] = [
-            Channel.parse(x) for x in as_list(channels)
+            Channel.parse(x) for x in normalize_as_list(channels)
         ]
         input_df = struct_filter(
             input_df,

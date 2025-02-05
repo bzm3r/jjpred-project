@@ -25,7 +25,7 @@ def expect_scalar[T](xs: ScalarOrList[T]) -> T:
     raise ValueError(f"Expecting scalar, got {xs}.")
 
 
-def as_list[T, U](
+def normalize_as_list[T, U](
     xs: ScalarOrList[T] | ScalarOrList[U] | None,
     length: int = 1,
 ) -> list[T | U]:
@@ -43,7 +43,7 @@ def normalize_scalar_or_list_of_sets[T](
     length: int = 1,
 ) -> list[T]:
     """Convert a scalar or list of sets of scalars into a list."""
-    xs: list[T | set[T]] = as_list(inputs)
+    xs: list[T | set[T]] = normalize_as_list(inputs)
     result = []
     for x in xs:
         if isinstance(x, set):

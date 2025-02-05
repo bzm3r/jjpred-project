@@ -42,7 +42,7 @@ from jjpred.utils.polars import (
     join_and_coalesce,
     struct_filter,
 )
-from jjpred.utils.typ import PolarsLit, ScalarOrList, as_list
+from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
 
 
 def initialize_sku_info(
@@ -169,7 +169,7 @@ def override_sku_info(
         dupe_check_index=dupe_check_index,
     )
 
-    create_info_columns = as_list(create_info_columns)
+    create_info_columns = normalize_as_list(create_info_columns)
 
     string_entries = [x for x in create_info_columns if isinstance(x, str)]
     if create_missing_info_flags:

@@ -34,7 +34,7 @@ from jjpred.structlike import StructLike
 from jjpred.utils.typ import (
     Additive,
     ScalarOrList,
-    as_list,
+    normalize_as_list,
 )
 
 
@@ -199,7 +199,7 @@ class ColumnDefn:
         dtype: type[pl.DataType],
         match_parts: list[str],
     ):
-        label_defns = as_list(label_defns)
+        label_defns = normalize_as_list(label_defns)
         if result := LabelDefn.sum(label_defns):
             self.label_defn = result
         else:
@@ -245,7 +245,7 @@ class Column:
     str_repr: str = field(default_factory=str)
 
     def __post_init__(self):
-        self.labels = as_list(self.labels)
+        self.labels = normalize_as_list(self.labels)
         self.str_repr = " ".join([label.name for label in self.labels])
 
     def is_compound(self) -> bool:

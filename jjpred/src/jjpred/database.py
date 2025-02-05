@@ -29,7 +29,6 @@ from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.readsupport.marketing import read_config
 from jjpred.readsupport.mastersku import (
     MasterSkuInfo,
-    get_master_sku_info,
 )
 from jjpred.readsupport.utils import (
     cast_standard,
@@ -224,7 +223,7 @@ class DataBase:
         ]
         self.dfs: dict[DataVariant, pl.DataFrame] = dict()
 
-        master_sku_result = get_master_sku_info(
+        master_sku_result = MasterSkuInfo.get_master_sku_info(
             self.analysis_defn, read_from_disk=read_from_disk
         )
         self.meta_info = MetaInfo.from_master_sku_result(master_sku_result)
@@ -241,6 +240,9 @@ class DataBase:
         if self.analysis_defn.config_date is not None:
             config_data = read_config(self.analysis_defn)
             self.meta_info.update_category_seasons(config_data.category_season)
+            print(
+                "INFO: resaving meta dfs after updating season information..."
+            )
             self.save_meta_dfs()
 
     def dispatch_date(self) -> Date:
@@ -358,11 +360,7 @@ class DataBase:
 
     def read_saved_dfs(self) -> bool:
         """Read saved dataframes necessary to re-populate this database."""
-        success = self.read_data_dfs()
-        if not success:
-            return success
-        success = self.read_meta_dfs()
-        return success
+        return self.read_data_dfs() and self.read_meta_dfs()
 
     def read_data_dfs(
         self,

@@ -61,7 +61,7 @@ from jjpred.utils.polars import (
 
 from jjpred.utils.typ import (
     ScalarOrList,
-    as_list,
+    normalize_as_list,
 )
 from jjpred.readsheet import DataVariant
 
@@ -850,7 +850,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         channels: ScalarOrList[str] | ScalarOrList[Channel],
     ) -> dict[Channel, CategoryGroups[CategoryGroup[pl.DataFrame]]]:
         """Get all historical period sales across all channels and SKUs."""
-        channels = [Channel.parse(ch) for ch in as_list(channels)]
+        channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         historical_sales_per_channel = {}
 
         for channel in channels:
@@ -876,7 +876,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         channels: ScalarOrList[str] | ScalarOrList[Channel],
     ) -> dict[Channel, CategoryGroups[CategoryGroup[pl.DataFrame]]]:
         """Get all current period sales across all channels and SKUs."""
-        channels = [Channel.parse(ch) for ch in as_list(channels)]
+        channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         current_period_sales_per_channel = {}
 
         for channel in channels:
@@ -911,7 +911,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         channels: ScalarOrList[str] | ScalarOrList[Channel],
     ) -> dict[Channel, CategoryGroups[CategoryGroup[pl.DataFrame]]]:
         """Get all current period total sales across all channels and SKUs."""
-        channels = [Channel.parse(ch) for ch in as_list(channels)]
+        channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         current_total_sales_per_channel = {}
 
         for channel in channels:
@@ -944,7 +944,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         channels: ScalarOrList[str] | ScalarOrList[Channel],
     ) -> dict[Channel, CategoryGroups[CategoryGroup[pl.DataFrame]]]:
         """Get all PO data across all channels and SKUs."""
-        channels = [Channel.parse(ch) for ch in as_list(channels)]
+        channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         po_data_per_channel = {}
 
         for channel in channels:
@@ -1338,7 +1338,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         aggregate_final_result: bool = True,
     ) -> pl.DataFrame:
         """Predict demand across all SKUs and channels."""
-        channels = [Channel.parse(ch) for ch in as_list(channels)]
+        channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         expected_demands_per_channel = {}
 
         input_data_info = self.get_input_data_info()

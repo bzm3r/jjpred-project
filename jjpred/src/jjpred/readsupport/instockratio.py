@@ -13,7 +13,7 @@ from jjpred.channel import Channel
 from jjpred.datagroups import WHOLE_SKU_IDS
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.readsheet import DataVariant, get_relevant_sheets
-from jjpred.readsupport.mastersku import MasterSkuInfo, get_master_sku_info
+from jjpred.readsupport.mastersku import MasterSkuInfo
 from jjpred.readsupport.utils import (
     cast_standard,
     parse_channels,
@@ -241,7 +241,7 @@ def read_isr_year_info(
 
     raw_isr = read_isr_year_info_raw(raw_isr_date, years)
 
-    master_sku_info = get_master_sku_info(
+    master_sku_info = MasterSkuInfo.get_master_sku_info(
         analysis_defn, read_from_disk=read_master_sku_info_from_disk
     )
 

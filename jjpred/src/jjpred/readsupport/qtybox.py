@@ -15,7 +15,7 @@ from jjpred.utils.fileio import (
 
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.polars import find_dupes, sanitize_excel_extraction
-from jjpred.utils.typ import as_list
+from jjpred.utils.typ import normalize_as_list
 
 QTY_BOX_FILE: str = "PO boxes and volume - All seasons{date_part}.xlsx"
 
@@ -157,7 +157,9 @@ def read_qty_box(
         for ix, col in enumerate(headers.columns):
             for required_name, search_info in search_cols.items():
                 search_item, data_type = search_info
-                if all([y in col.lower() for y in as_list(search_item)]):
+                if all(
+                    [y in col.lower() for y in normalize_as_list(search_item)]
+                ):
                     info_per_sheet.append(
                         sheet_name,
                         ix,

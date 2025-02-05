@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from jjpred.utils.typ import (
     Additive,
     ScalarOrList,
-    as_list,
+    normalize_as_list,
 )
 
 
@@ -78,7 +78,7 @@ class PatternGroup(str, Enum):
     """:py:class:`Enum` enumerating the kinds of string-matching (RegEx)
     pattern groups that can be built."""
 
-    Named = f"(?P<{"{name}"}>{{pattern}})"
+    Named = f"(?P<{'{name}'}>{{pattern}})"
     """A named RegEx capture group."""
     Anonymous = "({{pattern}})"
     """An anonymous RegEx capture group (will be 'named' by a number)."""
@@ -196,7 +196,7 @@ class StringPattern:
                 + [
                     StringPattern(y)
                     for xs in pattern_args
-                    for y in as_list(xs)
+                    for y in normalize_as_list(xs)
                 ]
             )
             if not x.is_empty()
@@ -486,7 +486,7 @@ class ReMatcher[T: ReMatchResult](PatternMatcher):
         match_condition: ReMatchCondition,
     ) -> None:
         self.name = name
-        self.match_skips = as_list(match_skips)
+        self.match_skips = normalize_as_list(match_skips)
         self.match_condition = match_condition
 
     @classmethod
@@ -513,7 +513,7 @@ class ReMatcher[T: ReMatchResult](PatternMatcher):
                 Exception(f"No logic to handle case {self.mode}")
 
     def __match_wide_all__(self, strings: ScalarOrList[str]) -> T | None:
-        strings = as_list(strings)
+        strings = normalize_as_list(strings)
 
         if len(strings) >= len(self.match_skips):
             if len(strings) > len(self.match_skips):
@@ -532,7 +532,7 @@ class ReMatcher[T: ReMatchResult](PatternMatcher):
                 return result
 
     def __match_deep_all__(self, strings: ScalarOrList[str]) -> T | None:
-        strings = as_list(strings)
+        strings = normalize_as_list(strings)
 
         for string in strings:
             all_match = True
@@ -550,7 +550,7 @@ class ReMatcher[T: ReMatchResult](PatternMatcher):
                 return result
 
     def __match_deep_any__(self, strings: ScalarOrList[str]) -> T | None:
-        strings = as_list(strings)
+        strings = normalize_as_list(strings)
 
         for string in strings:
             for match_skip in self.match_skips:

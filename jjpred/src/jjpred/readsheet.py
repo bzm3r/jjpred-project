@@ -26,7 +26,7 @@ import re
 
 from jjpred.utils.polars import sanitize_excel_extraction
 from jjpred.utils.str import indent
-from jjpred.utils.typ import ScalarOrList, as_list
+from jjpred.utils.typ import ScalarOrList, normalize_as_list
 
 SHEET_NAME_RE_PATTERN = re.compile(r"(?P<category>[^-]+)(-(?P<suffix>.*))?")
 
@@ -39,7 +39,7 @@ def get_relevant_sheets(
     """Figure out which particular sheets need to be read, based on which
     categories we want to focus on."""
     sheet_infos = get_sheet_info(wb)
-    required_variants = as_list(required_variants)
+    required_variants = normalize_as_list(required_variants)
 
     relevant_sheets: dict[DataVariant, list[SheetInfo]] = {
         k: [] for k in DataVariant if k in required_variants

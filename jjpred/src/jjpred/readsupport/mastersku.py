@@ -13,7 +13,10 @@ import re
 
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.countryflags import CountryFlags
-from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER, MAIN_FOLDER
+from jjpred.globalpaths import (
+    ANALYSIS_INPUT_FOLDER,
+    ANALYSIS_OUTPUT_FOLDER,
+)
 from jjpred.globalvariables import (
     STARTS_WITH_M_OK_LIST,
     ENDS_WITH_U_OK_LIST,
@@ -98,52 +101,72 @@ names because they are otherwise unnecessarily long."""
     """Sizes mapped to numeric values. Useful for sorting by size especially when
 plotting."""
 
-
-def generate_save_paths(analysis_defn: AnalysisDefn) -> tuple[Path, ...]:
-    """Generate paths where Master SKU information should be saved to."""
-    return tuple(
-        MAIN_FOLDER.joinpath(
-            "analysis",
-            "output",
-            f"{analysis_defn.tag()}_master_sku_{df_name}.parquet",
+    @classmethod
+    def generate_save_paths(
+        cls, analysis_defn: AnalysisDefn
+    ) -> dict[str, Path]:
+        """Generate paths where Master SKU information should be saved to."""
+        return dict(
+            (
+                df_name,
+                ANALYSIS_OUTPUT_FOLDER.joinpath(
+                    f"{analysis_defn.tag()}_master_sku_{df_name}.parquet",
+                ),
+            )
+            for df_name in MasterSkuInfo.fields()
         )
-        for df_name in MasterSkuInfo.fields()
-    )
 
+    @classmethod
+    def delete_or_read(
+        cls,
+        analysis_defn: AnalysisDefn,
+        delete_if_exists: bool = False,
+    ) -> MasterSkuInfo | None:
+        """Read master SKU information associated with an analysis, or delete
+        such information if it exists."""
+        field_dfs = {}
+        save_paths = MasterSkuInfo.generate_save_paths(analysis_defn)
+        for f, save_path in save_paths.items():
+            field_dfs[f] = delete_or_read_df(delete_if_exists, save_path)
+        result = MasterSkuInfo()
 
-def delete_or_read_msku_info(
-    analysis_defn: AnalysisDefn,
-    delete_if_exists: bool = False,
-) -> MasterSkuInfo | None:
-    """Read master SKU information associated with an analysis, or delete it if
-    it exists."""
-    dfs = []
-    save_paths = generate_save_paths(analysis_defn)
-    for save_path in save_paths:
-        dfs.append(delete_or_read_df(delete_if_exists, save_path))
-    result = MasterSkuInfo()
-    for f, df in zip(MasterSkuInfo.fields(), dfs):
-        if df is None:
-            return None
+        for f, df in field_dfs.items():
+            if df is None:
+                return None
+            else:
+                result.__setattr__(f, df)
+
+        return result
+
+    def write_to_disk(self, analysis_defn: AnalysisDefn) -> None:
+        """Write master SKU information dataframes to disk."""
+        save_paths = MasterSkuInfo.generate_save_paths(analysis_defn)
+        for f, save_path in save_paths.items():
+            write_df(True, save_path, self.__getattribute__(f))
+
+    @classmethod
+    def get_master_sku_info(
+        cls,
+        analysis_defn: AnalysisDefn,
+        read_from_disk=False,
+        delete_if_exists=False,
+    ) -> MasterSkuInfo:
+        master_sku_info = None
+        if read_from_disk or delete_if_exists:
+            master_sku_info = MasterSkuInfo.delete_or_read(
+                analysis_defn, delete_if_exists
+            )
+
+        if master_sku_info is not None:
+            return master_sku_info
         else:
-            result.__setattr__(f, df)
+            master_sku_info = read_master_sku_excel_file(
+                analysis_defn.master_sku_date
+            )
 
-    return result
+            master_sku_info.write_to_disk(analysis_defn)
 
-
-def write_dfs_to_disk(
-    analysis_defn: AnalysisDefn, master_sku_result: MasterSkuInfo
-) -> None:
-    """Write master SKU information dataframes to disk."""
-    save_paths = generate_save_paths(
-        analysis_defn, *(master_sku_result.__dataclass_fields__.keys())
-    )
-    for save_path, df in zip(
-        save_paths,
-        master_sku_result.__dataclass_fields__.values(),
-        strict=True,
-    ):
-        write_df(True, save_path, df)
+            return master_sku_info
 
 
 def filter_m_and_u_types(all_sku_info: pl.DataFrame) -> pl.DataFrame:
@@ -743,27 +766,3 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
     result.numeric_size_map = numeric_size_map
 
     return result
-
-
-def get_master_sku_info(
-    analysis_defn: AnalysisDefn,
-    read_from_disk=False,
-    delete_if_exists=True,
-    write_to_disk=False,
-) -> MasterSkuInfo:
-    master_sku_info = None
-    if read_from_disk or delete_if_exists:
-        master_sku_info = delete_or_read_msku_info(
-            analysis_defn, delete_if_exists
-        )
-
-    if master_sku_info is not None:
-        return master_sku_info
-    else:
-        master_sku_info = read_master_sku_excel_file(
-            analysis_defn.master_sku_date
-        )
-        if write_to_disk:
-            write_dfs_to_disk(analysis_defn, master_sku_info)
-
-        return master_sku_info

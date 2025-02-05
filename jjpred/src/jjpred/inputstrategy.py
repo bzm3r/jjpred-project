@@ -36,7 +36,7 @@ from jjpred.utils.polars import EnumLike
 from jjpred.utils.pprint import PrettyPrint
 from jjpred.utils.typ import (
     ScalarOrList,
-    as_list,
+    normalize_as_list,
     normalize_default_dict,
 )
 
@@ -317,7 +317,7 @@ class InputStrategy(PrettyPrint):
             Channel, Aggregator | Mapping[Category, Aggregator]
         ],
     ):
-        self.channels = [Channel.parse(x) for x in as_list(channel)]
+        self.channels = [Channel.parse(x) for x in normalize_as_list(channel)]
         self.referred_to_primary_map = fix_reference_chains(
             referred_to_primary_map, raise_error=False
         )

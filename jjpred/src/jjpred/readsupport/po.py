@@ -250,6 +250,8 @@ def read_all_po(
         sys.displayhook(all_po_per_sku.filter(pl.col.sales.lt(0.0)))
         raise ValueError("Found negative PO values!")
 
+    write_df(True, all_po_per_sku_path, all_po_per_sku)
+
     return all_po_per_sku
 
 
