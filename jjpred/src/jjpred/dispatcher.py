@@ -34,7 +34,7 @@ from jjpred.skuinfo import (
     override_sku_info,
     attach_channel_info,
     attach_refill_info_from_config,
-    initialize_sku_info,
+    get_all_sku_currentness_info,
 )
 from jjpred.structlike import MemberType, StructLike
 from jjpred.utils.datetime import Date
@@ -217,7 +217,7 @@ class Dispatcher:
         ).unique()
         # initialize all sku information, which we will further build upon as
         # the dispatch calculations progress
-        self.all_sku_info = initialize_sku_info(analysis_defn)
+        self.all_sku_info = get_all_sku_currentness_info(analysis_defn)
 
         self.all_sku_info = attach_channel_info(
             self.all_sku_info, self.channel_info

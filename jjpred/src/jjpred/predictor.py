@@ -27,7 +27,7 @@ from jjpred.performanceflags import PerformanceFlag
 from jjpred.predictiontypes import PredictionType
 from jjpred.readsupport.utils import cast_standard
 from jjpred.readsupport.predictiontypes import read_prediction_types
-from jjpred.skuinfo import initialize_sku_info
+from jjpred.skuinfo import get_all_sku_currentness_info
 from jjpred.utils.datamanipulation import merge_wholesale
 from jjpred.utils.groupeddata import (
     CategoryGroupProtocol,
@@ -54,6 +54,7 @@ from jjpred.utils.multidict import MultiDict
 from jjpred.utils.polars import (
     NoOverride,
     OverrideLeft,
+    polars_float,
     vstack_to_unified,
     find_dupes,
     join_and_coalesce,
@@ -462,7 +463,7 @@ class HistoricalPeriodSales:
                     / pl.col("category_historical_year_sales")
                 )
                 .otherwise(pl.lit(-1.0))
-                .cast(pl.Float64())
+                .cast(polars_float(64))
             ).with_columns(month=pl.col("date").dt.month())
         )
 
@@ -1145,7 +1146,9 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
 
         category_type_df = self.get_category_types(self.db)
 
-        sku_info_df = initialize_sku_info(self.db).filter(pl.col.is_active)
+        sku_info_df = get_all_sku_currentness_info(self.db).filter(
+            pl.col.is_active
+        )
 
         latest_date = self.latest_dates.latest()
         print(f"{latest_date=}")
@@ -1550,7 +1553,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 else:
                     expected_demand_df = expected_demand_df.with_columns(
                         mean_current_period_isr=pl.lit(
-                            None, dtype=pl.Float64()
+                            None, dtype=polars_float(64)
                         )
                     )
 

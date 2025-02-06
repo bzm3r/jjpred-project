@@ -250,6 +250,13 @@ def read_all_po(
         sys.displayhook(all_po_per_sku.filter(pl.col.sales.lt(0.0)))
         raise ValueError("Found negative PO values!")
 
+    for x, y in [("HXP-ROS-M", "HXP-ROS-M1"), ("FMR-STB-M", "FMR-STB-M1")]:
+        all_po_per_sku = all_po_per_sku.with_columns(
+            sku=pl.when(pl.col.sku.eq(x))
+            .then(pl.lit(y, dtype=all_po_per_sku["sku"].dtype))
+            .otherwise(pl.col.sku)
+        )
+
     write_df(True, all_po_per_sku_path, all_po_per_sku)
 
     return all_po_per_sku

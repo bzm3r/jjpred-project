@@ -7,6 +7,7 @@ from enum import Enum, IntFlag
 import sys
 from typing import (
     Any,
+    Literal,
     Self,
 )
 import polars as pl
@@ -456,3 +457,17 @@ def convert_dict_to_polars_df(
             for k, v in input_dict.items()
         ]
     )
+
+
+def polars_integer(size: Literal[32, 64]) -> pl.Int32 | pl.Int64:
+    if size == 32:
+        return pl.Int32()
+    else:
+        return pl.Int64()
+
+
+def polars_float(size: Literal[32, 64]) -> pl.Float32 | pl.Float64:
+    if size == 32:
+        return pl.Float32()
+    else:
+        return pl.Float64()

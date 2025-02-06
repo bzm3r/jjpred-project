@@ -45,7 +45,7 @@ from jjpred.utils.polars import (
 from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
 
 
-def initialize_sku_info(
+def get_all_sku_currentness_info(
     analysis_id_or_database: FbaRevDefn | DataBase,
 ) -> pl.DataFrame:
     if isinstance(analysis_id_or_database, FbaRevDefn):
@@ -101,7 +101,7 @@ def initialize_sku_info(
         )
     )
 
-    find_dupes(all_sku_info, ALL_SKU_IDS)
+    find_dupes(all_sku_info, ALL_SKU_IDS, raise_error=True)
 
     return all_sku_info
 
@@ -362,32 +362,60 @@ def fetch_master_sku_info(
     return fetched_sku_info
 
 
-def get_checked_sku_info(
+def check_aggregated_sku_info_for_duplicates(
+    aggregated_sku_info: pl.DataFrame, id_cols: list[str]
+) -> pl.DataFrame:
+    sku_info = aggregated_sku_info
+    for y in [x for x in aggregated_sku_info.columns if x not in id_cols]:
+        if isinstance(aggregated_sku_info[y].dtype, pl.List):
+            dupes = aggregated_sku_info.filter(pl.col(y).list.len().gt(1))
+            if len(dupes) > 0:
+                print(f"{y}:")
+                sys.displayhook(dupes)
+                raise ValueError("Found dupes in SKU info!")
+
+            sku_info = sku_info.with_columns(pl.col(y).list.first().alias(y))
+
+    return aggregated_sku_info
+
+
+def get_checked_a_sku_info(
     analysis_defn_or_db: AnalysisDefn | DataBase,
     only_active_sku: bool,
     info_columns: list[str] = ["season_history"],
+    rename_brc_ylw_to_brc_yel: bool = True,
+    rename_icp_to_ipc: bool = True,
 ) -> pl.DataFrame:
     if only_active_sku:
         info_type = "active_sku"
     else:
         info_type = "all_sku"
 
-    master_sku_info = fetch_master_sku_info(analysis_defn_or_db, info_type)
+    sku_info = fetch_master_sku_info(analysis_defn_or_db, info_type)
 
     cat_print_size = Sku.members(MemberType.PRIMARY)
     info_columns = [
         x
         for x in info_columns
-        if ((x in master_sku_info.columns) and (x not in cat_print_size))
+        if ((x in sku_info.columns) and (x not in cat_print_size))
     ]
 
-    sku_info = (
-        master_sku_info.sort("sku_latest_year")
-        .with_columns(
+    if rename_brc_ylw_to_brc_yel:
+        sku_info = sku_info.with_columns(
             print=pl.when(pl.col.category.eq("BRC") & pl.col.print.eq("YEL"))
-            .then(pl.lit("YLW", dtype=master_sku_info["print"].dtype))
+            .then(pl.lit("YLW", dtype=sku_info["print"].dtype))
             .otherwise(pl.col.print)
         )
+
+    if rename_icp_to_ipc:
+        sku_info = sku_info.with_columns(
+            category=pl.when(pl.col.category.eq("ICP"))
+            .then(pl.lit("IPC", dtype=sku_info["category"].dtype))
+            .otherwise(pl.col.category)
+        )
+
+    sku_info = (
+        sku_info.sort("sku_latest_year")
         .with_columns(
             rank=pl.col.sku_latest_year.rank("ordinal").over("a_sku")
         )
@@ -426,3 +454,40 @@ def get_checked_sku_info(
             sku_info = sku_info.with_columns(pl.col(y).list.first().alias(y))
 
     return sku_info
+
+
+def get_checked_category_level_sku_info(
+    db: DataBase,
+    category_info_columns: list[str] = ["season", "category_year_history"],
+) -> pl.DataFrame:
+    extracted_info = get_checked_a_sku_info(
+        db, False, info_columns=category_info_columns
+    ).select(["category"] + category_info_columns)
+
+    season_df = extracted_info.group_by("category").agg(
+        pl.col(x).unique() for x in category_info_columns
+    )
+
+    # eliminating dupes
+    if "category_year_history" in category_info_columns:
+        season_df = season_df.with_columns(
+            pl.col.category_year_history.list.eval(pl.element().explode())
+            .list.unique()
+            .list.sort(descending=True)
+        )
+
+    if "season_history" in category_info_columns:
+        assert (
+            len(season_df.filter(pl.col.season_history.list.len().gt(1))) == 0
+        )
+        season_df = season_df.with_columns(
+            season=pl.col.season_history.list.first()
+        )
+
+    if "season" in category_info_columns:
+        assert len(season_df.filter(pl.col.season.list.len().gt(1))) == 0
+        season_df = season_df.with_columns(season=pl.col.season.list.first())
+
+    find_dupes(season_df, ["category"], raise_error=True)
+
+    return season_df

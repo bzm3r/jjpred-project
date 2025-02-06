@@ -31,7 +31,7 @@ import polars as pl
 
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.seasons import Season
-from jjpred.skuinfo import initialize_sku_info
+from jjpred.skuinfo import get_all_sku_currentness_info
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.polars import find_dupes
 
@@ -98,7 +98,7 @@ def read_prediction_types(
         .cast({"prediction_type": PredictionType.polars_type()})
     )
     all_sku_info = (
-        initialize_sku_info(analysis_id_or_database)
+        get_all_sku_currentness_info(analysis_id_or_database)
         .filter(pl.col.is_active)
         .join(prediction_types, on="season", how="left")
     )
