@@ -28,7 +28,6 @@ from jjpred.datagroups import (
 )
 from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
-from jjpred.globalvariables import WAREHOUSE_MIN_KEEP_QTY
 from jjpred.readsheet import DataVariant
 from jjpred.readsupport.marketing import ConfigData
 from jjpred.sku import Sku
@@ -278,8 +277,8 @@ def attach_inventory_info(
     config_data: ConfigData,
     all_sku_info: pl.DataFrame,
     warehouse_filter: pl.Expr,
+    warehouse_min_keep_qty: int,
     filters: FilterStructs | None = None,
-    warehouse_min_keep: int = WAREHOUSE_MIN_KEEP_QTY,
 ) -> pl.DataFrame:
     inv_df = struct_filter(db.dfs[DataVariant.Inventory], filters)
     wh_stock, ch_stock = binary_partition_strict(
@@ -299,7 +298,7 @@ def attach_inventory_info(
             join_nulls=True,
         )
         .with_columns(
-            min_keep_default=pl.lit(warehouse_min_keep, pl.Int64()),
+            min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
         )
         .with_columns(
             min_keep=pl.max_horizontal("min_keep", "min_keep_default")

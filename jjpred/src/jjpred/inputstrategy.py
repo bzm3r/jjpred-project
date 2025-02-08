@@ -4,7 +4,7 @@ information needs to be generated for each channel that requires a prediction.""
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import auto
 from functools import total_ordering
@@ -18,7 +18,6 @@ from jjpred.globalvariables import (
     WEEKLY_PREDICTION_OFFSET,
     SEASON_START_PREDICTION_OFFSET,
 )
-from jjpred.seasons import Season
 from jjpred.sku import Category
 
 
@@ -91,27 +90,27 @@ class RefillType(EnumLike):
             case value:
                 raise ValueError(f"No logic to handle case {value}.")
 
-    def in_season(
-        self,
-    ) -> Callable[[list[Season]], list[Season]]:
-        """Get seasons considered "in-season" for this refill type."""
-        match self:
-            case (
-                RefillType.MONTHLY
-                | RefillType.SEASON_START
-                | RefillType.CUSTOM_2024_SEP_10
-                | RefillType.CUSTOM_2024_NOV_04
-                | RefillType.CUSTOM_2025_JAN_06
-            ):
-                return lambda off_seasons: Season.all_seasons()
-            case RefillType.WEEKLY:
-                return lambda off_seasons: [
-                    season
-                    for season in Season
-                    if ((season not in off_seasons) or (len(off_seasons) == 0))
-                ]
-            case value:
-                raise ValueError(f"No logic to handle case {value}.")
+    # def in_season(
+    #     self,
+    # ) -> Callable[[list[Season]], list[Season]]:
+    #     """Get seasons considered "in-season" for this refill type."""
+    #     match self:
+    #         case (
+    #             RefillType.MONTHLY
+    #             | RefillType.SEASON_START
+    #             | RefillType.CUSTOM_2024_SEP_10
+    #             | RefillType.CUSTOM_2024_NOV_04
+    #             | RefillType.CUSTOM_2025_JAN_06
+    #         ):
+    #             return lambda off_seasons: Season.all_seasons()
+    #         case RefillType.WEEKLY:
+    #             return lambda off_seasons: [
+    #                 season
+    #                 for season in Season
+    #                 if ((season not in off_seasons) or (len(off_seasons) == 0))
+    #             ]
+    #         case value:
+    #             raise ValueError(f"No logic to handle case {value}.")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__qualname__}.{self.name}"

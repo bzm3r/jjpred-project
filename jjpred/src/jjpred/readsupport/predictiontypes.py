@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+from analysis_tools.utils import get_analysis_defn_and_db
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.datagroups import ALL_SKU_IDS
 from jjpred.database import DataBase
@@ -45,6 +46,7 @@ PREDICTION_TYPES_SCHEMA: dict[str, pl.DataType] = {
 
 
 def gen_prediction_types_path(
+    refill_description: str,
     prediction_types_input_meta: str | DateLike | None,
 ) -> Path:
     if prediction_types_input_meta is None:
@@ -58,11 +60,11 @@ def gen_prediction_types_path(
             pass
         meta = f"_{prediction_types_input_meta}"
 
-    return Path(f"prediction_types{meta}.csv")
+    return Path(f"{refill_description}_prediction_types{meta}.csv")
 
 
 def read_prediction_types(
-    analysis_id_or_database: FbaRevDefn | DataBase,
+    analysis_defn_or_db: FbaRevDefn | DataBase,
     prediction_types_input_meta: str | DateLike | None,
 ) -> pl.DataFrame:
     """Read the prediction types CSV for a given analysis ID.
@@ -86,10 +88,14 @@ def read_prediction_types(
           AS	  4	                CE
     """
 
+    analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
+
     prediction_types = (
         pl.read_csv(
             ANALYSIS_INPUT_FOLDER.joinpath(
-                gen_prediction_types_path(prediction_types_input_meta)
+                gen_prediction_types_path(
+                    analysis_defn.basic_descriptor, prediction_types_input_meta
+                )
             )
         )
         .cast(
@@ -98,7 +104,7 @@ def read_prediction_types(
         .cast({"prediction_type": PredictionType.polars_type()})
     )
     all_sku_info = (
-        get_all_sku_currentness_info(analysis_id_or_database)
+        get_all_sku_currentness_info(db)
         .filter(pl.col.is_active)
         .join(prediction_types, on="season", how="left")
     )

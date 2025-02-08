@@ -10,6 +10,9 @@ from functools import total_ordering
 from typing import Self
 
 from jjpred.inputstrategy import RefillType
+from jjpred.scripting.dateoffset import (
+    determine_main_program_compatible_start_end_dates,
+)
 from jjpred.seasons import Season
 from jjpred.utils.datetime import (
     Date,
@@ -232,32 +235,157 @@ class OutperformerSettings:
 
 
 @dataclass
-class FbaRevDefn(AnalysisDefn):
-    """An analysis defn for an FBA review/refill. It is defined by a dispatch
-    date (same as the prediction start date), and the date on which the
+class RefillDefn(AnalysisDefn):
+    """An analysis definition for review/refill of a channel. It is defined by a
+    dispatch date (same as the prediction start date), and the date on which the
     analysis was conducted."""
 
     dispatch_date: Date
-    """Date of FBA dispatch.
+    """Date of dispatch. (Also the start of the prediction period.)
 
     It should be a Monday, but this check can be disabled by setting
     ``check_dispatch_date`` to ``False`` when initializing this class."""
 
+    end_date: Date
+    """Prediction period end date. The prediction period begins at the dispatch
+    date and goes up to the end date."""
+
     prediction_type_meta_date: DateLike | None = field(compare=False)
     """Date of associated prediction type information file."""
-
-    refill_type: RefillType = field(compare=False)
-    """Type of FBA Refill to perform."""
-
-    mon_sale_r_date: Date | None = field(default=None, compare=False)
-    """Date of associated Historical sales data file (which contains the
-    ``MonSaleR`` sheet.)"""
 
     qty_box_date: Date | None = field(default=None, compare=False)
     """Date of the ``PO boxes and volume - All seasons`` Excel file to get the
     quantity per box information per category.
 
     If no date is given, then a file without a date will be looked for."""
+
+    overperformer_settings: OutperformerSettings = field(
+        default_factory=lambda: OutperformerSettings(False)
+    )
+    """If provided, outperformers will have a specialized long-term prediction
+    done based based on the provided settings."""
+
+    new_overrides_e: bool = field(default=True)
+    """If ``True``, then categories marked new will use NE type prediction even
+    if the category is supposed to use E type prediction."""
+
+    enable_full_box_logic: bool = field(default=True)
+    """Enable logic for rounding dispatches to the nearest full-box."""
+
+    enable_low_current_period_isr_logic: bool = field(default=True)
+    """Enable logic for using NE-type estimation for SKUs with low current
+    perioda ISR."""
+
+    warehouse_min_keep_qty: int = field(default=12)
+    """Minimum quantity to keep in the warehouse for this dispatch."""
+
+    def __init__(
+        self,
+        refill_description: str,
+        analysis_date: DateLike,
+        dispatch_date: DateLike,
+        end_date: DateLike,
+        master_sku_date: DateLike,
+        sales_and_inventory_date: DateLike,
+        warehouse_inventory_date: DateLike,
+        config_date: DateLike,
+        prediction_type_meta_date: DateLike | None,
+        check_dispatch_date: bool = True,
+        qty_box_date: DateLike | None = None,
+        in_stock_ratio_date: DateLike | None = None,
+        po_date: DateLike | None = None,
+        outperformer_settings: OutperformerSettings = OutperformerSettings(
+            False
+        ),
+        new_overrides_e: bool = True,
+        enable_full_box_logic: bool = True,
+        demand_ratio_rolling_update_to: DateLike | None = None,
+        enable_low_current_period_isr_logic: bool = True,
+        extra_descriptor: str | None = None,
+        warehouse_min_keep_qty: int = 12,
+    ):
+        self.dispatch_date = Date.from_datelike(dispatch_date)
+        self.end_date = Date.from_datelike(end_date)
+
+        assert self.end_date > self.dispatch_date
+
+        if (
+            check_dispatch_date
+            and calendar.day_name[self.dispatch_date.date.weekday()]
+            != "Monday"
+        ):
+            raise ValueError(
+                f"{self.dispatch_date.date} corresponds to weekday "
+                f"{calendar.day_name[self.dispatch_date.date.weekday()]}"
+                ", which is not a Monday. (To disable this check, set "
+                "`check_dispatch_date=False`.)"
+            )
+
+        self.prediction_type_meta_date = (
+            Date.from_datelike(prediction_type_meta_date)
+            if prediction_type_meta_date is not None
+            else None
+        )
+
+        self.overperformer_settings = outperformer_settings
+
+        self.new_overrides_e = new_overrides_e
+
+        self.enable_full_box_logic = enable_full_box_logic
+
+        self.enable_low_current_period_isr_logic = (
+            enable_low_current_period_isr_logic
+        )
+
+        if qty_box_date is not None:
+            self.qty_box_date = Date.from_datelike(qty_box_date)
+
+        self.warehouse_min_keep_qty = warehouse_min_keep_qty
+
+        super().__init__(
+            refill_description,
+            analysis_date,
+            master_sku_date,
+            sales_and_inventory_date,
+            warehouse_inventory_date,
+            config_date=config_date,
+            in_stock_ratio_date=in_stock_ratio_date,
+            po_date=po_date,
+            latest_dates=LatestDates(
+                self.dispatch_date, demand_ratio_rolling_update_to
+            ),
+            extra_descriptor=extra_descriptor,
+        )
+
+    def tag_with_output_time(self) -> str:
+        """Return a string identifying this analysis definition, along with a
+        final part that states when this string was created."""
+        output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
+        return (
+            super(self.__class__, self).tag()
+            + f"_DISPATCH={self.dispatch_date}"
+            + f"_OUTPUT={output_date_time}"
+        )
+
+    def tag(self) -> str:
+        return (
+            super(self.__class__, self).tag()
+            + f"_DISPATCH={self.dispatch_date}"
+        )
+
+
+@dataclass
+class FbaRevDefn(RefillDefn):
+    """An analysis defn for an FBA review/refill. It is defined by a dispatch
+    date (same as the prediction start date), and the date on which the
+    analysis was conducted."""
+
+    refill_type: RefillType = field(default=RefillType.WEEKLY, compare=False)
+    """Type of FBA Refill to perform."""
+
+    mon_sale_r_date: Date | None = field(default=None, compare=False)
+    """Date of associated Historical sales data file (which contains the
+    ``MonSaleR`` sheet.)"""
 
     mainprogram_date: Date | None = field(default=None, compare=False)
     """Date of associated Main Program Excel file (useful for comparing reuslts
@@ -285,26 +413,9 @@ class FbaRevDefn(AnalysisDefn):
     This is sometimes necessary to make a closer comparison with the main
     program."""
 
-    overperformer_settings: OutperformerSettings = field(
-        default_factory=lambda: OutperformerSettings(False)
-    )
-    """If provided, outperformers will have a specialized long-term prediction
-    done based based on the provided settings."""
-
-    new_overrides_e: bool = field(default=True)
-    """If ``True``, then categories marked new will use NE type prediction even
-    if the category is supposed to use E type prediction."""
-
-    enable_full_box_logic: bool = field(default=True)
-    """Enable logic for rounding dispatches to the nearest full-box."""
-
     match_main_program_month_fractions: bool = field(default=False)
     """Round month fractions to the nearest 25% multiple, in order to match how
     the main program calculates dates."""
-
-    enable_low_current_period_isr_logic: bool = field(default=True)
-    """Enable logic for using NE-type estimation for SKUs with low current
-    perioda ISR."""
 
     def __init__(
         self,
@@ -333,27 +444,9 @@ class FbaRevDefn(AnalysisDefn):
         prediction_end_date_required_month_parts: int | None = None,
         match_main_program_month_fractions: bool = False,
         enable_low_current_period_isr_logic: bool = True,
+        warehouse_min_keep_qty: int = 12,
         extra_descriptor: str | None = None,
     ):
-        self.dispatch_date = Date.from_datelike(dispatch_date)
-        if (
-            check_dispatch_date
-            and calendar.day_name[self.dispatch_date.date.weekday()]
-            != "Monday"
-        ):
-            raise ValueError(
-                f"{self.dispatch_date.date} corresponds to weekday "
-                f"{calendar.day_name[self.dispatch_date.date.weekday()]}"
-                ", which is not a Monday. (To disable this check, set "
-                "`check_dispatch_date=False`.)"
-            )
-
-        self.prediction_type_meta_date = (
-            Date.from_datelike(prediction_type_meta_date)
-            if prediction_type_meta_date is not None
-            else None
-        )
-
         self.refill_type = refill_type
 
         self.prediction_start_date_required_month_parts = (
@@ -381,38 +474,40 @@ class FbaRevDefn(AnalysisDefn):
             else None
         )
 
-        self.overperformer_settings = outperformer_settings
-
-        self.new_overrides_e = new_overrides_e
-
-        self.enable_full_box_logic = enable_full_box_logic
-
-        latest_dates = LatestDates(
-            self.dispatch_date, demand_ratio_rolling_update_to
-        )
-
         self.match_main_program_month_fractions = (
             match_main_program_month_fractions
         )
 
-        self.enable_low_current_period_isr_logic = (
-            enable_low_current_period_isr_logic
+        dispatch_date, end_date = (
+            determine_main_program_compatible_start_end_dates(
+                dispatch_date,
+                refill_type,
+                start_date_required_month_parts=prediction_start_date_required_month_parts,
+                end_date_required_month_parts=prediction_end_date_required_month_parts,
+            )
         )
-
-        if qty_box_date is not None:
-            self.qty_box_date = Date.from_datelike(qty_box_date)
 
         super().__init__(
             "fba_rev",
-            analysis_date,
-            master_sku_date,
-            sales_and_inventory_date,
-            warehouse_inventory_date,
+            analysis_date=analysis_date,
+            dispatch_date=dispatch_date,
+            end_date=end_date,
+            master_sku_date=master_sku_date,
+            sales_and_inventory_date=sales_and_inventory_date,
+            warehouse_inventory_date=warehouse_inventory_date,
             config_date=config_date,
+            prediction_type_meta_date=prediction_type_meta_date,
+            check_dispatch_date=check_dispatch_date,
+            qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
             po_date=po_date,
-            latest_dates=latest_dates,
+            outperformer_settings=outperformer_settings,
+            new_overrides_e=new_overrides_e,
+            enable_full_box_logic=enable_full_box_logic,
+            demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
+            enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_descriptor=extra_descriptor,
+            warehouse_min_keep_qty=warehouse_min_keep_qty,
         )
 
     @classmethod

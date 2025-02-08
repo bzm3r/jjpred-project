@@ -16,9 +16,6 @@ WEEKLY_PREDICTION_OFFSET: DateOffset = DateOffset(6, DateUnit.WEEK)
 SEASON_START_PREDICTION_OFFSET: DateOffset = DateOffset(3, DateUnit.MONTH)
 """For a season start refill, we offset 3 months into the future."""
 
-WAREHOUSE_MIN_KEEP_QTY: int = 12
-"""Minimum number of items to keep in the warehouse."""
-
 MAIN_VS_THIS_TOLERANCE: int = 0
 """If the difference in dispatch for the main program vs. this program is equal
 to or less than this many units, then we consider it to be okay."""

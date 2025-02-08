@@ -2,6 +2,10 @@
 
 - script to automatically copy Quarto rendered documents to their final location once they are done rendering
 
+## 3PL Refill
+
+No need to use main program compatible dispatch start/end dates.
+
 ## NOTEBOOKS
 
 Some features might be better to make as a separate notebook, since they build upon the prediction infrastructure?

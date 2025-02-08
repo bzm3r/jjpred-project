@@ -25,9 +25,6 @@ from jjpred.globalvariables import (
 from jjpred.predictor import Predictor
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
-from jjpred.scripting.dateoffset import (
-    determine_main_program_compatible_start_end_dates,
-)
 from jjpred.sku import Sku
 from jjpred.skuinfo import (
     attach_inventory_info,
@@ -250,23 +247,24 @@ class Dispatcher:
             pl.col("platform")
             .eq("Warehouse")
             .and_(pl.col("mode").eq(DistributionMode.WAREHOUSE.name)),
+            analysis_defn.warehouse_min_keep_qty,
             self.filters,
         )
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
 
-        # determine start/end dates that are compatible with the main program
-        # TODO: this should be changed to just use the actual start/end dates,
-        # once we are no longer comparing with the main program
-        self.start_date, self.end_date = (
-            determine_main_program_compatible_start_end_dates(
-                analysis_defn.dispatch_date,
-                analysis_defn.refill_type,
-                start_date_required_month_parts=analysis_defn.prediction_start_date_required_month_parts,
-                end_date_required_month_parts=analysis_defn.prediction_end_date_required_month_parts,
-            )
-        )
+        # # determine start/end dates that are compatible with the main program
+        # # TODO: this should be changed to just use the actual start/end dates,
+        # # once we are no longer comparing with the main program
+        # self.start_date, self.end_date = (
+        #     determine_main_program_compatible_start_end_dates(
+        #         analysis_defn.dispatch_date,
+        #         analysis_defn.refill_type,
+        #         start_date_required_month_parts=analysis_defn.prediction_start_date_required_month_parts,
+        #         end_date_required_month_parts=analysis_defn.prediction_end_date_required_month_parts,
+        #     )
+        # )
 
         input_data_info = self.predictor.get_input_data_info()
         # attach input data information
@@ -288,7 +286,9 @@ class Dispatcher:
 
         # attach demand predictions
         demand_predictions = self.predictor.predict_demand(
-            self.dispatch_channels, self.start_date, self.end_date
+            self.dispatch_channels,
+            analysis_defn.dispatch_date,
+            analysis_defn.end_date,
         )
 
         self.all_sku_info = (
