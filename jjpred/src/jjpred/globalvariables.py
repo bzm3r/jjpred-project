@@ -4,9 +4,7 @@
 
 from __future__ import annotations
 
-from jjpred.countryflags import CountryFlags
-from jjpred.seasons import Season
-from jjpred.utils.datetime import DateOffset, DateUnit, Month
+from jjpred.utils.datetime import DateOffset, DateUnit
 
 DEFAULT_STORAGE_FORMAT: str = "parquet"
 """Use ``parquet`` files for default storage as they are robust (unlike the
@@ -39,26 +37,6 @@ LOW_CATEGORY_HISTORICAL_SALES: int = 100
 as having low category historical sales (relevant if historical sales data + current
 period data is used to generate a prediction for expected sales for this
 SKU)."""
-
-AMAZON_COUNTRIES = CountryFlags.from_str("AU|CA|DE|MX|UK|US")
-"""Countries associated with Amazon."""
-
-OFF_SEASONS: dict[Month, Season | None] = {
-    1: Season.SS,
-    2: None,
-    3: None,
-    4: None,
-    5: Season.FW,
-    6: Season.FW,
-    7: None,
-    8: None,
-    9: None,
-    10: None,
-    11: Season.SS,
-    12: Season.SS,
-}
-"""Map from dispatch month to season labels that are considered
-"off-season" in that particular month."""
 
 # This is read by main_program_new_categories.ipynb
 NEW_CATEGORIES = [
@@ -119,7 +97,7 @@ IGNORE_SKU_LIST = [
     "HCB0-WHA-M",
     "SGL-WHA-M",
 ]
-"""These SKUs are in history files, but for are not in the Master SKU file."""
+"""These SKUs are in history files, but are not in the Master SKU file."""
 
 OUTPERFORM_FACTOR: float = 0.2
 """If an item's historical estimate is greater than ``1 + OUTPERFORM_FACTOR``
@@ -127,10 +105,3 @@ of the PO estimate, then we consider it to be an "outperformer". If it is less
 than ``1 - OUTPERFORM_FACTOR`` then we consider it to be an "underperformer". If
 an item does not have a PO estimate to bench mark against, we cannot do such
 benchmarking."""
-
-USE_ROLLING_UPDATE: bool = True
-"""Whether or not to use rolling update. If ``True``, then "historical year"
-(if provideed) in strategy lib definition is the year against which we do the
-update. If historical year is not provided, then the year against which we do
-the update is merely the last year starting from the most recently completed
-month."""
