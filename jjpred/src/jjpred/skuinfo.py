@@ -16,7 +16,7 @@ import sys
 from typing import Literal
 import polars as pl
 
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import (
     ALL_SKU_AND_CHANNEL_IDS,
@@ -45,9 +45,9 @@ from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
 
 
 def get_all_sku_currentness_info(
-    analysis_id_or_database: FbaRevDefn | DataBase,
+    analysis_id_or_database: RefillDefn | DataBase,
 ) -> pl.DataFrame:
-    if isinstance(analysis_id_or_database, FbaRevDefn):
+    if isinstance(analysis_id_or_database, RefillDefn):
         analysis_defn = analysis_id_or_database
         dispatch_date = analysis_defn.dispatch_date
     elif isinstance(analysis_id_or_database, DataBase):

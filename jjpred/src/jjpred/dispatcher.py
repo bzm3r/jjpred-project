@@ -6,7 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 import polars as pl
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
@@ -19,9 +19,6 @@ from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
 from jjpred.dispatchformatter import format_dispatch_for_netsuite
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
-from jjpred.globalvariables import (
-    DISPATCH_CUTOFF_QTY,
-)
 from jjpred.predictor import Predictor
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
@@ -140,7 +137,7 @@ def calculate_required(
 class Dispatcher:
     """Manages calculation of a dispatch for FBA refill."""
 
-    analysis_defn: FbaRevDefn
+    analysis_defn: RefillDefn
     """The analysis definition governing this dispatcher."""
     all_sku_info: pl.DataFrame
     """Various information per SKU. To understand it, its best to print it out
@@ -148,9 +145,6 @@ class Dispatcher:
     filters: FilterStructs
     """Various filters applied to warehouse data source, in order to focus on
     dispatch for particular SKUs and channels."""
-    dispatch_cutoff: int
-    """The minimum dispatch size needed in order for an SKU to be included in a
-    final dispatch."""
     config_data: ConfigData
     """Configuration information from the marketing team."""
     qty_box_info: pl.DataFrame
@@ -177,10 +171,9 @@ class Dispatcher:
 
     def __init__(
         self,
-        analysis_defn: FbaRevDefn,
+        analysis_defn: RefillDefn,
         dispatch_channels: list[Channel | str],
         predictor: Predictor,
-        dispatch_cutoff: int = DISPATCH_CUTOFF_QTY,
         filters: list[StructLike] | None = [],
         read_from_disk: bool = False,
     ) -> None:
@@ -205,7 +198,6 @@ class Dispatcher:
                 )
             )
         )
-        self.dispatch_cutoff = dispatch_cutoff
 
         # get channel information the channels we want to dispatch to
         self.channel_info = struct_filter(
@@ -250,6 +242,10 @@ class Dispatcher:
             analysis_defn.warehouse_min_keep_qty,
             self.filters,
         )
+        if "ch_stock" not in self.all_sku_info.columns:
+            self.all_sku_info = self.all_sku_info.with_columns(
+                ch_stock=pl.when(pl.col.is_active).then(pl.lit(0))
+            )
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
@@ -603,7 +599,9 @@ class Dispatcher:
         assert self.all_sku_info["dispatch"].dtype == pl.Int64()
 
         self.all_sku_info = self.all_sku_info.with_columns(
-            dispatch_below_cutoff=pl.col("dispatch").lt(self.dispatch_cutoff)
+            dispatch_below_cutoff=pl.col("dispatch").lt(
+                self.analysis_defn.dispatch_cutoff_qty
+            )
         )
 
         write_df(

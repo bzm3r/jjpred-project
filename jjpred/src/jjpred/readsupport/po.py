@@ -8,7 +8,7 @@ import re
 import sys
 from typing import Literal, NamedTuple
 
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import ALL_SKU_AND_CHANNEL_IDS
 from jjpred.globalpaths import BRIAN_TWK_FOLDER
@@ -274,12 +274,12 @@ def relevant_year_per_season_tag(
 
 
 def read_po(
-    analysis_defn_and_dispatch_date: FbaRevDefn
+    analysis_defn_and_dispatch_date: RefillDefn
     | tuple[AnalysisDefn, DateLike],
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
 ) -> pl.DataFrame:
-    if isinstance(analysis_defn_and_dispatch_date, FbaRevDefn):
+    if isinstance(analysis_defn_and_dispatch_date, RefillDefn):
         analysis_defn = analysis_defn_and_dispatch_date
         dispatch_date = analysis_defn_and_dispatch_date.dispatch_date
     else:

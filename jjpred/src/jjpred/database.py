@@ -16,7 +16,7 @@ from pathlib import Path
 
 import polars as pl
 import polars.selectors as cs
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
+from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
@@ -247,11 +247,11 @@ class DataBase:
 
     def dispatch_date(self) -> Date:
         """Get the dispatch date associated with the ID of this database."""
-        if isinstance(self.analysis_defn, FbaRevDefn):
+        if isinstance(self.analysis_defn, RefillDefn):
             return self.analysis_defn.dispatch_date
         else:
             raise ValueError(
-                f"{self.analysis_defn=} which is not of type {type(FbaRevDefn)}"
+                f"{self.analysis_defn=} which is not of type {type(RefillDefn)}"
             )
 
     @property

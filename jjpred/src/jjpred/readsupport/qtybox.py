@@ -3,7 +3,7 @@ import sys
 import polars as pl
 from pathlib import Path
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.readsupport.utils import cast_standard
 from jjpred.utils.fileio import (
@@ -113,7 +113,7 @@ class InfoPerSheet:
 
 
 def read_qty_box(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
 ):

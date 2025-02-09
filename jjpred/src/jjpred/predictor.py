@@ -9,7 +9,7 @@ import datetime as dt
 import polars as pl
 import polars.selectors as cs
 
-from jjpred.analysisdefn import FbaRevDefn, LatestDates
+from jjpred.analysisdefn import FbaRevDefn, LatestDates, RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import (
     ALL_SKU_AND_CHANNEL_IDS,
@@ -750,7 +750,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
     prediction_types: pl.DataFrame
     """Prediction types dataframe generated from the prediction types input
     file."""
-    analysis_defn: FbaRevDefn
+    analysis_defn: RefillDefn
     """Analysis definition governing this predictor instance."""
     strategy_groups_per_channel: ChannelStrategyGroups
     """Strategy groups defining how prediction is to be done per channel."""
@@ -768,7 +768,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
 
     def __init__(
         self,
-        analysis_defn: FbaRevDefn,
+        analysis_defn: RefillDefn,
         db: DataBase,
         strategy_groups_per_channel: ChannelStrategyGroups,
         po_data: pl.DataFrame,
@@ -1372,6 +1372,11 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         else:
             mean_current_period_isr = None
 
+        match_main_program_month_fractions = (
+            self.analysis_defn.match_main_program_month_fractions
+            if isinstance(self.analysis_defn, FbaRevDefn)
+            else False
+        )
         for channel in channels:
             expected_demands_per_group: list[CategoryGroup[pl.DataFrame]] = []
             for pdi in self.get_category_groups_for_channel(
@@ -1381,16 +1386,14 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     self.db.meta_info.all_sku,
                     start_date,
                     end_date,
-                    match_main_program_month_fractions=(
-                        self.analysis_defn.match_main_program_month_fractions
-                    ),
+                    match_main_program_month_fractions=match_main_program_month_fractions,
                 )
 
                 expected_demand_from_po = (
                     pdi.po_prediction.expected_demand_in_period(
                         start_date,
                         end_date,
-                        match_main_program_month_fractions=self.analysis_defn.match_main_program_month_fractions,
+                        match_main_program_month_fractions=match_main_program_month_fractions,
                     )
                 ).select(
                     ["a_sku", "sku"]
@@ -1531,7 +1534,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         filter_a_sku=overperformers["a_sku"].unique(),
                         aggregate=True,
                         match_main_program_month_fractions=(
-                            self.analysis_defn.match_main_program_month_fractions
+                            match_main_program_month_fractions
                         ),
                     )
                     .with_columns(

@@ -14,12 +14,12 @@ analysis_defn = RefillDefn(
     sales_and_inventory_date="2025-FEB-03",
     warehouse_inventory_date="2025-FEB-04",
     config_date="2025-FEB-03",
-    prediction_type_meta_date=None,
     in_stock_ratio_date="2025-FEB-04",
     po_date=None,
     new_overrides_e=True,
     check_dispatch_date=False,
     extra_descriptor="po_reorg",
+    prediction_type_meta_date="2025-FEB-08",
 )
 
 # analysis_defn = FbaRevDefn.new_comparison_analysis(

@@ -250,6 +250,10 @@ class RefillDefn(AnalysisDefn):
     """Prediction period end date. The prediction period begins at the dispatch
     date and goes up to the end date."""
 
+    dispatch_cutoff_qty: int
+    """If a dispatch is calculated to be below the cutoff, no dispatch should be
+    made."""
+
     prediction_type_meta_date: DateLike | None = field(compare=False)
     """Date of associated prediction type information file."""
 
@@ -303,6 +307,7 @@ class RefillDefn(AnalysisDefn):
         enable_low_current_period_isr_logic: bool = True,
         extra_descriptor: str | None = None,
         warehouse_min_keep_qty: int = 12,
+        dispatch_cutoff_qty: int = 2,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -341,6 +346,8 @@ class RefillDefn(AnalysisDefn):
             self.qty_box_date = Date.from_datelike(qty_box_date)
 
         self.warehouse_min_keep_qty = warehouse_min_keep_qty
+
+        self.dispatch_cutoff_qty = dispatch_cutoff_qty
 
         super().__init__(
             refill_description,
@@ -445,6 +452,7 @@ class FbaRevDefn(RefillDefn):
         match_main_program_month_fractions: bool = False,
         enable_low_current_period_isr_logic: bool = True,
         warehouse_min_keep_qty: int = 12,
+        dispatch_cutoff_qty: int = 2,
         extra_descriptor: str | None = None,
     ):
         self.refill_type = refill_type
@@ -508,6 +516,7 @@ class FbaRevDefn(RefillDefn):
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_descriptor=extra_descriptor,
             warehouse_min_keep_qty=warehouse_min_keep_qty,
+            dispatch_cutoff_qty=dispatch_cutoff_qty,
         )
 
     @classmethod
