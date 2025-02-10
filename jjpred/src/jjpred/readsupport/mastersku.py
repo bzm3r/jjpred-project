@@ -362,8 +362,23 @@ def generate_filtered_season_history_map(
     return season_history_map
 
 
-def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
-    """Read the master information excel file."""
+def read_website_sku_list(
+    website_sku_list_date: DateLike,
+) -> pl.DataFrame:
+    website_sku_path = ANALYSIS_INPUT_FOLDER.joinpath(
+        Path(f"wc-sku-{Date.from_datelike(website_sku_list_date)}.csv")
+    )
+
+    website_sku = pl.read_csv(website_sku_path)
+
+    all_website_skus = website_sku.select(
+        pl.col("SKU").alias("sku"), pl.col("Stock").alias("stock")
+    ).filter(pl.col.sku.is_not_null())
+
+    return all_website_skus
+
+
+def read_raw_master_sku(master_sku_date: DateLike) -> pl.DataFrame:
     master_sku_path = ANALYSIS_INPUT_FOLDER.joinpath(
         Path(
             f"1-MasterSKU-All-Product-{Date.from_datelike(master_sku_date).strftime('%Y-%m-%d')}.xlsx"
@@ -376,6 +391,7 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         sheet_name="MasterFile",
         read_options={"header_row": MASTER_SKU_DF_HEADER_ROW, "n_rows": 0},
     ).rename(lambda x: re.sub(r"\s+|_x000D_", " ", x))
+
     required_columns = [
         ix
         for ix, x in enumerate(header_df.columns)
@@ -412,6 +428,35 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
 
     # we assume that `sku` (aka `m_sku`) is unique
     assert len(master_sku_df) == len(master_sku_df["m_sku"].unique())
+
+    return master_sku_df
+
+
+def get_relevant_website_sku(
+    website_sku_list_date: DateLike,
+    master_sku_date_or_df: DateLike | pl.DataFrame,
+) -> pl.DataFrame:
+    if isinstance(master_sku_date_or_df, pl.DataFrame):
+        master_sku_df = master_sku_date_or_df
+    else:
+        master_sku_df = read_raw_master_sku(master_sku_date_or_df)
+
+    website_sku_list = read_website_sku_list(website_sku_list_date)
+
+    relevant_sku = (
+        website_sku_list.join(master_sku_df.rename({"m_sku": "sku"}), on="sku")
+        .select("sku")
+        .unique()
+        .sort("sku")
+    )
+
+    return relevant_sku
+
+
+def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
+    """Read the master information excel file."""
+
+    master_sku_df = read_raw_master_sku(master_sku_date)
 
     master_sku_df = master_sku_df.with_columns(
         status=pl.col("status").str.to_lowercase().fill_null("NO_STATUS"),
