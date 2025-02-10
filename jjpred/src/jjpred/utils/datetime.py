@@ -204,6 +204,9 @@ class Date:
     def __sub__(self, other: Self) -> dt.timedelta:
         return (date_as_series(self.date) - date_as_series(other.date))[0]
 
+    def __hash__(self) -> int:
+        return hash(self.date)
+
 
 class DateUnit(Enum):
     """:py:class:`Enum` enumerating the different date-units that are often

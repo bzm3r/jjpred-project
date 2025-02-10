@@ -67,6 +67,14 @@ class LatestDates:
         else:
             return self.sales_history_latest_date
 
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.sales_history_latest_date,
+                self.demand_ratio_rolling_update_to,
+            )
+        )
+
 
 def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
     if date_like is not None:
@@ -152,13 +160,26 @@ class AnalysisDefn:
 
         self.extra_descriptor = extra_descriptor
 
-        self._hash = str(self).__hash__()
+        self._hash = hash(
+            (
+                self.basic_descriptor,
+                self.date,
+                self.master_sku_date,
+                self.sales_and_inventory_date,
+                self.warehouse_inventory_date,
+                self.config_date,
+                self.in_stock_ratio_date,
+                self.po_date,
+                self.latest_dates,
+                self.extra_descriptor,
+            )
+        )
 
     def __post_init__(self):
         self._hash = str(self).__hash__()
 
     def __str__(self) -> str:
-        return self.tag()
+        return f"{self.basic_descriptor}_analysis_date={str(self.date)}_{self.extra_descriptor}"
 
     def __hash__(self) -> int:
         return self._hash
@@ -364,21 +385,14 @@ class RefillDefn(AnalysisDefn):
             extra_descriptor=extra_descriptor,
         )
 
+    def tag(self) -> str:
+        return AnalysisDefn.tag(self) + f"_DISPATCH={self.dispatch_date}"
+
     def tag_with_output_time(self) -> str:
         """Return a string identifying this analysis definition, along with a
         final part that states when this string was created."""
         output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
-        return (
-            super(self.__class__, self).tag()
-            + f"_DISPATCH={self.dispatch_date}"
-            + f"_OUTPUT={output_date_time}"
-        )
-
-    def tag(self) -> str:
-        return (
-            super(self.__class__, self).tag()
-            + f"_DISPATCH={self.dispatch_date}"
-        )
+        return self.tag() + f"_OUTPUT={output_date_time}"
 
 
 @dataclass
@@ -620,18 +634,25 @@ class FbaRevDefn(RefillDefn):
     def get_refill_draft_date(self) -> Date:
         return self._get_date("refill_draft_date")
 
-    def tag_with_output_time(self) -> str:
-        """Return a string identifying this analysis definition, along with a
-        final part that states when this string was created."""
-        output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
-        return (
-            super(self.__class__, self).tag()
-            + f"_DISPATCH={self.dispatch_date}"
-            + f"_OUTPUT={output_date_time}"
-        )
+    # def tag(self) -> str:
+    #     print(self.__class__)
+    #     return (
+    #         super(self.__class__, self).tag()
+    #         + f"_DISPATCH={self.dispatch_date}"
+    #     )
 
-    def tag(self) -> str:
-        return (
-            super(self.__class__, self).tag()
-            + f"_DISPATCH={self.dispatch_date}"
-        )
+    # def tag_with_output_time(self) -> str:
+    #     """Return a string identifying this analysis definition, along with a
+    #     final part that states when this string was created."""
+    #     output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
+    #     return (
+    #         super(RefillDefn, self).tag()
+    #         + f"_DISPATCH={self.dispatch_date}"
+    #         + f"_OUTPUT={output_date_time}"
+    #     )
+
+    # def tag(self) -> str:
+    #     return (
+    #         super(self.__class__, self).tag()
+    #         + f"_DISPATCH={self.dispatch_date}"
+    #     )
