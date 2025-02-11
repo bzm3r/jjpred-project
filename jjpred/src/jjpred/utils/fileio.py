@@ -3,6 +3,7 @@ Excel workbooks."""
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 
 import polars as pl
@@ -181,3 +182,7 @@ def read_meta_info(
     return read_storage_file(
         gen_meta_info_path(analysis_defn, meta_name), info_generator
     )
+
+
+def disable_fastexcel_dtypes_logger():
+    logging.getLogger("fastexcel.types.dtype").setLevel(logging.ERROR)
