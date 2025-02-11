@@ -577,3 +577,39 @@ def extend_df_enum_type(
         df = df.cast({column: channel_dtype})
 
     return df
+
+
+def check_dfs_for_differences(
+    df: pl.DataFrame, other_df: pl.DataFrame
+) -> pl.DataFrame:
+    all_columns = []
+
+    assert sorted(df.columns) == sorted(other_df.columns), [
+        x
+        for x in sorted(list(set(df.columns).union(other_df.columns)))
+        if x not in df or x not in other_df
+    ]
+
+    for x in df.columns:
+        all_columns.append(x)
+        all_columns.append(f"{x}_right")
+        all_columns.append(f"{x}_same")
+
+    check_df = (
+        df.join(other_df, on=["a_sku", "sku"], how="full")
+        .with_columns(
+            pl.col(x).eq(pl.col(f"{x}_right")).alias(f"{x}_same")
+            for x in df.columns
+        )
+        .select(all_columns)
+    )
+
+    check_df = check_df.with_columns(
+        check_failed=pl.any_horizontal(
+            [~pl.col(f"{x}_same") for x in df.columns]
+        )
+    )
+
+    return check_df.filter(
+        pl.col.check_failed,
+    )
