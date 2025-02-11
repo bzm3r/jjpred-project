@@ -599,18 +599,6 @@ class FbaRevDefn(RefillDefn):
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
         )
 
-    # mon_sale_r_date: Date | None = field(default=None, compare=False)
-    # """Date of associated Historical sales data file (which contains the
-    # ``MonSaleR`` sheet.)"""
-
-    # mainprogram_date: Date | None = field(default=None, compare=False)
-    # """Date of associated Main Program Excel file (useful for comparing reuslts
-    # between main program and JJPRED Python program)."""
-
-    # refill_draft_date: Date | None = field(default=None, compare=False)
-    # """Date of associated refill draft plan file (useful for comparing results
-    # between main program and JJPRED Python program.)"""
-
     def _get_date(self, date_name: str) -> Date:
         date = self.__dict__.get(date_name)
         if date is not None and isinstance(date, Date):
@@ -622,11 +610,6 @@ class FbaRevDefn(RefillDefn):
 
     def get_mon_sale_r_date(self) -> Date:
         return self._get_date("mon_sale_r_date")
-        # date = self.mon_sale_r_date
-        # if date is not None and isinstance(date, Date):
-        #     return date
-        # else:
-        #     raise ValueError(f"{self.__class__.name} has: " f"{self.mon_sale_r_date=}")
 
     def get_mainprogram_date(self) -> Date:
         return self._get_date("mainprogram_date")
@@ -634,25 +617,60 @@ class FbaRevDefn(RefillDefn):
     def get_refill_draft_date(self) -> Date:
         return self._get_date("refill_draft_date")
 
-    # def tag(self) -> str:
-    #     print(self.__class__)
-    #     return (
-    #         super(self.__class__, self).tag()
-    #         + f"_DISPATCH={self.dispatch_date}"
-    #     )
 
-    # def tag_with_output_time(self) -> str:
-    #     """Return a string identifying this analysis definition, along with a
-    #     final part that states when this string was created."""
-    #     output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
-    #     return (
-    #         super(RefillDefn, self).tag()
-    #         + f"_DISPATCH={self.dispatch_date}"
-    #         + f"_OUTPUT={output_date_time}"
-    #     )
+@dataclass
+class JJWebDefn(RefillDefn):
+    website_sku_date: Date = field(init=False)
+    """The website SKU file should be a table containing the list of SKUs that
+    are sold on the website. It is used by the Master SKU reader to determine
+    which SKUs listed in the Master SKU file are sold on the website."""
 
-    # def tag(self) -> str:
-    #     return (
-    #         super(self.__class__, self).tag()
-    #         + f"_DISPATCH={self.dispatch_date}"
-    #     )
+    def __init__(
+        self,
+        analysis_date: DateLike,
+        dispatch_date: DateLike,
+        end_date: DateLike,
+        website_sku_date: DateLike,
+        master_sku_date: DateLike,
+        sales_and_inventory_date: DateLike,
+        warehouse_inventory_date: DateLike,
+        config_date: DateLike,
+        prediction_type_meta_date: DateLike | None,
+        check_dispatch_date: bool = True,
+        qty_box_date: DateLike | None = None,
+        in_stock_ratio_date: DateLike | None = None,
+        po_date: DateLike | None = None,
+        outperformer_settings: OutperformerSettings = OutperformerSettings(
+            False
+        ),
+        new_overrides_e: bool = True,
+        enable_full_box_logic: bool = True,
+        demand_ratio_rolling_update_to: DateLike | None = None,
+        enable_low_current_period_isr_logic: bool = True,
+        extra_descriptor: str | None = None,
+    ):
+        self.website_sku_date = Date.from_datelike(website_sku_date)
+
+        super().__init__(
+            "jjweb",
+            analysis_date=analysis_date,
+            dispatch_date=dispatch_date,
+            end_date=end_date,
+            master_sku_date=master_sku_date,
+            sales_and_inventory_date=sales_and_inventory_date,
+            warehouse_inventory_date=warehouse_inventory_date,
+            config_date=config_date,
+            prediction_type_meta_date=prediction_type_meta_date,
+            check_dispatch_date=check_dispatch_date,
+            qty_box_date=qty_box_date,
+            in_stock_ratio_date=in_stock_ratio_date,
+            po_date=po_date,
+            outperformer_settings=outperformer_settings,
+            new_overrides_e=new_overrides_e,
+            enable_full_box_logic=enable_full_box_logic,
+            demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
+            enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
+            extra_descriptor=extra_descriptor,
+            warehouse_min_keep_qty=3,
+            dispatch_cutoff_qty=0,
+        )
