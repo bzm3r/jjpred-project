@@ -2,11 +2,12 @@
 up and/or execute analyses."""
 
 from __future__ import annotations
+import copy
 
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.inputstrategy import RefillType
 
-analysis_defn = FbaRevDefn(
+analysis_defn_main = FbaRevDefn(
     analysis_date="2025-FEB-11",
     dispatch_date="2025-FEB-11",
     master_sku_date="2025-FEB-10",
@@ -23,7 +24,11 @@ analysis_defn = FbaRevDefn(
     new_overrides_e=True,
     check_dispatch_date=False,
     match_main_program_month_fractions=True,
+    extra_descriptor="main",
 )
+
+analysis_defn_new = copy.deepcopy(analysis_defn_main)
+analysis_defn_new.extra_descriptor = "new"
 
 # analysis_defn = FbaRevDefn.new_comparison_analysis(
 #     analysis_date="2025-FEB-03",
