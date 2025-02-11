@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum, IntFlag
+from functools import reduce
 import sys
 from typing import (
     Any,
@@ -104,6 +105,96 @@ def binary_partition(
         )
         groups[all(key)] = group
     return groups
+
+
+def check_is_df(x: Any) -> pl.DataFrame:
+    assert isinstance(x, pl.DataFrame)
+    return x
+
+
+def enum_extend_vstack(
+    df: pl.DataFrame | None, other_df: pl.DataFrame
+) -> pl.DataFrame:
+    """
+    Vertically stack two dataframes, ensuring that the enum types for their
+    columns with an enum types are extended appropriately so that they can be
+    vertically stacked.
+    """
+    if df is None:
+        return other_df
+    else:
+        assert sorted(df.columns) == sorted(other_df.columns), (
+            sorted(df.columns),
+            sorted(other_df.columns),
+        )
+
+        for column in df.columns:
+            if isinstance(df[column].dtype, pl.Enum):
+                categories = as_polars_type(
+                    df[column].dtype, pl.Enum
+                ).categories
+                other_categories = as_polars_type(
+                    other_df[column].dtype, pl.Enum
+                ).categories
+                if (not (len(categories) == len(other_categories))) or (
+                    not categories.eq(other_categories).all()
+                ):
+                    combined_categories = (
+                        categories.extend(other_categories).unique().sort()
+                    )
+                    df = df.cast({column: pl.Enum(combined_categories)})
+                    other_df = other_df.cast(
+                        {column: pl.Enum(combined_categories)}
+                    )
+
+        return df.vstack(other_df.select(df.columns))
+
+
+def concat_enum_extend_vstack(dfs: list[pl.DataFrame]) -> pl.DataFrame | None:
+    return reduce(enum_extend_vstack, dfs, None)
+
+
+def concat_enum_extend_vstack_strict(
+    dfs: list[pl.DataFrame],
+) -> pl.DataFrame:
+    result = reduce(enum_extend_vstack, dfs, None)
+    assert result is not None
+
+    return result
+
+
+def binary_partition_weak(
+    df: pl.DataFrame,
+    *predicate_expr: pl.Expr,
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Partition a dataframe based on a predicate (True/False) Polars
+    expression.
+
+    Returns a pair of dataframes: the left dataframe is the elements
+    where the expression evaluates true, the right dataframe is the elements
+    where the expression evaluates False or None."""
+    key_list: list[Literal[True, "other"]] = [True, "other"]
+    group_list: dict[Literal[True, "other"], list[pl.DataFrame]] = {
+        k: [] for k in key_list
+    }
+    for key, group in df.group_by(*predicate_expr):
+        if all(x is not None and isinstance(x, bool) for x in key):
+            condition = all(key)
+            if condition:
+                group_list[condition].append(group)
+            else:
+                group_list["other"].append(group)
+        else:
+            group_list["other"].append(group)
+
+    groups = {}
+    for key, dfs in group_list.items():
+        concat_df = concat_enum_extend_vstack(dfs)
+        if concat_df is None:
+            concat_df = pl.DataFrame(schema=df.schema)
+        groups[key] = concat_df
+
+    return groups[True], groups["other"]
 
 
 def binary_partition_strict(

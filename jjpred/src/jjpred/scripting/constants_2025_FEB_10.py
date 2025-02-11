@@ -7,7 +7,7 @@ import copy
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.inputstrategy import RefillType
 
-analysis_defn_main = FbaRevDefn(
+analysis_defn = FbaRevDefn(
     analysis_date="2025-FEB-11",
     dispatch_date="2025-FEB-11",
     master_sku_date="2025-FEB-10",
@@ -24,8 +24,10 @@ analysis_defn_main = FbaRevDefn(
     new_overrides_e=True,
     check_dispatch_date=False,
     match_main_program_month_fractions=True,
-    extra_descriptor="main",
 )
+
+analysis_defn_main = copy.deepcopy(analysis_defn)
+analysis_defn_main.extra_descriptor = "main"
 
 analysis_defn_new = copy.deepcopy(analysis_defn_main)
 analysis_defn_new.extra_descriptor = "new"

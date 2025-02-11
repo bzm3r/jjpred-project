@@ -33,6 +33,7 @@ from jjpred.utils.fileio import (
 )
 from jjpred.utils.polars import (
     binary_partition_strict,
+    binary_partition_weak,
     convert_dict_to_polars_df,
     extend_df_enum_type,
     sanitize_excel_extraction,
@@ -311,7 +312,7 @@ def generate_filtered_season_history_map(
         .drop("season_history_tag_parts")
         .with_columns(
             season_year_remainder=pl.col.main_season_tag.str.extract_groups(
-                r"(?P<year>\d+)(?P<season>F|S)(?P<remainder>.*)"
+                r"^(?P<year>\d+)(?P<season>F|S)?(?P<remainder>.*)"
             ).cast(
                 pl.Struct(
                     {
@@ -342,6 +343,25 @@ def generate_filtered_season_history_map(
         pl.col.season.is_not_null() & pl.col.year.is_not_null(),
     )
 
+    recoverable, non_recoverable = binary_partition_weak(
+        other_problems,
+        pl.col.year.eq(22)
+        & pl.col.season.is_null()
+        & pl.col.remainder.eq("D"),
+    )
+
+    recoverable = recoverable.with_columns(season=pl.lit(["S", "F"])).explode(
+        "season"
+    )
+
+    season_history_tag_map = season_history_tag_map.vstack(
+        recoverable.select(season_history_tag_map.columns)
+    )
+
+    assert non_recoverable is None or len(non_recoverable) == 0, (
+        non_recoverable
+    )
+
     season_history_map = (
         unique_season_histories.explode("season_history_tags")
         .unique()
@@ -358,7 +378,7 @@ def generate_filtered_season_history_map(
             ),
         )
         .group_by("season_history")
-        .agg(pl.col.season_history_info)
+        .agg(pl.col.season_history_info.unique())
         .filter(pl.col.season_history_info.list.len().gt(0))
     )
 
