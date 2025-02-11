@@ -616,7 +616,74 @@ class Dispatcher:
 
         return self.all_sku_info
 
-    def produce_formatted_dispatch(
+    def produce_formatted_jjweb_dispatch(
+        self,
+        calculated_dispatch: pl.DataFrame | None = None,
+        save_excel: bool = True,
+        dispatch_filter: pl.Expr | None = None,
+        descriptor: str | None = None,
+        save_csv: bool = True,
+    ) -> pl.DataFrame:
+        """Prepare an Excel file in the expected dispatch output format based on
+        calculated dispatch.
+
+        If a calculated dispatch is not given, then one is calculated from
+        scratch."""
+
+        if calculated_dispatch is None:
+            calculated_dispatch = self.calculate_dispatch()
+
+        final_dispatch = calculated_dispatch.filter(
+            pl.col("is_active")
+            & ~(
+                pl.col("is_master_paused")
+                | pl.col("is_config_paused")
+                | pl.col("dispatch_below_cutoff")
+            )
+        )
+
+        if dispatch_filter is not None:
+            final_dispatch = final_dispatch.filter(dispatch_filter)
+
+        raise NotImplementedError("Not yet implemented!")
+
+        sheets = {
+            "US": format_dispatch_for_netsuite(
+                self.analysis_defn.date,
+                final_dispatch,
+                CountryFlags.US,
+            ),
+            "CA": format_dispatch_for_netsuite(
+                self.analysis_defn.date,
+                final_dispatch,
+                CountryFlags.CA,
+            ),
+        }
+
+        if descriptor is not None:
+            descriptor = f"_{descriptor}"
+        else:
+            descriptor = ""
+
+        if save_excel:
+            result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+                Path(
+                    f"{self.analysis_defn.tag()}_final_dispatch{descriptor}.xlsx"
+                )
+            )
+            write_excel(result_path, sheets)
+        if save_csv:
+            for x in sheets.keys():
+                result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+                    Path(
+                        f"TO_SRR_FBA{x}{self.analysis_defn.date.fmt_flat()}.csv"
+                    )
+                )
+                sheets[x].write_csv(result_path)
+
+        return final_dispatch
+
+    def produce_formatted_fba_dispatch(
         self,
         calculated_dispatch: pl.DataFrame | None = None,
         save_excel: bool = True,
@@ -683,13 +750,5 @@ class Dispatcher:
                     )
                 )
                 sheets[x].write_csv(result_path)
-            # print(f"Saving final dispatch to: {result_path}")
-
-            # if result_path.exists():
-            #     result_path.unlink()
-            # with xlw.Workbook(result_path) as workbook:
-            #     for key, df in sheets.items():
-            #         if df is not None:
-            #             df.write_excel(workbook=workbook, worksheet=key)
 
         return final_dispatch

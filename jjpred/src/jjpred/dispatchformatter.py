@@ -50,16 +50,14 @@ def format_dispatch_for_netsuite(
             pl.lit(date.format_as(r"%m/%d/%Y")).alias("Date"),
             pl.lit("FBA Replenishment").alias("TO TYPE"),
             pl.lit(
-                f"{date.format_as(r"%y")}{determine_season(date.month)}"
+                f"{date.format_as(r'%y')}{determine_season(date.month)}"
             ).alias("SEASON"),
             pl.lit("WH-SURREY").alias("FROM WAREHOUSE"),
             pl.lit(f"WH-AMZ : FBA-{country_str}").alias("TO WAREHOUSE"),
-            pl.lit(f"TO-FBA{country_str}{date.format_as(r"%y%m%d")}").alias(
+            pl.lit(f"TO-FBA{country_str}{date.format_as(r'%y%m%d')}").alias(
                 "REF NO"
             ),
-            pl.lit(
-                f"FBA {country_str} refill {date.format_as(r"%Y-%m-%d")}"
-            ).alias("MEMO"),
+            pl.lit("").alias("MEMO"),
             pl.lit("Gloria Li").alias("ORDER PLACED BY"),
         )
         .select(
