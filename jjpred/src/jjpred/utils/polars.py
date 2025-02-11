@@ -17,7 +17,9 @@ from jjpred.parse.patternmatch import StringPattern
 from jjpred.structlike import StructLike
 from jjpred.utils.typ import (
     ScalarOrList,
+    as_polars_type,
     create_assert_result,
+    normalize_as_list,
     normalize_optional,
     normalize_scalar_or_list_of_sets,
 )
@@ -312,10 +314,7 @@ def find_dupes(
     )
 
     if raise_error and len(dupes) > 0:
-        try:
-            sys.displayhook(dupes.sort(id_cols))
-        except:
-            sys.displayhook(dupes)
+        sys.displayhook(dupes.sort([x for x in id_cols if x in dupes.columns]))
         raise ValueError("found dupes!")
     return dupes
 
@@ -471,3 +470,19 @@ def polars_float(size: Literal[32, 64]) -> pl.Float32 | pl.Float64:
         return pl.Float32()
     else:
         return pl.Float64()
+
+
+def extend_df_enum_type(
+    df: pl.DataFrame, column: str, extensions: ScalarOrList[str]
+) -> pl.DataFrame:
+    """Extend the dataframe's channel column with required extensions."""
+    enum_extensions = pl.Series(column, normalize_as_list(extensions))
+
+    if column in df.columns:
+        channel_dtype = as_polars_type(df[column].dtype, pl.Enum)
+        channel_dtype = pl.Enum(
+            channel_dtype.categories.extend(enum_extensions).unique().sort()
+        )
+        df = df.cast({column: channel_dtype})
+
+    return df

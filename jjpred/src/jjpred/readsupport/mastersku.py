@@ -34,6 +34,7 @@ from jjpred.utils.fileio import (
 from jjpred.utils.polars import (
     binary_partition_strict,
     convert_dict_to_polars_df,
+    extend_df_enum_type,
     sanitize_excel_extraction,
 )
 from jjpred.utils.typ import RuntimeCheckableDataclass
@@ -1312,6 +1313,10 @@ def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
         )
         .drop("print_name")
         .rename({"adjusted_print_name": "print_name"})
+    )
+
+    master_sku_df = extend_df_enum_type(
+        master_sku_df, "size", list(NUMERIC_SIZE.keys())
     )
 
     numeric_size_map = (
