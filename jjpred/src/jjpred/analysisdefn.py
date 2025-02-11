@@ -196,6 +196,15 @@ class AnalysisDefn:
 
         return False
 
+    def get_website_sku_date(self) -> Date | None:
+        if hasattr(self, "website_sku_date"):
+            website_sku_date = self.__getattribute__("website_sku_date")
+            assert isinstance(website_sku_date, Date)
+        else:
+            website_sku_date = None
+
+        return website_sku_date
+
     def tag_with_output_time(self) -> str:
         """Return a string identifying this analysis definition, along with a
         final part that states when this string was created."""

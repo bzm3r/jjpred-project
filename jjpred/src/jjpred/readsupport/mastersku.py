@@ -110,11 +110,19 @@ plotting."""
         cls, analysis_defn: AnalysisDefn
     ) -> dict[str, Path]:
         """Generate paths where Master SKU information should be saved to."""
+        website_sku_date = analysis_defn.get_website_sku_date()
+
+        if website_sku_date is not None:
+            websku_str = f"_WEBSKU_{website_sku_date}"
+        else:
+            websku_str = ""
+
         return dict(
             (
                 df_name,
                 ANALYSIS_OUTPUT_FOLDER.joinpath(
-                    f"{analysis_defn.tag()}_master_sku_{df_name}.parquet",
+                    f"{analysis_defn.tag()}_master_sku_{websku_str}{df_name}"
+                    ".parquet",
                 ),
             )
             for df_name in MasterSkuInfo.fields()
@@ -154,6 +162,7 @@ plotting."""
         analysis_defn: AnalysisDefn,
         read_from_disk=False,
         delete_if_exists=False,
+        website_sku_date: Date | None = None,
     ) -> MasterSkuInfo:
         master_sku_info = None
         if read_from_disk or delete_if_exists:
@@ -165,7 +174,7 @@ plotting."""
             return master_sku_info
         else:
             master_sku_info = read_master_sku_excel_file(
-                analysis_defn.master_sku_date
+                analysis_defn.master_sku_date, website_sku_date
             )
 
             master_sku_info.write_to_disk(analysis_defn)
@@ -479,7 +488,7 @@ def get_relevant_website_sku(
     return relevant_sku
 
 
-def read_master_sku_excel_file_new(
+def read_master_sku_excel_file(
     master_sku_date: DateLike, website_sku_date: DateLike | None
 ) -> MasterSkuInfo:
     """Read the master information excel file."""
@@ -939,7 +948,7 @@ def read_master_sku_excel_file_new(
     return result
 
 
-def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
+def read_master_sku_excel_file_old(master_sku_date: DateLike) -> MasterSkuInfo:
     """Read the master information excel file."""
 
     master_sku_df = read_raw_master_sku(master_sku_date)
