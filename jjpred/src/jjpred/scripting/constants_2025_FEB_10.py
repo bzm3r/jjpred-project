@@ -15,6 +15,7 @@ warehouse_inventory_date = "2025-FEB-09"
 config_date = "2025-FEB-03"
 in_stock_ratio_date = "2025-FEB-04"
 prediction_type_meta_date = None
+check_dispatch_date = False
 
 analysis_defn = FbaRevDefn(
     analysis_date=analysis_date,
@@ -31,8 +32,8 @@ analysis_defn = FbaRevDefn(
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,
-    check_dispatch_date=False,
     match_main_program_month_fractions=True,
+    check_dispatch_date=check_dispatch_date,
 )
 
 # analysis_defn_main = copy.deepcopy(analysis_defn)
@@ -51,6 +52,7 @@ jjweb_analysis_defn = JJWebDefn(
     warehouse_inventory_date=warehouse_inventory_date,
     config_date=config_date,
     prediction_type_meta_date=prediction_type_meta_date,
+    check_dispatch_date=check_dispatch_date,
 )
 
 

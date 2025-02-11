@@ -162,7 +162,6 @@ plotting."""
         analysis_defn: AnalysisDefn,
         read_from_disk=False,
         delete_if_exists=False,
-        website_sku_date: Date | None = None,
     ) -> MasterSkuInfo:
         master_sku_info = None
         if read_from_disk or delete_if_exists:
@@ -174,7 +173,8 @@ plotting."""
             return master_sku_info
         else:
             master_sku_info = read_master_sku_excel_file(
-                analysis_defn.master_sku_date, website_sku_date
+                analysis_defn.master_sku_date,
+                analysis_defn.get_website_sku_date(),
             )
 
             master_sku_info.write_to_disk(analysis_defn)
@@ -941,7 +941,7 @@ def read_master_sku_excel_file(
     ).drop("status")
     result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
     result.fba_sku = fba_sku
-    # result.ignored_sku = will_ignore
+    result.ignored_sku = pl.DataFrame(schema=master_sku_df.schema)
     result.print_name_map = print_name_map
     result.numeric_size_map = numeric_size_map
 

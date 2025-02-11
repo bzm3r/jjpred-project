@@ -462,6 +462,7 @@ class DataBase:
                 pl.col.sku.eq(pl.col.a_sku)
             )["a_sku"]
             .unique()
+            .cast(pl.String())
             .append(pl.Series(IGNORE_SKU_LIST))
         )
         ignore_skus = self.meta_info.ignored_sku["sku"].unique()
