@@ -24,6 +24,7 @@ from jjpred.datagroups import (
     CHANNEL_IDS,
     PAUSE_PLAN_IDS,
     SEASON_IDS,
+    STATUS_IDS,
     WHOLE_SKU_IDS,
 )
 from jjpred.countryflags import CountryFlags
@@ -62,7 +63,7 @@ def get_all_sku_currentness_info(
 
     all_sku_info = (
         read_meta_info(analysis_defn, "all_sku")
-        .select(ALL_SKU_IDS + SEASON_IDS + PAUSE_PLAN_IDS + ["status"])
+        .select(ALL_SKU_IDS + SEASON_IDS + PAUSE_PLAN_IDS + STATUS_IDS)
         .with_columns(
             pl.col("status").eq("active").alias("is_active").fill_null(False)
         )
@@ -246,6 +247,23 @@ def attach_refill_info_from_config(
         all_sku_info, config_data.refill, fill_null_value=PolarsLit(0)
     )
 
+    all_sku_info = all_sku_info.with_columns(
+        is_config_paused=pl.when(
+            pl.struct(*Channel.members()).eq(
+                Channel.parse("janandjul.com").as_dict()
+            )
+        )
+        .then(pl.lit(False))
+        .otherwise(pl.col.is_config_paused),
+        refill_request=pl.when(
+            pl.struct(*Channel.members()).eq(
+                Channel.parse("janandjul.com").as_dict()
+            )
+        )
+        .then(pl.lit(1))
+        .otherwise(pl.col.refill_request),
+    )
+
     return all_sku_info
 
 
@@ -253,9 +271,11 @@ def attach_channel_info(
     all_sku_info: pl.DataFrame, channel_info: pl.DataFrame
 ) -> pl.DataFrame:
     return all_sku_info.join(channel_info, how="cross", on=None).with_columns(
-        is_master_paused=pl.col("country_flag")
-        .and_(pl.col("pause_plan"))
-        .gt(0)
+        is_master_paused=pl.when(pl.col.platform.eq("Amazon"))
+        .then(pl.col("country_flag").and_(pl.col("pause_plan")).gt(0))
+        .when(pl.col.platform.eq("JanAndJul"))
+        .then(~pl.col.website_sku)
+        .otherwise(pl.lit(True))
     )
 
 

@@ -398,7 +398,10 @@ def generate_channel_df(
 
 def read_config(
     analysis_defn: AnalysisDefn,
-    relevant_channels: list[str | Channel] = ["Amazon.com", "Amazon.ca"],
+    relevant_channels: list[str | Channel] = [
+        "Amazon.com",
+        "Amazon.ca",
+    ],
 ) -> ConfigData:
     """Read configuration information from the marketing configuration Excel
     file.
@@ -537,12 +540,12 @@ def read_config(
     )
     # sys.displayhook(min_keep)
 
-    assert len(min_keep) == (
-        len(refill_request) / len(channel_info)
-    ), create_assert_result(
-        min_keep=len(min_keep),
-        refill_request=len(refill_request),
-        channel_info=len(channel_info),
+    assert len(min_keep) == (len(refill_request) / len(channel_info)), (
+        create_assert_result(
+            min_keep=len(min_keep),
+            refill_request=len(refill_request),
+            channel_info=len(channel_info),
+        )
     )
 
     relevant_ids = [

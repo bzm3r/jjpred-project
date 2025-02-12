@@ -580,7 +580,7 @@ def extend_df_enum_type(
 
 
 def check_dfs_for_differences(
-    df: pl.DataFrame, other_df: pl.DataFrame
+    df: pl.DataFrame, other_df: pl.DataFrame, index_cols: list[str]
 ) -> pl.DataFrame:
     all_columns = []
 
@@ -596,7 +596,7 @@ def check_dfs_for_differences(
         all_columns.append(f"{x}_same")
 
     check_df = (
-        df.join(other_df, on=["a_sku", "sku"], how="full")
+        df.join(other_df, on=index_cols, how="full")
         .with_columns(
             pl.col(x).eq(pl.col(f"{x}_right")).alias(f"{x}_same")
             for x in df.columns
