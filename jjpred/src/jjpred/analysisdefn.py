@@ -700,6 +700,6 @@ class JJWebDefn(RefillDefn):
             demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_descriptor=extra_descriptor,
-            warehouse_min_keep_qty=3,
+            warehouse_min_keep_qty=12,
             dispatch_cutoff_qty=0,
         )
