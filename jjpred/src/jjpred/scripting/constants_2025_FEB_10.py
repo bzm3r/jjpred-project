@@ -53,7 +53,7 @@ jjweb_analysis_defn = JJWebDefn(
     config_date=config_date,
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
-    proportion_split_date="2025-FEB-09",
+    proportion_split_date="2025-FEB-13",
     check_dispatch_date=check_dispatch_date,
 )
 

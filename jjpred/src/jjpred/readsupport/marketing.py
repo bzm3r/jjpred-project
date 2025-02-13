@@ -398,19 +398,22 @@ def generate_channel_df(
 
 def read_config(
     analysis_defn: AnalysisDefn,
-    relevant_channels: list[str | Channel] = [
-        "Amazon.com",
-        "Amazon.ca",
-    ],
 ) -> ConfigData:
     """Read configuration information from the marketing configuration Excel
     file.
 
-    It assumes that only Amazon.com/Amazon.ca data is present, but this can be
-    configured.
+    It assumes that only Amazon.com/Amazon.ca data is present.
     """
     channel_info = parse_channels(
-        pl.DataFrame(pl.Series("channel", relevant_channels))
+        pl.DataFrame(
+            pl.Series(
+                "channel",
+                [
+                    "Amazon.com",
+                    "Amazon.ca",
+                ],
+            )
+        )
     ).drop("raw_channel", "channel")
     # channel_info = generate_channel_df(analysis_defn, relevant_channels)
     # sys.displayhook(channel_info)

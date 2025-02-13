@@ -53,7 +53,9 @@ def read_jjweb_proportions(
 
     proportions = cast_standard(
         [db.meta_info.all_sku],
-        raw_proportions.rename(rename_dict),
+        raw_proportions.rename(rename_dict).select(
+            "category", "ca_frac", "east_frac"
+        ),
     )
 
     return proportions
