@@ -180,6 +180,15 @@ class TimePeriod:
     ):
         self.start = Date.from_datelike(start).with_day(1)
         self.end = Date.from_datelike(end).with_day(1)
+
+        # ensure that more than one year has not passed between end and start
+        assert self.start.day == 1
+        assert self.end.day == 1
+
+        assert 0 <= (self.end.year - self.start.year) < 1
+        if (self.end.year - self.start.year) > 0:
+            assert 0 <= (self.end.month - self.start.month) < 1
+
         if tpoints is not None:
             assert tpoints[0] == start
             assert tpoints[-1] == first_day_next_month(self.end)

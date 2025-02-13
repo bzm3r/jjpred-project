@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+import datetime
 from functools import total_ordering
 
 from jjpred.aggregator import (
@@ -445,6 +446,11 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
 """Sometimes, some channels use the same aggregation strategy (i.e. the sames
 historical sales data) as another channel, rather than the default of using
 their own channel's data."""
+
+# When setting the default value for the current period (see below), we are
+# making the assumption: 2024-FEB to *now*, and this has to be less than 12
+# months in length!
+assert datetime.datetime.today().month <= 2
 
 STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
     LATEST: [

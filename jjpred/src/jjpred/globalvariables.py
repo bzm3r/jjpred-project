@@ -61,13 +61,17 @@ OFF_SEASONS: dict[Month, Season | None] = {
 "off-season" in that particular month."""
 
 # This is read by main_program_new_categories.ipynb
+# also manually added: FVM, AJC, SBS, but this should correspond to changes in
+# the main program
 NEW_CATEGORIES = [
     "AJA",
+    "AJC",
     "BSL",
     "BST",
     "DRC",
     "FAN",
     "FHA",
+    "FVM",
     "IHT",  # temporarily adding IHT
     "IPC",
     "IPS",
@@ -79,6 +83,7 @@ NEW_CATEGORIES = [
     "LBP",
     "LBT",
     # "SKX",
+    "SBS",
     "SMF",
     "SSW",
     "SWS",
