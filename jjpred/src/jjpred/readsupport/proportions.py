@@ -41,8 +41,14 @@ def read_jjweb_proportions(
         ANALYSIS_INPUT_FOLDER.joinpath(proportions_path)
     )
 
-    rename_dict = dict(
-        (x, x.split("_")[0].lower()) for x in raw_proportions.columns
+    rename_dict = {
+        x: x.lower()
+        for x in raw_proportions.columns
+        if x.lower() == "category"
+    } | dict(
+        (x, x.split("_")[0].lower() + "_frac")
+        for x in raw_proportions.columns
+        if x.lower() != "category"
     )
 
     proportions = cast_standard(
