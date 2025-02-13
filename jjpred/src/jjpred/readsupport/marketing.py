@@ -565,17 +565,21 @@ def read_config(
         validate="m:m",
     ).select(ALL_SKU_AND_CHANNEL_IDS + ["refill_request"])
 
-    min_keep = min_keep.join(
-        active_sku_info.select(ALL_SKU_IDS),
-        on=relevant_ids,
-        # how = default (inner), because we want to filter out those category + size
-        # + print that do not have a matching active_sku (i.e. they are inactive)
-        # RHS: some items with the same category/print/size have multiple SKUs
-        validate="1:m",
-    ).select(ALL_SKU_IDS + ["min_keep"])
+    min_keep = (
+        min_keep.join(
+            active_sku_info.select(ALL_SKU_IDS),
+            on=relevant_ids,
+            # how = default (inner), because we want to filter out those category + size
+            # + print that do not have a matching active_sku (i.e. they are inactive)
+            # RHS: some items with the same category/print/size have multiple SKUs
+            validate="1:m",
+        )
+        .select(ALL_SKU_IDS + ["min_keep"])
+        .join(channel_info, how="cross")
+    )
     # sys.displayhook(min_keep)
 
-    assert len(min_keep) == (len(refill_request) / len(channel_info))
+    assert len(min_keep) == len(refill_request)
 
     use_columns = [
         RelevantColumn(0, "category"),

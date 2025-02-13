@@ -7,7 +7,7 @@ from pathlib import Path
 import polars as pl
 
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import RefillDefn
+from jjpred.analysisdefn import JJWebDefn, RefillDefn
 from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
@@ -219,6 +219,11 @@ class Dispatcher:
         # the dispatch calculations progress
         self.all_sku_info = get_all_sku_currentness_info(analysis_defn)
 
+        if "website_sku" not in self.all_sku_info:
+            self.all_sku_info = self.all_sku_info.with_columns(
+                website_sku=pl.lit(False)
+            )
+
         self.all_sku_info = attach_channel_info(
             self.all_sku_info, self.channel_info
         )
@@ -353,56 +358,62 @@ class Dispatcher:
             .otherwise(pl.col.no_qty_box_info)
         )
 
-        jjweb_proportions = read_jjweb_proportions(db)
+        if isinstance(db.analysis_defn, JJWebDefn):
+            jjweb_proportions = read_jjweb_proportions(db)
 
-        jjweb_demand, other_demand = binary_partition_weak(
-            self.all_sku_info,
-            pl.struct(*Channel.members()).eq(
-                Channel.parse("janandjul.com").as_dict()
-            ),
-        )
-
-        jjweb_demand_with_fracs = jjweb_demand.join(
-            jjweb_proportions, on="category", how="left"
-        )
-
-        categories_with_missing_jjweb_proportions = list(
-            jjweb_demand_with_fracs.filter(
-                pl.col.ca_frac.is_null() & ~pl.col.is_master_paused
-            )["category"].unique()
-        )
-
-        if len(categories_with_missing_jjweb_proportions) > 0:
-            raise ValueError(f"{categories_with_missing_jjweb_proportions=}")
-
-        jjweb_demand_after_split = jjweb_demand_with_fracs.with_columns(
-            country_flag=pl.lit(
-                int(CountryFlags.CA), dtype=other_demand["country_flag"].dtype
-            ),
-            expected_demand=pl.when(pl.col.ca_frac.is_not_null())
-            .then(
-                (
-                    pl.col.ca_frac * pl.col.east_frac * pl.col.expected_demand
-                ).round()
+            jjweb_demand, other_demand = binary_partition_weak(
+                self.all_sku_info,
+                pl.struct(*Channel.members()).eq(
+                    Channel.parse("janandjul.com").as_dict()
+                ),
             )
-            .otherwise(pl.lit(0))
-            .cast(pl.Int64()),
-        ).select(other_demand.columns)
 
-        # a_type = {x: other_demand[x].dtype for x in other_demand.columns}
-        # b_type = {
-        #     x: jjweb_demand_after_split[x].dtype
-        #     for x in jjweb_demand_after_split.columns
-        # }
+            jjweb_demand_with_fracs = jjweb_demand.join(
+                jjweb_proportions, on="category", how="left"
+            )
 
-        # for key in a_type.keys():
-        #     if a_type[key] != b_type[key]:
-        #         print(f"found mismatch: {key=}")
-        #         print(f"{key=}, {a_type[key]=}, {b_type[key]=}")
+            categories_with_missing_jjweb_proportions = list(
+                jjweb_demand_with_fracs.filter(
+                    pl.col.ca_frac.is_null() & ~pl.col.is_master_paused
+                )["category"].unique()
+            )
 
-        self.all_sku_info = other_demand.vstack(
-            jjweb_demand_after_split.select(other_demand.columns)
-        )
+            if len(categories_with_missing_jjweb_proportions) > 0:
+                raise ValueError(
+                    f"{categories_with_missing_jjweb_proportions=}"
+                )
+
+            jjweb_demand_after_split = jjweb_demand_with_fracs.with_columns(
+                country_flag=pl.lit(
+                    int(CountryFlags.CA),
+                    dtype=other_demand["country_flag"].dtype,
+                ),
+                expected_demand=pl.when(pl.col.ca_frac.is_not_null())
+                .then(
+                    (
+                        pl.col.ca_frac
+                        * pl.col.east_frac
+                        * pl.col.expected_demand
+                    ).round()
+                )
+                .otherwise(pl.lit(0))
+                .cast(pl.Int64()),
+            ).select(other_demand.columns)
+
+            # a_type = {x: other_demand[x].dtype for x in other_demand.columns}
+            # b_type = {
+            #     x: jjweb_demand_after_split[x].dtype
+            #     for x in jjweb_demand_after_split.columns
+            # }
+
+            # for key in a_type.keys():
+            #     if a_type[key] != b_type[key]:
+            #         print(f"found mismatch: {key=}")
+            #         print(f"{key=}, {a_type[key]=}, {b_type[key]=}")
+
+            self.all_sku_info = other_demand.vstack(
+                jjweb_demand_after_split.select(other_demand.columns)
+            )
 
     def calculate_dispatch(
         self,

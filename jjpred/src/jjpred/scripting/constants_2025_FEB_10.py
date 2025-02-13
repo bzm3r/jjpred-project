@@ -42,6 +42,9 @@ analysis_defn = FbaRevDefn(
 analysis_defn_new = copy.deepcopy(analysis_defn)
 analysis_defn_new.extra_descriptor = "new"
 
+analysis_defn_test = copy.deepcopy(analysis_defn)
+analysis_defn_test.extra_descriptor = "test"
+
 jjweb_analysis_defn = JJWebDefn(
     analysis_date=analysis_date,
     dispatch_date=dispatch_date,
