@@ -796,7 +796,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         self.history_data = self.history_data.drop("channel")
         find_dupes(
             self.history_data,
-            ["a_sku", "date"] + Channel.members(),
+            ["a_sku", "date", "category"] + Channel.members(),
             raise_error=True,
         )
 
@@ -1719,4 +1719,15 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 expected_demands_per_group
             )
 
-        return collate_groups_per_channel(expected_demands_per_channel)
+        collated_result = collate_groups_per_channel(
+            expected_demands_per_channel,
+            # dupe_check_index=["a_sku", "sku"] + Channel.members(),
+        )
+
+        find_dupes(
+            collated_result,
+            ["sku", "a_sku"] + Channel.members(),
+            raise_error=True,
+        )
+
+        return collated_result

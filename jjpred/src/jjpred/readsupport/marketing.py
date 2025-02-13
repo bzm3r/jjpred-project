@@ -398,16 +398,22 @@ def generate_channel_df(
 
 def read_config(
     analysis_defn: AnalysisDefn,
-    relevant_channels: list[str | Channel] = ["Amazon.com", "Amazon.ca"],
 ) -> ConfigData:
     """Read configuration information from the marketing configuration Excel
     file.
 
-    It assumes that only Amazon.com/Amazon.ca data is present, but this can be
-    configured.
+    It assumes that only Amazon.com/Amazon.ca data is present.
     """
     channel_info = parse_channels(
-        pl.DataFrame(pl.Series("channel", relevant_channels))
+        pl.DataFrame(
+            pl.Series(
+                "channel",
+                [
+                    "Amazon.com",
+                    "Amazon.ca",
+                ],
+            )
+        )
     ).drop("raw_channel", "channel")
     # channel_info = generate_channel_df(analysis_defn, relevant_channels)
     # sys.displayhook(channel_info)
@@ -537,12 +543,12 @@ def read_config(
     )
     # sys.displayhook(min_keep)
 
-    assert len(min_keep) == (
-        len(refill_request) / len(channel_info)
-    ), create_assert_result(
-        min_keep=len(min_keep),
-        refill_request=len(refill_request),
-        channel_info=len(channel_info),
+    assert len(min_keep) == (len(refill_request) / len(channel_info)), (
+        create_assert_result(
+            min_keep=len(min_keep),
+            refill_request=len(refill_request),
+            channel_info=len(channel_info),
+        )
     )
 
     relevant_ids = [
@@ -559,17 +565,21 @@ def read_config(
         validate="m:m",
     ).select(ALL_SKU_AND_CHANNEL_IDS + ["refill_request"])
 
-    min_keep = min_keep.join(
-        active_sku_info.select(ALL_SKU_IDS),
-        on=relevant_ids,
-        # how = default (inner), because we want to filter out those category + size
-        # + print that do not have a matching active_sku (i.e. they are inactive)
-        # RHS: some items with the same category/print/size have multiple SKUs
-        validate="1:m",
-    ).select(ALL_SKU_IDS + ["min_keep"])
+    min_keep = (
+        min_keep.join(
+            active_sku_info.select(ALL_SKU_IDS),
+            on=relevant_ids,
+            # how = default (inner), because we want to filter out those category + size
+            # + print that do not have a matching active_sku (i.e. they are inactive)
+            # RHS: some items with the same category/print/size have multiple SKUs
+            validate="1:m",
+        )
+        .select(ALL_SKU_IDS + ["min_keep"])
+        .join(channel_info, how="cross")
+    )
     # sys.displayhook(min_keep)
 
-    assert len(min_keep) == (len(refill_request) / len(channel_info))
+    assert len(min_keep) == len(refill_request)
 
     use_columns = [
         RelevantColumn(0, "category"),

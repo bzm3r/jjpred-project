@@ -196,6 +196,26 @@ class AnalysisDefn:
 
         return False
 
+    def get_field_if_available[T](
+        self, field_name: str, field_type: type[T]
+    ) -> T | None:
+        if hasattr(self, field_name):
+            field_value = self.__getattribute__(field_name)
+            assert isinstance(field_value, field_type)
+        else:
+            field_value = None
+
+        return field_value
+
+    def get_website_sku_date(self) -> Date | None:
+        if hasattr(self, "website_sku_date"):
+            website_sku_date = self.__getattribute__("website_sku_date")
+            assert isinstance(website_sku_date, Date)
+        else:
+            website_sku_date = None
+
+        return website_sku_date
+
     def tag_with_output_time(self) -> str:
         """Return a string identifying this analysis definition, along with a
         final part that states when this string was created."""
@@ -625,6 +645,10 @@ class JJWebDefn(RefillDefn):
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
 
+    website_proportions_split_date: Date = field(init=False)
+    """Until we receive data that already includes splits, we will need to split
+    janandjul.com Sales/PO data into."""
+
     def __init__(
         self,
         analysis_date: DateLike,
@@ -636,6 +660,7 @@ class JJWebDefn(RefillDefn):
         warehouse_inventory_date: DateLike,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
+        proportion_split_date: DateLike,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -650,6 +675,10 @@ class JJWebDefn(RefillDefn):
         extra_descriptor: str | None = None,
     ):
         self.website_sku_date = Date.from_datelike(website_sku_date)
+        print(proportion_split_date)
+        self.website_proportions_split_date = Date.from_datelike(
+            proportion_split_date
+        )
 
         super().__init__(
             "jjweb",
@@ -671,6 +700,6 @@ class JJWebDefn(RefillDefn):
             demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_descriptor=extra_descriptor,
-            warehouse_min_keep_qty=3,
+            warehouse_min_keep_qty=12,
             dispatch_cutoff_qty=0,
         )

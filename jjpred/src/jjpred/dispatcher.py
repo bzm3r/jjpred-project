@@ -6,7 +6,8 @@ from collections import defaultdict
 from pathlib import Path
 import polars as pl
 
-from jjpred.analysisdefn import RefillDefn
+from analysis_tools.utils import get_analysis_defn_and_db
+from jjpred.analysisdefn import JJWebDefn, RefillDefn
 from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
@@ -20,6 +21,7 @@ from jjpred.database import DataBase
 from jjpred.dispatchformatter import format_dispatch_for_netsuite
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.predictor import Predictor
+from jjpred.readsupport.proportions import read_jjweb_proportions
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
 from jjpred.sku import Sku
@@ -35,6 +37,7 @@ from jjpred.utils.datetime import Date
 from jjpred.utils.fileio import write_df, write_excel
 from jjpred.utils.polars import (
     FilterStructs,
+    binary_partition_weak,
     find_dupes,
     struct_filter,
 )
@@ -171,14 +174,22 @@ class Dispatcher:
 
     def __init__(
         self,
-        analysis_defn: RefillDefn,
+        analysis_defn_or_db: RefillDefn | DataBase,
         dispatch_channels: list[Channel | str],
         predictor: Predictor,
         filters: list[StructLike] | None = [],
         read_from_disk: bool = False,
     ) -> None:
+        analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
+        assert isinstance(analysis_defn, RefillDefn)
+
         self.analysis_defn = analysis_defn
         # read marketing configuration info
+        # channel specific modifications to the config data (e.g. setting refill
+        # request to 1 unit for JanAndJul.com website) are handled when this
+        # data is attached to the output dataframe
+        # (see attach_refill_info_from_config)
+        # (see attach_inventory_info)
         self.config_data = read_config(analysis_defn)
         # read qty/box information
         self.qty_box_info = read_qty_box(
@@ -199,7 +210,7 @@ class Dispatcher:
             )
         )
 
-        # get channel information the channels we want to dispatch to
+        # get channel information for the channels we want to dispatch to
         self.channel_info = struct_filter(
             self.db.meta_info.channel.select(Channel.members()),
             set(self.dispatch_channels),
@@ -207,6 +218,11 @@ class Dispatcher:
         # initialize all sku information, which we will further build upon as
         # the dispatch calculations progress
         self.all_sku_info = get_all_sku_currentness_info(analysis_defn)
+
+        if "website_sku" not in self.all_sku_info:
+            self.all_sku_info = self.all_sku_info.with_columns(
+                website_sku=pl.lit(False)
+            )
 
         self.all_sku_info = attach_channel_info(
             self.all_sku_info, self.channel_info
@@ -341,6 +357,63 @@ class Dispatcher:
             .then(pl.lit(True))
             .otherwise(pl.col.no_qty_box_info)
         )
+
+        if isinstance(db.analysis_defn, JJWebDefn):
+            jjweb_proportions = read_jjweb_proportions(db)
+
+            jjweb_demand, other_demand = binary_partition_weak(
+                self.all_sku_info,
+                pl.struct(*Channel.members()).eq(
+                    Channel.parse("janandjul.com").as_dict()
+                ),
+            )
+
+            jjweb_demand_with_fracs = jjweb_demand.join(
+                jjweb_proportions, on="category", how="left"
+            )
+
+            categories_with_missing_jjweb_proportions = list(
+                jjweb_demand_with_fracs.filter(
+                    pl.col.ca_frac.is_null() & ~pl.col.is_master_paused
+                )["category"].unique()
+            )
+
+            if len(categories_with_missing_jjweb_proportions) > 0:
+                raise ValueError(
+                    f"{categories_with_missing_jjweb_proportions=}"
+                )
+
+            jjweb_demand_after_split = jjweb_demand_with_fracs.with_columns(
+                country_flag=pl.lit(
+                    int(CountryFlags.CA),
+                    dtype=other_demand["country_flag"].dtype,
+                ),
+                expected_demand=pl.when(pl.col.ca_frac.is_not_null())
+                .then(
+                    (
+                        pl.col.ca_frac
+                        * pl.col.east_frac
+                        * pl.col.expected_demand
+                    ).round()
+                )
+                .otherwise(pl.lit(0))
+                .cast(pl.Int64()),
+            ).select(other_demand.columns)
+
+            # a_type = {x: other_demand[x].dtype for x in other_demand.columns}
+            # b_type = {
+            #     x: jjweb_demand_after_split[x].dtype
+            #     for x in jjweb_demand_after_split.columns
+            # }
+
+            # for key in a_type.keys():
+            #     if a_type[key] != b_type[key]:
+            #         print(f"found mismatch: {key=}")
+            #         print(f"{key=}, {a_type[key]=}, {b_type[key]=}")
+
+            self.all_sku_info = other_demand.vstack(
+                jjweb_demand_after_split.select(other_demand.columns)
+            )
 
     def calculate_dispatch(
         self,
@@ -616,7 +689,74 @@ class Dispatcher:
 
         return self.all_sku_info
 
-    def produce_formatted_dispatch(
+    def produce_formatted_jjweb_dispatch(
+        self,
+        calculated_dispatch: pl.DataFrame | None = None,
+        save_excel: bool = True,
+        dispatch_filter: pl.Expr | None = None,
+        descriptor: str | None = None,
+        save_csv: bool = True,
+    ) -> pl.DataFrame:
+        """Prepare an Excel file in the expected dispatch output format based on
+        calculated dispatch.
+
+        If a calculated dispatch is not given, then one is calculated from
+        scratch."""
+
+        if calculated_dispatch is None:
+            calculated_dispatch = self.calculate_dispatch()
+
+        final_dispatch = calculated_dispatch.filter(
+            pl.col("is_active")
+            & ~(
+                pl.col("is_master_paused")
+                | pl.col("is_config_paused")
+                | pl.col("dispatch_below_cutoff")
+            )
+        )
+
+        if dispatch_filter is not None:
+            final_dispatch = final_dispatch.filter(dispatch_filter)
+
+        raise NotImplementedError("Not yet implemented!")
+
+        sheets = {
+            "US": format_dispatch_for_netsuite(
+                self.analysis_defn.date,
+                final_dispatch,
+                CountryFlags.US,
+            ),
+            "CA": format_dispatch_for_netsuite(
+                self.analysis_defn.date,
+                final_dispatch,
+                CountryFlags.CA,
+            ),
+        }
+
+        if descriptor is not None:
+            descriptor = f"_{descriptor}"
+        else:
+            descriptor = ""
+
+        if save_excel:
+            result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+                Path(
+                    f"{self.analysis_defn.tag()}_final_dispatch{descriptor}.xlsx"
+                )
+            )
+            write_excel(result_path, sheets)
+        if save_csv:
+            for x in sheets.keys():
+                result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
+                    Path(
+                        f"TO_SRR_FBA{x}{self.analysis_defn.date.fmt_flat()}.csv"
+                    )
+                )
+                sheets[x].write_csv(result_path)
+
+        return final_dispatch
+
+    def produce_formatted_fba_dispatch(
         self,
         calculated_dispatch: pl.DataFrame | None = None,
         save_excel: bool = True,
@@ -683,13 +823,5 @@ class Dispatcher:
                     )
                 )
                 sheets[x].write_csv(result_path)
-            # print(f"Saving final dispatch to: {result_path}")
-
-            # if result_path.exists():
-            #     result_path.unlink()
-            # with xlw.Workbook(result_path) as workbook:
-            #     for key, df in sheets.items():
-            #         if df is not None:
-            #             df.write_excel(workbook=workbook, worksheet=key)
 
         return final_dispatch

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import polars as pl
 import polars.selectors as cs
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn, RefillDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
@@ -29,6 +29,7 @@ from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.readsupport.marketing import read_config
 from jjpred.readsupport.mastersku import (
     MasterSkuInfo,
+    WebsiteSkuFetchInfo,
 )
 from jjpred.readsupport.utils import (
     cast_standard,
@@ -40,6 +41,7 @@ from jjpred.structlike import MemberType, StructLike
 from jjpred.utils.datetime import Date
 
 from jjpred.utils.fileio import (
+    disable_fastexcel_dtypes_logger,
     gen_meta_info_path,
     read_meta_info,
     try_read_df,
@@ -318,6 +320,7 @@ class DataBase:
 
     def generate_from_excel(self):
         """Generate from Excel input files."""
+        disable_fastexcel_dtypes_logger()
         self.execute_read_from_excel(
             focus_categories=self.focus_categories,
         )
@@ -462,6 +465,7 @@ class DataBase:
                 pl.col.sku.eq(pl.col.a_sku)
             )["a_sku"]
             .unique()
+            .cast(pl.String())
             .append(pl.Series(IGNORE_SKU_LIST))
         )
         ignore_skus = self.meta_info.ignored_sku["sku"].unique()
@@ -483,7 +487,9 @@ class DataBase:
                     InventoryType.AUTO,
                     read_from_disk=False,
                 )
-                .filter(~pl.col.sku.is_in(ignore_skus))
+                .filter(
+                    pl.col.sku.is_in(self.meta_info.all_sku["sku"].unique())
+                )
                 .filter(
                     ~pl.col.category.is_in(pl.Series(IGNORE_CATEGORY_LIST))
                 ),
@@ -502,7 +508,8 @@ class DataBase:
             cast_standard(
                 [self.meta_info.all_sku],
                 self.dfs[DataVariant.History].filter(
-                    ~pl.col.a_sku.is_in(ignore_a_skus)
+                    ~pl.col.a_sku.is_in(ignore_a_skus),
+                    pl.col.a_sku.is_in(self.meta_info.all_sku["a_sku"]),
                 ),
             ).join(
                 # we might want to pick out "category" (corresponding to
@@ -515,13 +522,14 @@ class DataBase:
             )
         )
 
-        # self.dfs = standardize_sku_info(
-        #     self.dfs, self.meta_info.all_sku, SkuVariant.A_SKU
-        # )
-
         if self.analysis_defn.in_stock_ratio_date is not None:
-            self.dfs[DataVariant.InStockRatio] = read_complete_isr_info(
-                self.analysis_defn
+            self.dfs[DataVariant.InStockRatio] = (
+                read_isr_from_excel_file_given_meta_info(
+                    self.analysis_defn,
+                    self.meta_info.active_sku,
+                    self.meta_info.all_sku,
+                    read_from_disk=False,
+                )
             )
 
         self.dfs, channel_meta = standardize_channel_info(self.dfs)
@@ -574,18 +582,6 @@ def standardize_channel_info(
     unique_channels = unique_channels.cast(
         {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
     )
-    # unique_channels = channels.unique().cast(Channel.polars_type_dict())  # type: ignore
-
-    # unique_channels = unique_channels.rename(
-    #     {"channel": "raw_channel"}
-    # ).with_columns(
-    #     channel=pl.struct(Channel.members()).map_elements(
-    #         Channel.map_polars_struct_to_string, return_dtype=pl.String()
-    #     )
-    # )
-    # unique_channels = unique_channels.cast(
-    #     {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
-    # )
 
     recast_dict = {
         k: unique_channels[k].dtype
@@ -594,36 +590,6 @@ def standardize_channel_info(
     }
     for key, df in dfs.items():
         dfs[key] = df.select(cs.exclude("raw_channel")).cast(recast_dict)  # type: ignore
-    # for c in Channel.members():
-    #     if unique_channels[c].dtype == pl.String():
-    #         pl_enum = pl.Enum(pl.Series(unique_channels[c].unique()))
-    #         unique_channels = unique_channels.with_columns(
-    #             pl.col(c).cast(pl_enum)
-    #         )
-    #     elif c == "country_flag":
-    #         pl.col(c).cast(PolarsCountryFlagType)
-
-    # for key, df in dfs.items():
-    #     if "raw_channel" not in df.columns and "channel" in df.columns:
-    #         df = df.rename({"channel": "raw_channel"})
-    #     df = df.join(
-    #         unique_channels,
-    #         on=Channel.members(),
-    #         # there are multiple entries with the same channel info
-    #         validate="m:m",
-    #         join_nulls=True,
-    #     )
-    #     # df = df.with_columns(
-    #     #     pl.col("channel").cast(unique_channels["channel"].dtype)
-    #     # ).drop(Channel.members())
-    #     # df = df.join(
-    #     #     unique_channels.filter(~pl.col("platform").is_null()),
-    #     #     on="channel",
-    #     #     validate="m:1",
-    #     #     join_nulls=True,
-    #     # )
-    #     dfs[key] = df
-    #     # sys.displayhook(df)
 
     return dfs, unique_channels
 
@@ -663,71 +629,5 @@ def standardize_sku_info(
             validate="m:1",
             join_nulls=True,
         )
-
-        # with_sku_remainder_info = df.join(
-        #     all_sku_info.select(
-        #         Sku.members(MemberType.SECONDARY)
-        #         + ["a_sku", "sku"]
-        #         + [
-        #             "pause_plan",
-        #             "season",
-        #             "sku_year_history",
-        #             "category_year_history",
-        #             "sku_latest_year",
-        #         ]
-        #     ).unique(),
-        #     on=sku_columns,
-        #     validate="m:1",
-        #     join_nulls=True,
-        # )
-        # dfs[k] = with_sku_remainder_info
-
-    return dfs
-
-
-def standardize_sku_info_old(
-    dfs: dict[DataVariant, pl.DataFrame],
-    all_sku_info: pl.DataFrame,
-    sku_variant: SkuVariant,
-) -> dict[DataVariant, pl.DataFrame]:
-    """Data in inventory files typically comes indexed either by ``adjust_sku``
-    (``a_sku``) (e.g. ``All Marketplace All SKU Categories``) or possibly by
-    ``merchant_sku`` (``m_sku``).
-
-    In any case, they have to be re-interpreted as :py:class:`Sku` and matched
-    against what we know about SKUs from the master SKU information file."""
-
-    if sku_variant == SkuVariant.A_SKU:
-        sku_columns = ["a_sku"]
-    elif sku_variant == SkuVariant.M_SKU:
-        sku_columns = ["sku"]
-    else:
-        raise ValueError(f"No logic to handle case {sku_variant}!")
-
-    sku_schema = {k: all_sku_info[k].dtype for k in sku_columns}
-
-    for k, df in dfs.items():
-        df = df.filter(
-            pl.col(x).is_in(as_polars_type(sku_schema[x], pl.Enum).categories)
-            for x in sku_columns
-        ).cast(sku_schema)  # type: ignore
-
-        with_sku_remainder_info = df.join(
-            all_sku_info.select(
-                Sku.members(MemberType.SECONDARY)
-                + ["a_sku", "sku"]
-                + [
-                    "pause_plan",
-                    "season",
-                    "sku_year_history",
-                    "category_year_history",
-                    "sku_latest_year",
-                ]
-            ).unique(),
-            on=sku_columns,
-            validate="m:1",
-            join_nulls=True,
-        )
-        dfs[k] = with_sku_remainder_info
 
     return dfs

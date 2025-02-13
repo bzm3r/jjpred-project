@@ -401,9 +401,9 @@ def read_isr_from_excel_file_given_meta_info(
         strict=False,  # skip any SKUs that are not in the active_sku_info list
     ).filter(~(pl.col.sku.is_null() | pl.col.a_sku.is_null()))
 
-    find_dupes(
-        active_sku_info.select("sku", "a_sku"), ["a_sku"], raise_error=True
-    )
+    # find_dupes(
+    #     active_sku_info.select("sku", "a_sku"), ["a_sku"], raise_error=True
+    # )
     isr_df = isr_df.join(
         active_sku_info.select(
             WHOLE_SKU_IDS + ["sku_year_history", "a_category"]

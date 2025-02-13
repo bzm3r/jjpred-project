@@ -29,7 +29,7 @@ from jjpred.utils.groupeddata import (
     ChannelCategoryData,
 )
 from jjpred.utils.multidict import MultiDict
-from jjpred.utils.polars import vstack_to_unified, struct_filter
+from jjpred.utils.polars import find_dupes, vstack_to_unified, struct_filter
 from jjpred.utils.typ import (
     as_polars_type,
 )
@@ -314,6 +314,7 @@ class CategoryGroup[T](CategoryGroupProtocol):
 
 def collate_groups(
     category_groups: CategoryGroups[CategoryGroup[pl.DataFrame]],
+    dupe_check_index: list[str] | None = None,
 ) -> pl.DataFrame:
     stacked_df = pl.DataFrame()
 
@@ -322,7 +323,12 @@ def collate_groups(
         stacked_df = groups[0].data
 
         for group in groups[1:]:
+            if dupe_check_index is not None and len(dupe_check_index) > 0:
+                find_dupes(group.data, dupe_check_index, raise_error=True)
             stacked_df = stacked_df.vstack(group.data)
+
+            if dupe_check_index is not None and len(dupe_check_index) > 0:
+                find_dupes(stacked_df, dupe_check_index, raise_error=True)
 
     return stacked_df
 
@@ -332,11 +338,20 @@ def collate_groups_per_channel(
         Channel, CategoryGroups[CategoryGroup[pl.DataFrame]]
     ],
     attach_channel: bool = False,
+    dupe_check_index: list[str] | None = None,
 ) -> pl.DataFrame:
     result = pl.DataFrame()
 
     for channel, group_dfs in results_per_channel.items():
-        collated = collate_groups(group_dfs)
+        collated = collate_groups(group_dfs, dupe_check_index=dupe_check_index)
+
+        if dupe_check_index is not None and len(dupe_check_index) > 0:
+            find_dupes(
+                collated,
+                dupe_check_index,
+                raise_error=True,
+            )
+
         if attach_channel:
             collated = collated.with_columns(**channel.to_columns())
         result = vstack_to_unified(result, collated)

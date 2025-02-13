@@ -4,33 +4,62 @@ up and/or execute analyses."""
 from __future__ import annotations
 import copy
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import FbaRevDefn, JJWebDefn
 from jjpred.inputstrategy import RefillType
 
+analysis_date = "2025-FEB-11"
+dispatch_date = "2025-FEB-11"
+master_sku_date = "2025-FEB-10"
+sales_and_inventory_date = "2025-FEB-10"
+warehouse_inventory_date = "2025-FEB-09"
+config_date = "2025-FEB-03"
+in_stock_ratio_date = "2025-FEB-04"
+prediction_type_meta_date = None
+check_dispatch_date = False
+
 analysis_defn = FbaRevDefn(
-    analysis_date="2025-FEB-11",
-    dispatch_date="2025-FEB-11",
-    master_sku_date="2025-FEB-10",
-    sales_and_inventory_date="2025-FEB-10",
-    warehouse_inventory_date="2025-FEB-09",
-    config_date="2025-FEB-03",
-    in_stock_ratio_date="2025-FEB-04",
+    analysis_date=analysis_date,
+    dispatch_date=dispatch_date,
+    master_sku_date=master_sku_date,
+    sales_and_inventory_date=sales_and_inventory_date,
+    warehouse_inventory_date=warehouse_inventory_date,
+    config_date=config_date,
+    in_stock_ratio_date=in_stock_ratio_date,
+    prediction_type_meta_date=prediction_type_meta_date,
     refill_type=RefillType.WEEKLY,
     mainprogram_date="2025-FEB-11",
     refill_draft_date="2025-FEB-10",
-    prediction_type_meta_date=None,
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,
-    check_dispatch_date=False,
     match_main_program_month_fractions=True,
+    check_dispatch_date=check_dispatch_date,
 )
 
-analysis_defn_main = copy.deepcopy(analysis_defn)
-analysis_defn_main.extra_descriptor = "main"
+# analysis_defn_main = copy.deepcopy(analysis_defn)
+# analysis_defn_main.extra_descriptor = "main"
 
-analysis_defn_new = copy.deepcopy(analysis_defn_main)
+analysis_defn_new = copy.deepcopy(analysis_defn)
 analysis_defn_new.extra_descriptor = "new"
+
+analysis_defn_test = copy.deepcopy(analysis_defn)
+analysis_defn_test.extra_descriptor = "test"
+
+jjweb_analysis_defn = JJWebDefn(
+    analysis_date=analysis_date,
+    dispatch_date=dispatch_date,
+    end_date="2025-MAY-01",
+    website_sku_date="2025-FEB-08",
+    master_sku_date=master_sku_date,
+    sales_and_inventory_date=sales_and_inventory_date,
+    warehouse_inventory_date=warehouse_inventory_date,
+    config_date=config_date,
+    in_stock_ratio_date=in_stock_ratio_date,
+    prediction_type_meta_date=prediction_type_meta_date,
+    proportion_split_date="2025-FEB-13",
+    check_dispatch_date=check_dispatch_date,
+)
+
 
 # analysis_defn = FbaRevDefn.new_comparison_analysis(
 #     analysis_date="2025-FEB-03",

@@ -76,13 +76,13 @@ STARTS_WITH_M_OK_LIST = []
 ignored."""
 
 IGNORE_CATEGORY_LIST = [
-    "DEAL-MISC-KCS",
-    "DEAL-MISC",
-    "STORE",
-    "GUB-AST",
-    "GUB-BOX",
-    "SKB-INSOL",
-    "COHY",
+    # "DEAL-MISC-KCS",
+    # "DEAL-MISC",
+    # "STORE",
+    # "GUB-AST",
+    # "GUB-BOX",
+    # "SKB-INSOL",
+    # "COHY",
 ]
 """We ignore SKUs with ``category`` in the above list for the purposes of
 FBA refill."""

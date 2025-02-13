@@ -24,6 +24,7 @@ from jjpred.datagroups import (
     CHANNEL_IDS,
     PAUSE_PLAN_IDS,
     SEASON_IDS,
+    STATUS_IDS,
     WHOLE_SKU_IDS,
 )
 from jjpred.countryflags import CountryFlags
@@ -60,9 +61,14 @@ def get_all_sku_currentness_info(
     current_year = dispatch_date.year - 2000
     next_year = (dispatch_date.year + 1) - 2000
 
+    master_all_sku = read_meta_info(analysis_defn, "all_sku")
     all_sku_info = (
-        read_meta_info(analysis_defn, "all_sku")
-        .select(ALL_SKU_IDS + SEASON_IDS + PAUSE_PLAN_IDS + ["status"])
+        master_all_sku.select(
+            ALL_SKU_IDS
+            + SEASON_IDS
+            + PAUSE_PLAN_IDS
+            + [x for x in STATUS_IDS if x in master_all_sku]
+        )
         .with_columns(
             pl.col("status").eq("active").alias("is_active").fill_null(False)
         )
@@ -246,6 +252,23 @@ def attach_refill_info_from_config(
         all_sku_info, config_data.refill, fill_null_value=PolarsLit(0)
     )
 
+    all_sku_info = all_sku_info.with_columns(
+        is_config_paused=pl.when(
+            pl.struct(*Channel.members()).eq(
+                Channel.parse("janandjul.com").as_dict()
+            )
+        )
+        .then(pl.lit(False))
+        .otherwise(pl.col.is_config_paused),
+        refill_request=pl.when(
+            pl.struct(*Channel.members()).eq(
+                Channel.parse("janandjul.com").as_dict()
+            )
+        )
+        .then(pl.lit(1))
+        .otherwise(pl.col.refill_request),
+    )
+
     return all_sku_info
 
 
@@ -253,9 +276,11 @@ def attach_channel_info(
     all_sku_info: pl.DataFrame, channel_info: pl.DataFrame
 ) -> pl.DataFrame:
     return all_sku_info.join(channel_info, how="cross", on=None).with_columns(
-        is_master_paused=pl.col("country_flag")
-        .and_(pl.col("pause_plan"))
-        .gt(0)
+        is_master_paused=pl.when(pl.col.platform.eq("Amazon"))
+        .then(pl.col("country_flag").and_(pl.col("pause_plan")).gt(0))
+        .when(pl.col.platform.eq("JanAndJul"))
+        .then(~pl.col.website_sku)
+        .otherwise(pl.lit(True))
     )
 
 
@@ -290,40 +315,39 @@ def attach_inventory_info(
             pl.col("country_flag").eq(int(CountryFlags.CA)),
         )
         .drop(Channel.members())
-        .join(
-            config_data.min_keep,
-            on=WHOLE_SKU_IDS,
-            how="left",
-            validate="m:1",
-            join_nulls=True,
-        )
-        .with_columns(
-            min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
-        )
-        .with_columns(
-            min_keep=pl.max_horizontal("min_keep", "min_keep_default")
-        )
-        .drop("min_keep_default")
         .rename({"stock": "wh_stock"})
+        .select(WHOLE_SKU_IDS + ["wh_stock"])
     )
     ch_stock = ch_stock.rename({"stock": "ch_stock"})
 
-    wh_info = calculate_wh_dispatchable(wh_stock).select(
-        WHOLE_SKU_IDS + ["wh_stock", "min_keep", "wh_dispatchable"]
-    )
+    # wh_info = calculate_wh_dispatchable(wh_stock).select(
+    #     WHOLE_SKU_IDS + ["wh_stock", "min_keep", "wh_dispatchable"]
+    # )
+
+    # .join(
+    #     config_data.min_keep,
+    #     on=WHOLE_SKU_IDS + CHANNEL_IDS,
+    #     how="left",
+    #     validate="m:1",
+    #     join_nulls=True,
+    # )
+    # .with_columns(
+    #     min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
+    # )
+    # .with_columns(
+    #     min_keep=pl.max_horizontal("min_keep", "min_keep_default")
+    # )
+    # .drop("min_keep_default")
 
     all_sku_info = override_sku_info(
         all_sku_info,
-        wh_info,
+        wh_stock,
         fill_null_value=PolarsLit(0),
         create_info_columns=[
             "wh_stock",
             (
                 pl.col("wh_stock").is_not_null() & pl.col("wh_stock").lt(0)
             ).alias("negative_wh_stock"),
-            (
-                pl.col("wh_stock").is_null() | pl.col("wh_dispatchable").eq(0)
-            ).alias("zero_wh_dispatchable"),
         ],
         dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
     )
@@ -343,6 +367,38 @@ def attach_inventory_info(
                 ).alias("zero_ch_stock")
             ),
         ],
+    )
+
+    all_sku_info = (
+        override_sku_info(
+            all_sku_info,
+            config_data.min_keep,
+            create_info_columns=["min_keep"],
+        )
+        .with_columns(
+            min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
+        )
+        .with_columns(
+            min_keep=pl.max_horizontal("min_keep", "min_keep_default")
+        )
+        .drop("min_keep_default")
+        .with_columns(
+            pl.when(
+                pl.col("wh_stock").gt(0)
+                & pl.col("wh_stock").ge(pl.col("min_keep"))
+            )
+            .then(
+                pl.col("wh_stock")
+                .sub(pl.col("min_keep"))
+                .alias("wh_dispatchable")
+            )
+            .otherwise(pl.lit(0, dtype=pl.Int64()).alias("wh_dispatchable"))
+        )
+        .with_columns(
+            (
+                pl.col("wh_stock").is_null() | pl.col("wh_dispatchable").eq(0)
+            ).alias("zero_wh_dispatchable")
+        )
     )
 
     return all_sku_info

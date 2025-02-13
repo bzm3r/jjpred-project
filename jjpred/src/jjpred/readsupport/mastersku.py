@@ -22,6 +22,7 @@ from jjpred.globalvariables import (
     ENDS_WITH_U_OK_LIST,
     IGNORE_CATEGORY_LIST,
 )
+from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.sku import Sku
 from jjpred.seasons import Season
 from jjpred.structlike import MemberType
@@ -36,6 +37,7 @@ from jjpred.utils.polars import (
     binary_partition_weak,
     convert_dict_to_polars_df,
     extend_df_enum_type,
+    find_dupes,
     sanitize_excel_extraction,
 )
 from jjpred.utils.typ import RuntimeCheckableDataclass
@@ -110,11 +112,19 @@ plotting."""
         cls, analysis_defn: AnalysisDefn
     ) -> dict[str, Path]:
         """Generate paths where Master SKU information should be saved to."""
+        website_sku_date = analysis_defn.get_website_sku_date()
+
+        if website_sku_date is not None:
+            websku_str = f"_WEBSKU_{website_sku_date}"
+        else:
+            websku_str = ""
+
         return dict(
             (
                 df_name,
                 ANALYSIS_OUTPUT_FOLDER.joinpath(
-                    f"{analysis_defn.tag()}_master_sku_{df_name}.parquet",
+                    f"{analysis_defn.tag()}_master_sku_{websku_str}{df_name}"
+                    ".parquet",
                 ),
             )
             for df_name in MasterSkuInfo.fields()
@@ -154,6 +164,7 @@ plotting."""
         analysis_defn: AnalysisDefn,
         read_from_disk=False,
         delete_if_exists=False,
+        # website_sku_fetch_info: WebsiteSkuFetchInfo | None = None,
     ) -> MasterSkuInfo:
         master_sku_info = None
         if read_from_disk or delete_if_exists:
@@ -164,8 +175,23 @@ plotting."""
         if master_sku_info is not None:
             return master_sku_info
         else:
+            website_sku_date = analysis_defn.get_website_sku_date()
+            if website_sku_date is not None:
+                website_sku_fetch_info = WebsiteSkuFetchInfo(
+                    website_sku_date,
+                    read_inventory(
+                        analysis_defn,
+                        InventoryType.AUTO,
+                        read_from_disk=read_from_disk,
+                        delete_if_exists=delete_if_exists,
+                    ),
+                )
+            else:
+                website_sku_fetch_info = None
+
             master_sku_info = read_master_sku_excel_file(
-                analysis_defn.master_sku_date
+                analysis_defn.master_sku_date,
+                website_sku_fetch_info,
             )
 
             master_sku_info.write_to_disk(analysis_defn)
@@ -385,23 +411,6 @@ def generate_filtered_season_history_map(
     return season_history_map
 
 
-def read_website_sku_list(
-    website_sku_list_date: DateLike,
-) -> pl.DataFrame:
-    website_sku_path = ANALYSIS_INPUT_FOLDER.joinpath(
-        Path(f"wc-sku-{Date.from_datelike(website_sku_list_date)}.csv")
-    )
-
-    disable_fastexcel_dtypes_logger()
-    website_sku = pl.read_csv(website_sku_path)
-
-    all_website_skus = website_sku.select(
-        pl.col("SKU").alias("sku"), pl.col("Stock").alias("stock")
-    ).filter(pl.col.sku.is_not_null())
-
-    return all_website_skus
-
-
 def read_raw_master_sku(master_sku_date: DateLike) -> pl.DataFrame:
     disable_fastexcel_dtypes_logger()
 
@@ -458,40 +467,194 @@ def read_raw_master_sku(master_sku_date: DateLike) -> pl.DataFrame:
     return master_sku_df
 
 
-def get_relevant_website_sku(
+def read_website_sku_list(
     website_sku_list_date: DateLike,
-    master_sku_date_or_df: DateLike | pl.DataFrame,
 ) -> pl.DataFrame:
-    if isinstance(master_sku_date_or_df, pl.DataFrame):
-        master_sku_df = master_sku_date_or_df
-    else:
-        master_sku_df = read_raw_master_sku(master_sku_date_or_df)
-
-    website_sku_list = read_website_sku_list(website_sku_list_date)
-
-    relevant_sku = (
-        website_sku_list.join(master_sku_df.rename({"m_sku": "sku"}), on="sku")
-        .select("sku")
-        .unique()
-        .sort("sku")
+    website_sku_path = ANALYSIS_INPUT_FOLDER.joinpath(
+        Path(f"wc-sku-{Date.from_datelike(website_sku_list_date)}.csv")
     )
 
-    return relevant_sku
+    disable_fastexcel_dtypes_logger()
+    website_sku = pl.read_csv(website_sku_path)
+
+    all_website_skus = website_sku.select(pl.col("SKU").alias("sku")).filter(
+        pl.col.sku.is_not_null()
+    )
+
+    return all_website_skus
 
 
-def read_master_sku_excel_file_new(
-    master_sku_date: DateLike, website_sku_date: DateLike | None
+@dataclass
+class WebsiteSkuFetchInfo:
+    website_sku_date: DateLike
+    inventory_df: pl.DataFrame
+
+    def __init__(
+        self, website_sku_date: DateLike | None, inventory_df: pl.DataFrame
+    ):
+        if website_sku_date is not None:
+            self.website_sku_date = website_sku_date
+        else:
+            raise ValueError(f"{website_sku_date=}")
+        self.inventory_df = inventory_df
+
+
+def get_relevant_website_sku(
+    website_sku_fetch_info: WebsiteSkuFetchInfo,
+    # master_sku_date_or_df: DateLike | pl.DataFrame,
+) -> pl.DataFrame:
+    # if isinstance(master_sku_date_or_df, pl.DataFrame):
+    #     master_sku_df = master_sku_date_or_df
+    # else:
+    #     master_sku_df = read_raw_master_sku(master_sku_date_or_df)
+
+    all_website_skus = read_website_sku_list(
+        website_sku_fetch_info.website_sku_date
+    )
+    inventory_df = website_sku_fetch_info.inventory_df
+
+    find_dupes(all_website_skus, ["sku"], raise_error=True)
+    find_dupes(inventory_df, ["sku"], raise_error=True)
+
+    relevant_inventory = inventory_df.filter(
+        pl.col.channel.eq("Warehouse CA WAREHOUSE")
+    ).filter(pl.col.stock.is_not_null() & pl.col.stock.gt(3))
+
+    relevant_website_skus = all_website_skus.join(
+        relevant_inventory.select("sku"), on="sku"
+    )
+
+    return relevant_website_skus
+
+
+# def get_relevant_website_sku(
+#     website_sku_list_date: DateLike,
+#     master_sku_date_or_df: DateLike | pl.DataFrame,
+# ) -> pl.DataFrame:
+#     if isinstance(master_sku_date_or_df, pl.DataFrame):
+#         master_sku_df = master_sku_date_or_df
+#     else:
+#         master_sku_df = read_raw_master_sku(master_sku_date_or_df)
+
+#     website_sku_list = read_website_sku_list(website_sku_list_date)
+
+#     relevant_sku = (
+#         website_sku_list.join(master_sku_df.rename({"m_sku": "sku"}), on="sku")
+#         .select("sku")
+#         .unique()
+#         .sort("sku")
+#     )
+
+#     return relevant_sku
+
+
+def read_master_sku_excel_file(
+    master_sku_date: DateLike,
+    website_sku_fetch_info: WebsiteSkuFetchInfo | None,
 ) -> MasterSkuInfo:
     """Read the master information excel file."""
 
     master_sku_df = read_raw_master_sku(master_sku_date)
 
-    if website_sku_date is not None:
-        website_sku = get_relevant_website_sku(
-            website_sku_date, master_sku_df
-        ).rename({"sku": "m_sku"})
+    if website_sku_fetch_info is not None:
+        website_sku = get_relevant_website_sku(website_sku_fetch_info).rename(
+            {"sku": "m_sku"}
+        )
     else:
         website_sku = None
+
+    if website_sku is not None:
+        website_skus_missing_from_master_sku = (
+            website_sku.join(
+                master_sku_df.select("m_sku").unique(),
+                on=["m_sku"],
+                how="anti",
+            )
+            .with_columns(
+                # ^(?P<category>MBH|MCH|MKB|SKB-INSOL)-(?P<print>[^-]+)-(?P<size>[^-]+)(?:-(?P<remainder>.*))?$
+                pl.col.m_sku.str.extract_groups(
+                    r"^(?P<category>MBH|MCH|MKB|SKB)-(?P<print>[^-]+)-(?P<size>[^-]+)"
+                ).alias("extracted"),
+                status=pl.lit("active"),
+                a_sku=pl.col.m_sku,
+                print_name=pl.lit(""),
+                website_sku=pl.lit(True),
+                orphan_sku=pl.lit(True),
+                pause_plan_str=pl.lit("<undefined>"),
+            )
+            .unnest("extracted")
+            .with_columns(
+                category=pl.when(pl.col.m_sku.str.starts_with("SKB-INSOL"))
+                .then(pl.lit("SKB-INSOL"))
+                .otherwise(pl.col.category)
+            )
+            # .with_columns(
+            #     size=pl.when(pl.col.category.eq("SKB-INSOL"))
+            #     .then(pl.col.print)
+            #     .otherwise(pl.col.size),
+            #     print=pl.when(pl.col.category.eq("SKB-INSOL"))
+            #     .then(pl.col.size)
+            #     .otherwise(pl.col.print),
+            # )
+        )
+
+        if (
+            len(
+                website_skus_missing_from_master_sku.filter(
+                    pl.col.category.is_null()
+                    | pl.col.print.is_null()
+                    | pl.col.size.is_null()
+                )
+            )
+            > 0
+        ):
+            pl.Config().set_tbl_rows(-1)
+            print(
+                website_skus_missing_from_master_sku.filter(
+                    pl.col.category.is_null()
+                    | pl.col.print.is_null()
+                    | pl.col.size.is_null()
+                ).select("m_sku")
+            )
+            pl.Config().restore_defaults()
+            raise ValueError("Found problematic extra SKUs")
+
+        dummy_master_sku_info = pl.DataFrame(schema=master_sku_df.schema)
+        additional_master_sku_info = dummy_master_sku_info.select(
+            cs.exclude(
+                [
+                    x
+                    for x in website_skus_missing_from_master_sku.columns
+                    if x != "m_sku"
+                ]
+            )
+        ).join(
+            website_skus_missing_from_master_sku,
+            how="full",
+            on="m_sku",
+            coalesce=True,
+        )
+
+        master_sku_with_website_info = master_sku_df.join(
+            website_sku.with_columns(
+                website_sku=pl.lit(True), orphan_sku=pl.lit(False)
+            ),
+            on=["m_sku"],
+            how="left",
+        )
+
+        master_sku_df = pl.concat(
+            [
+                master_sku_with_website_info,
+                additional_master_sku_info.select(
+                    master_sku_with_website_info.columns
+                ),
+            ]
+        ).with_columns(
+            pl.col.website_sku.fill_null(pl.lit(False)),
+            pl.col.orphan_sku.fill_null(pl.lit(False)),
+        )
+    # print(master_sku_df["status"].unique().sort())
 
     current_year_integer = Date.from_datelike(master_sku_date).year - 2000
     master_sku_df = master_sku_df.with_columns(
@@ -503,14 +666,6 @@ def read_master_sku_excel_file_new(
         .then(pl.lit(f"{current_year_integer}S,{current_year_integer}F"))
         .otherwise(pl.col.season_history)
     )
-
-    if website_sku is not None:
-        master_sku_df = master_sku_df.join(
-            website_sku.with_columns(website_sku=pl.lit(True)),
-            on=["m_sku"],
-            how="left",
-        ).with_columns(pl.col.website_sku.fill_null(pl.lit(False)))
-    # print(master_sku_df["status"].unique().sort())
 
     master_sku_df = master_sku_df.filter(
         pl.col("status").is_in(
@@ -932,14 +1087,14 @@ def read_master_sku_excel_file_new(
     ).drop("status")
     result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
     result.fba_sku = fba_sku
-    # result.ignored_sku = will_ignore
+    result.ignored_sku = pl.DataFrame(schema=master_sku_df.schema)
     result.print_name_map = print_name_map
     result.numeric_size_map = numeric_size_map
 
     return result
 
 
-def read_master_sku_excel_file(master_sku_date: DateLike) -> MasterSkuInfo:
+def read_master_sku_excel_file_old(master_sku_date: DateLike) -> MasterSkuInfo:
     """Read the master information excel file."""
 
     master_sku_df = read_raw_master_sku(master_sku_date)
