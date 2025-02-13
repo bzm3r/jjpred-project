@@ -36,13 +36,17 @@ period data is used to generate a prediction for expected sales for this
 SKU)."""
 
 # This is read by main_program_new_categories.ipynb
+# also manually added: FVM, AJC, SBS, but this should correspond to changes in
+# the main program
 NEW_CATEGORIES = [
     "AJA",
+    "AJC",
     "BSL",
     "BST",
     "DRC",
     "FAN",
     "FHA",
+    "FVM",
     "IHT",  # temporarily adding IHT
     "IPC",
     "IPS",
@@ -54,6 +58,7 @@ NEW_CATEGORIES = [
     "LBP",
     "LBT",
     # "SKX",
+    "SBS",
     "SMF",
     "SSW",
     "SWS",
