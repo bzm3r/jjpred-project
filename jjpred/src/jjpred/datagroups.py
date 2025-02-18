@@ -135,9 +135,7 @@ DISPATCHABLE_PAUSED_DATA = (
     SEASON_IDS
     + PAUSE_PLAN_IDS
     + PAUSE_FLAGS
-    + [
-        "wh_dispatchable",
-    ]
+    + ["wh_dispatchable", "expected_demand", "refill_request", "dispatch"]
 )
 MAIN_PROGRAM_INFO = [
     "in_main_program",

@@ -54,6 +54,7 @@ class RefillType(EnumLike):
     CUSTOM_2024_NOV_04 = auto()
     CUSTOM_2025_JAN_06 = auto()
     CUSTOM_2025_FEB_03 = auto()
+    CUSTOM_2025_FEB_18 = auto()
 
     @classmethod
     def match(cls, x: str) -> Self:
@@ -73,19 +74,29 @@ class RefillType(EnumLike):
                 return offset_date(start_date, SEASON_START_PREDICTION_OFFSET)
             case RefillType.CUSTOM_2024_SEP_10:
                 start_date = Date.from_datelike(start_date)
-                assert start_date == Date.from_datelike("2024-SEP-01")
+                assert start_date == Date.from_datelike("2024-SEP-01"), (
+                    start_date
+                )
                 return Date.from_datelike("2024-DEC-01")
             case RefillType.CUSTOM_2024_NOV_04:
                 start_date = Date.from_datelike(start_date)
-                assert start_date == Date.from_datelike("2024-NOV-01")
+                assert start_date == Date.from_datelike("2024-NOV-01"), (
+                    start_date
+                )
                 return Date.from_datelike("2025-JAN-15")
             case RefillType.CUSTOM_2025_JAN_06:
                 start_date = Date.from_datelike(start_date)
-                assert start_date == Date.from_datelike("2025-JAN-01")
+                assert start_date == Date.from_datelike("2025-JAN-01"), (
+                    start_date
+                )
                 return Date.from_datelike("2025-APR-01")
-            case RefillType.CUSTOM_2025_FEB_03:
+            case RefillType.CUSTOM_2025_FEB_03 | RefillType.CUSTOM_2025_FEB_18:
                 start_date = Date.from_datelike(start_date)
-                assert start_date == Date.from_datelike("2025-FEB-01")
+                assert (
+                    start_date == Date.from_datelike("2025-FEB-01")
+                    or start_date == Date.from_datelike("2025-FEB-17")
+                    or start_date == Date.from_datelike("2025-FEB-15")
+                ), start_date
                 return Date.from_datelike("2025-MAY-01")
             case value:
                 raise ValueError(f"No logic to handle case {value}.")
@@ -184,9 +195,9 @@ class TimePeriod:
         assert self.start.day == 1
         assert self.end.day == 1
 
-        assert 0 <= (self.end.year - self.start.year) < 1
+        assert 0 <= (self.end.year - self.start.year) <= 1
         if (self.end.year - self.start.year) > 0:
-            assert 0 <= (self.end.month - self.start.month) < 1
+            assert (self.end.month - self.start.month) <= 1
 
         if tpoints is not None:
             assert tpoints[0] == start

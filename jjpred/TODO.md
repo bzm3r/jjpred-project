@@ -1,10 +1,7 @@
 # TODO
 
+-
 - script to automatically copy Quarto rendered documents to their final location once they are done rendering
-
-## 3PL Refill
-
-No need to use main program compatible dispatch start/end dates.
 
 ## NOTEBOOKS
 
@@ -16,10 +13,6 @@ Some features might be better to make as a separate notebook, since they build u
   - mark which SKUs are predicted to be out-of-stock 120 days later
 
 ## FEATURES
-
-- should read PO data directly from PO data file
-
-  - update: will be prepared separately/specially for consumption by this program
 
 - have analysis input happen through an Excel file that the analyst controls?
 
@@ -42,7 +35,7 @@ Some features might be better to make as a separate notebook, since they build u
 
 - use a logging library to log important warnings and errors
 
-## NOTES
+## CHECK
 
 - confirm/fix logic for how PO data is read from season file
 

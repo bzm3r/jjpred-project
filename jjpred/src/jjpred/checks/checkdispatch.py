@@ -250,10 +250,13 @@ def check_dispatch_results(
                 )
             )
             & ~pl.col("zero_wh_dispatchable")
+            & pl.col.dispatch.eq(0)
         )
-        .select(ALL_SKU_IDS + DISPATCHABLE_PAUSED_DATA)
+        .select(ALL_SKU_IDS + CHANNEL_IDS + DISPATCHABLE_PAUSED_DATA)
         .unique()
-        .sort(ALL_SKU_IDS + ["wh_dispatchable"]),
+        .sort(
+            ALL_SKU_IDS + CHANNEL_IDS + ["wh_dispatchable", "expected_demand"]
+        ),
         "NE data missing (sku)": active_results.filter(
             pl.col("new_category_problem") & pl.col("is_current_print")
         )

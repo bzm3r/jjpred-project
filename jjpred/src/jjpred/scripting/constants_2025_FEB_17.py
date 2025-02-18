@@ -8,11 +8,11 @@ from jjpred.analysisdefn import FbaRevDefn, JJWebDefn
 from jjpred.inputstrategy import RefillType
 
 analysis_date = "2025-FEB-18"
-dispatch_date = "2025-FEB-18"
+dispatch_date = "2025-FEB-17"
 master_sku_date = "2025-FEB-18"
 sales_and_inventory_date = "2025-FEB-18"
 warehouse_inventory_date = "2025-FEB-17"
-config_date = "2025-FEB-14"
+config_date = "2025-FEB-18"
 in_stock_ratio_date = "2025-FEB-04"
 prediction_type_meta_date = None
 check_dispatch_date = False
@@ -26,9 +26,9 @@ analysis_defn = FbaRevDefn(
     config_date=config_date,
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
-    refill_type=RefillType.WEEKLY,
-    mainprogram_date=None,
-    refill_draft_date=None,
+    refill_type=RefillType.CUSTOM_2025_FEB_18,
+    mainprogram_date="2025-FEB-18",
+    refill_draft_date="2025-FEB-18",
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,

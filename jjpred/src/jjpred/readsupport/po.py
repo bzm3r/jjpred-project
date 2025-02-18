@@ -27,6 +27,7 @@ from jjpred.utils.datetime import (
 )
 from jjpred.utils.fileio import (
     delete_or_read_df,
+    disable_fastexcel_dtypes_logger,
     gen_support_info_path,
     read_meta_info,
     write_df,
@@ -279,6 +280,8 @@ def read_po(
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
 ) -> pl.DataFrame:
+    disable_fastexcel_dtypes_logger()
+
     if isinstance(analysis_defn_and_dispatch_date, RefillDefn):
         analysis_defn = analysis_defn_and_dispatch_date
         dispatch_date = analysis_defn_and_dispatch_date.dispatch_date
