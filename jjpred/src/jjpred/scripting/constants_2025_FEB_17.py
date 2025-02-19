@@ -7,7 +7,7 @@ from jjpred.inputstrategy import RefillType
 
 analysis_date = "2025-FEB-18"
 dispatch_date = "2025-FEB-17"
-master_sku_date = "2025-FEB-18"
+master_sku_date = "2025-FEB-19"
 sales_and_inventory_date = "2025-FEB-18"
 warehouse_inventory_date = "2025-FEB-17"
 config_date = "2025-FEB-18"

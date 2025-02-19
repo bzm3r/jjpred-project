@@ -83,6 +83,9 @@ def write_excel(
                 convert_df_for_excel(df).write_excel(
                     workbook=workbook, worksheet=key
                 )
+            # worksheet = workbook.get_worksheet_by_name(key)
+            # assert worksheet is not None
+            # worksheet.autofit()
 
     return save_path
 

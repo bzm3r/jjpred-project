@@ -128,7 +128,7 @@ class Date:
 
     @classmethod
     def from_date(cls, x: dt.date) -> Self:
-        return cls(x.year, x.month, x.day, x)
+        return cls(x.year, x.month, x.day, dt.date(x.year, x.month, x.day))
 
     @classmethod
     def from_ymd(cls, year: int, month: Month, day: int) -> Self:

@@ -323,6 +323,84 @@ class DataVariant(DataVariantMeta, Enum):
             {c.name: c.dtype for c in final_cols},
         )
 
+    def extract_data_raw(
+        self, wb: fxl.ExcelReader, sheet_infos: list[SheetInfo]
+    ) -> dict[str, Sheet]:
+        """Extract data from an Excel workbook into mapping with keys
+        corresponding to the name of the sheet in the workbook and
+        data corresponding to the list of extracted sheets associated with that
+        type of data."""
+        disable_fastexcel_dtypes_logger()
+        first_header_row = self.header_range[0]
+        num_header_rows = self.header_range[-1] - self.header_range[0]
+
+        result: dict[str, Sheet] = {}
+        for sheet_info in sheet_infos:
+            print(f"Extracting data from {sheet_info.name}...")
+            header_df = wb.load_sheet(
+                sheet_info.name,
+                header_row=first_header_row,
+                n_rows=num_header_rows - 1,
+            ).to_polars()
+
+            relevant_columns_result = self.get_relevant_columns(header_df)
+
+            sheet_rows = self.max_row(sheet_info.num_rows)
+            if sheet_rows > num_header_rows:
+                n_rows = sheet_rows - num_header_rows
+                skip_rows = num_header_rows - 1
+                if skip_rows < 0:
+                    skip_rows = 0
+            else:
+                n_rows = 0
+                skip_rows = 0
+
+            # n_rows = self.max_row(sheet_info.num_rows) - skip_rows
+            # if n_rows < 0:
+            #     n_rows = 0
+
+            df = (
+                wb.load_sheet(
+                    sheet_info.name,
+                    header_row=first_header_row,
+                    skip_rows=skip_rows,
+                    n_rows=n_rows,
+                    # use_columns=list(
+                    #     relevant_columns_result.column_rename_map.keys()
+                    # ),
+                ).to_polars()
+                # .rename(relevant_columns_result.column_rename_map)
+                # .cast(relevant_columns_result.schema)  # type: ignore
+            )
+
+            final_df = sanitize_excel_extraction(
+                df.select(cs.exclude(cs.numeric())).with_columns(
+                    df.select(cs.numeric()).fill_null(strategy="zero")
+                )
+            )
+
+            category = ""
+            if match := SHEET_NAME_RE_PATTERN.match(sheet_info.name):
+                category = match.groupdict()["category"]
+            else:
+                raise Exception(
+                    f"sheet {sheet_info.name} has no category match!"
+                )
+            if final_df.shape[0] > 0:
+                result[sheet_info.name] = Sheet(
+                    final_df,
+                    category,
+                    self,
+                    f"{category} {self.name}",
+                    relevant_columns_result.id_cols,
+                    relevant_columns_result.data_cols,
+                )
+                print(indent("Done."))
+            else:
+                print(indent(f"Skipping {sheet_info.name}: no data.", 4))
+
+        return result
+
     def extract_data(
         self, wb: fxl.ExcelReader, sheet_infos: list[SheetInfo]
     ) -> dict[str, Sheet]:
