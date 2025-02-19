@@ -157,7 +157,7 @@ class Date:
             except ValueError as e:
                 exception_history.append(e)
 
-        raise ExceptionGroup(
+        raise ExceptionGroup(  # noqa: F821
             f"Could not parse {x} as one of {date_formats}", exception_history
         )
 
