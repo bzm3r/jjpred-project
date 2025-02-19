@@ -22,14 +22,12 @@ from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
 from jjpred.readsupport.instockratio import (
-    read_complete_isr_info,
     read_isr_from_excel_file_given_meta_info,
 )
 from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.readsupport.marketing import read_config
 from jjpred.readsupport.mastersku import (
     MasterSkuInfo,
-    WebsiteSkuFetchInfo,
 )
 from jjpred.readsupport.utils import (
     cast_standard,

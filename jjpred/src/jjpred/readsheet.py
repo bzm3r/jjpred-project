@@ -24,6 +24,7 @@ from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
 from jjpred.sku import Category
 import re
 
+from jjpred.utils.fileio import disable_fastexcel_dtypes_logger
 from jjpred.utils.polars import sanitize_excel_extraction
 from jjpred.utils.str import indent
 from jjpred.utils.typ import ScalarOrList, normalize_as_list
@@ -38,6 +39,7 @@ def get_relevant_sheets(
 ) -> dict[DataVariant, list[SheetInfo]]:
     """Figure out which particular sheets need to be read, based on which
     categories we want to focus on."""
+    disable_fastexcel_dtypes_logger()
     sheet_infos = get_sheet_info(wb)
     required_variants = normalize_as_list(required_variants)
 
@@ -154,6 +156,28 @@ class Sheet:
     data_cols: list[Column]
 
 
+@dataclass
+class RelevantColumnsResult:
+    id_cols: list[Column]
+    data_cols: list[Column]
+    column_rename_map: dict[str, str]
+    schema: dict[str, type[pl.DataType]]
+
+    # list[Column],
+    # list[Column],
+    # dict[str, str],
+    # dict[str, type[pl.DataType]],
+    # (id_cols,)
+    # (data_cols,)
+    # (
+    #     {
+    #         oc: intermediate_to_final[ic]
+    #         for oc, ic in filtered_original_to_intermediate.items()
+    #     },
+    # )
+    # ({c.name: c.dtype for c in final_cols},)
+
+
 class DataVariant(DataVariantMeta, Enum):
     History = (
         "SKU",
@@ -236,12 +260,7 @@ class DataVariant(DataVariantMeta, Enum):
 
     def get_relevant_columns(
         self, header_df: pl.DataFrame
-    ) -> tuple[
-        list[Column],
-        list[Column],
-        dict[str, str],
-        dict[str, type[pl.DataType]],
-    ]:
+    ) -> RelevantColumnsResult:
         """Get the columns of the Excel sheet that are relevant to us."""
 
         null_columns = []
@@ -294,7 +313,7 @@ class DataVariant(DataVariantMeta, Enum):
             for oc, ic in original_to_intermediate.items()
             if ic is not None and ic in intermediate_to_final.keys()
         }
-        return (
+        return RelevantColumnsResult(
             id_cols,
             data_cols,
             {
@@ -311,6 +330,7 @@ class DataVariant(DataVariantMeta, Enum):
         corresponding to the name of the sheet in the workbook and
         data corresponding to the list of extracted sheets associated with that
         type of data."""
+        disable_fastexcel_dtypes_logger()
         first_header_row = self.header_range[0]
         num_header_rows = self.header_range[-1] - self.header_range[0]
 
@@ -323,9 +343,7 @@ class DataVariant(DataVariantMeta, Enum):
                 n_rows=num_header_rows - 1,
             ).to_polars()
 
-            id_cols, data_cols, column_rename_map, schema = (
-                self.get_relevant_columns(header_df)
-            )
+            relevant_columns_result = self.get_relevant_columns(header_df)
 
             sheet_rows = self.max_row(sheet_info.num_rows)
             if sheet_rows > num_header_rows:
@@ -347,11 +365,13 @@ class DataVariant(DataVariantMeta, Enum):
                     header_row=first_header_row,
                     skip_rows=skip_rows,
                     n_rows=n_rows,
-                    use_columns=list(column_rename_map.keys()),
+                    use_columns=list(
+                        relevant_columns_result.column_rename_map.keys()
+                    ),
                 )
                 .to_polars()
-                .rename(column_rename_map)
-                .cast(schema)  # type: ignore
+                .rename(relevant_columns_result.column_rename_map)
+                .cast(relevant_columns_result.schema)  # type: ignore
             )
 
             final_df = sanitize_excel_extraction(
@@ -373,8 +393,8 @@ class DataVariant(DataVariantMeta, Enum):
                     category,
                     self,
                     f"{category} {self.name}",
-                    id_cols,
-                    data_cols,
+                    relevant_columns_result.id_cols,
+                    relevant_columns_result.data_cols,
                 )
                 print(indent("Done."))
             else:
