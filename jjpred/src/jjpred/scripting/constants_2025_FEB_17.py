@@ -1,8 +1,6 @@
-"""Information used  in order to set
-up and/or execute analyses."""
+"""Information used  in order to set up and/or execute analyses."""
 
 from __future__ import annotations
-import copy
 
 from jjpred.analysisdefn import FbaRevDefn, JJWebDefn
 from jjpred.inputstrategy import RefillType
