@@ -43,6 +43,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     config_date=config_date,
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
+    website_sku_date="2025-FEB-08",
     refill_type=RefillType.CUSTOM_2025_FEB_18,
     mainprogram_date="2025-FEB-18",
     refill_draft_date="2025-FEB-18",

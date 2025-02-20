@@ -199,22 +199,15 @@ class AnalysisDefn:
     def get_field_if_available[T](
         self, field_name: str, field_type: type[T]
     ) -> T | None:
+        field_value = None
         if hasattr(self, field_name):
             field_value = self.__getattribute__(field_name)
-            assert isinstance(field_value, field_type)
-        else:
-            field_value = None
+            # assert isinstance(field_value, field_type)
 
         return field_value
 
     def get_website_sku_date(self) -> Date | None:
-        if hasattr(self, "website_sku_date"):
-            website_sku_date = self.__getattribute__("website_sku_date")
-            assert isinstance(website_sku_date, Date)
-        else:
-            website_sku_date = None
-
-        return website_sku_date
+        return self.get_field_if_available("website_sku_date", Date)
 
     def tag_with_output_time(self) -> str:
         """Return a string identifying this analysis definition, along with a
@@ -298,6 +291,11 @@ class RefillDefn(AnalysisDefn):
     prediction_type_meta_date: DateLike | None = field(compare=False)
     """Date of associated prediction type information file."""
 
+    website_sku_date: Date | None = field(default=None, compare=False)
+    """The website SKU file should be a table containing the list of SKUs that
+    are sold on the website. It is used by the Master SKU reader to determine
+    which SKUs listed in the Master SKU file are sold on the website."""
+
     qty_box_date: Date | None = field(default=None, compare=False)
     """Date of the ``PO boxes and volume - All seasons`` Excel file to get the
     quantity per box information per category.
@@ -335,6 +333,7 @@ class RefillDefn(AnalysisDefn):
         warehouse_inventory_date: DateLike,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
+        website_sku_date: DateLike | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -389,6 +388,12 @@ class RefillDefn(AnalysisDefn):
         self.warehouse_min_keep_qty = warehouse_min_keep_qty
 
         self.dispatch_cutoff_qty = dispatch_cutoff_qty
+
+        self.website_sku_date = (
+            Date.from_datelike(website_sku_date)
+            if website_sku_date is not None
+            else None
+        )
 
         super().__init__(
             refill_description,
@@ -469,6 +474,7 @@ class FbaRevDefn(RefillDefn):
         prediction_type_meta_date: DateLike | None,
         refill_type: RefillType,
         check_dispatch_date: bool = True,
+        website_sku_date: DateLike | None = None,
         qty_box_date: DateLike | None = None,
         mon_sale_r_date: DateLike | None = None,
         mainprogram_date: DateLike | None = None,
@@ -539,6 +545,7 @@ class FbaRevDefn(RefillDefn):
             warehouse_inventory_date=warehouse_inventory_date,
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
+            website_sku_date=website_sku_date,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
@@ -640,11 +647,6 @@ class FbaRevDefn(RefillDefn):
 
 @dataclass
 class JJWebDefn(RefillDefn):
-    website_sku_date: Date = field(init=False)
-    """The website SKU file should be a table containing the list of SKUs that
-    are sold on the website. It is used by the Master SKU reader to determine
-    which SKUs listed in the Master SKU file are sold on the website."""
-
     website_proportions_split_date: Date = field(init=False)
     """Until we receive data that already includes splits, we will need to split
     janandjul.com Sales/PO data into."""
@@ -674,8 +676,6 @@ class JJWebDefn(RefillDefn):
         enable_low_current_period_isr_logic: bool = True,
         extra_descriptor: str | None = None,
     ):
-        self.website_sku_date = Date.from_datelike(website_sku_date)
-        print(proportion_split_date)
         self.website_proportions_split_date = Date.from_datelike(
             proportion_split_date
         )
@@ -690,6 +690,7 @@ class JJWebDefn(RefillDefn):
             warehouse_inventory_date=warehouse_inventory_date,
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
+            website_sku_date=website_sku_date,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
