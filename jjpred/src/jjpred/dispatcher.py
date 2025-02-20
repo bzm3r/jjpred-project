@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+import sys
 import polars as pl
 
 from analysis_tools.utils import get_analysis_defn_and_db
@@ -379,6 +380,7 @@ class Dispatcher:
             )
 
             if len(categories_with_missing_jjweb_proportions) > 0:
+                sys.displayhook(categories_with_missing_jjweb_proportions)
                 raise ValueError(
                     f"{categories_with_missing_jjweb_proportions=}"
                 )
@@ -816,10 +818,15 @@ class Dispatcher:
             )
             write_excel(result_path, sheets)
         if save_csv:
+            if self.analysis_defn.extra_descriptor != "":
+                extra_descriptor = f"-{self.analysis_defn.extra_descriptor}"
+            else:
+                extra_descriptor = ""
+
             for x in sheets.keys():
                 result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
                     Path(
-                        f"TO_SRR_FBA{x}{self.analysis_defn.date.fmt_flat()}.csv"
+                        f"TO_SRR_FBA{x}{self.analysis_defn.date.fmt_flat()}{extra_descriptor}.csv"
                     )
                 )
                 sheets[x].write_csv(result_path)
