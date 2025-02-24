@@ -1663,14 +1663,18 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                             (pl.col.uses_po & ~pl.col.e_overrides_po)
                             | pl.col.ce_uses_po
                             | pl.col.po_overrides_e
+                            # | pl.lit(force_po_prediction)
                         )
                         .then(pl.col.expected_demand_from_po)
                         .otherwise(pl.col.expected_demand)
                     )
                     .with_columns(
                         expected_demand=pl.when(
-                            pl.col.uses_ne
-                            | (pl.col.uses_e & pl.col.has_low_isr)
+                            (
+                                # ~pl.lit(force_po_prediction) &
+                                pl.col.uses_ne
+                                | (pl.col.uses_e & pl.col.has_low_isr)
+                            )
                         )
                         .then(
                             pl.max_horizontal(

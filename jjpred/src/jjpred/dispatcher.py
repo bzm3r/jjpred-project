@@ -25,6 +25,7 @@ from jjpred.predictor import Predictor
 from jjpred.readsupport.proportions import read_jjweb_proportions
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
+from jjpred.seasons import season_given_month
 from jjpred.sku import Sku
 from jjpred.skuinfo import (
     attach_inventory_info,
@@ -251,11 +252,60 @@ class Dispatcher:
         )
 
         if analysis_defn.jjweb_reserve_to_date is not None:
-            self.reserved_quantity = predictor.predict_demand(
-                ["janandjul.com"],
-                analysis_defn.dispatch_date,
-                analysis_defn.jjweb_reserve_to_date,
-                force_po_prediction=True,
+            self.reserved_quantity = (
+                predictor.predict_demand(
+                    ["janandjul.com"],
+                    analysis_defn.dispatch_date,
+                    analysis_defn.jjweb_reserve_to_date,
+                    force_po_prediction=True,
+                )
+                .join(
+                    self.all_sku_info.select(
+                        "a_sku",
+                        "sku",
+                        "season",
+                        "sku_year_history",
+                    ),
+                    on=["a_sku", "sku"],
+                    how="left",
+                )
+                .with_columns(
+                    analysis_season=pl.lit(
+                        season_given_month(
+                            analysis_defn.dispatch_date.month
+                        ).name,
+                        dtype=self.all_sku_info["season"].dtype,
+                    ),
+                    analysis_month=pl.lit(
+                        int(analysis_defn.dispatch_date.month)
+                    ),
+                    analysis_year=pl.lit(
+                        int(analysis_defn.dispatch_date.year - 2000)
+                    ),
+                )
+                .with_columns(
+                    in_season=pl.col.analysis_season.eq("AS")
+                    | pl.col.analysis_season.eq(pl.col.season),
+                    produced_this_year=pl.when(
+                        (pl.col.season.eq("AS") | pl.col.season.eq("FW"))
+                        & (pl.col.analysis_month < 9)
+                    )
+                    .then(
+                        pl.lit(
+                            analysis_defn.dispatch_date.year - 2000 - 1
+                        ).is_in(pl.col.sku_year_history)
+                        | (
+                            pl.lit(
+                                analysis_defn.dispatch_date.year - 2000
+                            ).is_in(pl.col.sku_year_history)
+                        )
+                    )
+                    .otherwise(
+                        pl.lit(analysis_defn.dispatch_date.year - 2000).is_in(
+                            pl.col.sku_year_history
+                        )
+                    ),
+                )
             )
         else:
             self.reserved_quantity = None
@@ -263,12 +313,15 @@ class Dispatcher:
         if self.reserved_quantity is not None:
             self.all_sku_info = self.all_sku_info.join(
                 self.reserved_quantity.filter(
-                    pl.col.expected_demand_from_po.list.sum().gt(0)
+                    pl.col.in_season & pl.col.produced_this_year
                 )
+                # .filter(pl.col.expected_demand_from_po.list.sum().gt(0))
                 .group_by("sku", "a_sku")
                 .agg(pl.col.expected_demand.sum().round().cast(pl.Int64()))
                 .select(
-                    "sku", "a_sku", pl.col.expected_demand.alias("reserved")
+                    "sku",
+                    "a_sku",
+                    pl.col.expected_demand.alias("reserved"),
                 ),
                 on=["sku", "a_sku"],
                 how="left",
@@ -296,18 +349,6 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
-
-        # # determine start/end dates that are compatible with the main program
-        # # TODO: this should be changed to just use the actual start/end dates,
-        # # once we are no longer comparing with the main program
-        # self.start_date, self.end_date = (
-        #     determine_main_program_compatible_start_end_dates(
-        #         analysis_defn.dispatch_date,
-        #         analysis_defn.refill_type,
-        #         start_date_required_month_parts=analysis_defn.prediction_start_date_required_month_parts,
-        #         end_date_required_month_parts=analysis_defn.prediction_end_date_required_month_parts,
-        #     )
-        # )
 
         input_data_info = self.predictor.get_input_data_info()
         # attach input data information

@@ -1,5 +1,6 @@
 """Utilities for dealing with and manipulating dates."""
 
+from calendar import Month
 from dataclasses import dataclass
 import locale
 from enum import Enum, auto
@@ -10,15 +11,11 @@ import polars as pl
 from jjpred.utils.polars import scalar_as_series
 
 
-type Month = int
-"""Months are represented by integers."""
-
-
 class YearMonthDay(NamedTuple):
     """Helps keep track of year/month/day information."""
 
     year: int
-    month: int
+    month: Month
     day: int
 
 
@@ -80,7 +77,7 @@ class Date:
     time."""
 
     year: int
-    month: int
+    month: Month
     day: int
     date: dt.date
 
@@ -128,7 +125,9 @@ class Date:
 
     @classmethod
     def from_date(cls, x: dt.date) -> Self:
-        return cls(x.year, x.month, x.day, dt.date(x.year, x.month, x.day))
+        return cls(
+            x.year, Month(x.month), x.day, dt.date(x.year, x.month, x.day)
+        )
 
     @classmethod
     def from_ymd(cls, year: int, month: Month, day: int) -> Self:
@@ -179,7 +178,7 @@ class Date:
         date_part = file.split(".")[0].split(" ")[-1]
         print(date_part)
         year = int(date_part[:4])
-        month = int(date_part[4:6])
+        month = Month(int(date_part[4:6]))
         day = int(date_part[6:])
 
         return cls.from_datelike(YearMonthDay(year, month, day))

@@ -3,6 +3,7 @@ information needs to be generated for each channel that requires a prediction.""
 
 from __future__ import annotations
 
+from calendar import Month
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -230,7 +231,9 @@ class TimePeriod:
 
         if start_date is None:
             today = Date.from_date(dt.date.today())
-            start_date = Date.from_datelike(YearMonthDay(today.year, 1, 1))
+            start_date = Date.from_datelike(
+                YearMonthDay(today.year, Month(1), 1)
+            )
 
         if end_date is None:
             if today is None:
@@ -245,10 +248,12 @@ class TimePeriod:
         dispatch date)."""
 
         if dispatch_date.month == 1:
-            working_year_start = YearMonthDay(dispatch_date.year - 1, 1, 1)
-            working_year_end = YearMonthDay(dispatch_date.year, 1, 1)
+            working_year_start = YearMonthDay(
+                dispatch_date.year - 1, Month(1), 1
+            )
+            working_year_end = YearMonthDay(dispatch_date.year, Month(1), 1)
         else:
-            working_year_start = YearMonthDay(dispatch_date.year, 1, 1)
+            working_year_start = YearMonthDay(dispatch_date.year, Month(1), 1)
             working_year_end = YearMonthDay(
                 dispatch_date.year, dispatch_date.month, 1
             )
@@ -257,8 +262,10 @@ class TimePeriod:
 
         return HistoryTimePeriod(
             cls(
-                Date.from_datelike(YearMonthDay(historical_year, 1, 1)),
-                Date.from_datelike(YearMonthDay(historical_year + 1, 1, 1)),
+                Date.from_datelike(YearMonthDay(historical_year, Month(1), 1)),
+                Date.from_datelike(
+                    YearMonthDay(historical_year + 1, Month(1), 1)
+                ),
             ),
             cls(working_year_start, working_year_end),
         )

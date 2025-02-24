@@ -92,7 +92,7 @@ def filter_and_aggregate(
             tpoints.extend(
                 TimePeriod(
                     Date.from_ymd(year, start, 1),
-                    Date.from_ymd(year + 1, 1, 1),
+                    Date.from_ymd(year + 1, Month(1), 1),
                 ).tpoints
             )
     period_df = input_df.filter(pl.col("date").is_in(tpoints))

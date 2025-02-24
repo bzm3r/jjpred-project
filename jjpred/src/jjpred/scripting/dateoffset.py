@@ -93,7 +93,7 @@ def shift_date(
 
 def determine_main_program_compatible_start_end_dates(
     actual_start_date: DateLike,
-    refill_type: RefillType,
+    actual_end_date: DateLike,
     start_date_required_month_parts: int | None = None,
     end_date_required_month_parts: int | None = None,
 ) -> tuple[Date, Date]:
@@ -102,7 +102,7 @@ def determine_main_program_compatible_start_end_dates(
     actual_start_date = Date.from_datelike(actual_start_date)
     print(f"{actual_start_date=}")
 
-    actual_end_date = refill_type.end_date(actual_start_date)
+    actual_end_date = Date.from_datelike(actual_end_date)
     print(f"{actual_end_date=}")
 
     start_date = shift_date(

@@ -538,14 +538,19 @@ class FbaRevDefn(RefillDefn):
             match_main_program_month_fractions
         )
 
-        dispatch_date, end_date = (
-            determine_main_program_compatible_start_end_dates(
-                dispatch_date,
-                refill_type,
-                start_date_required_month_parts=prediction_start_date_required_month_parts,
-                end_date_required_month_parts=prediction_end_date_required_month_parts,
+        # determine start/end dates that are compatible with the main program
+        # TODO: this should be changed to just use the actual start/end dates,
+        # once we are no longer comparing with the main program
+        end_date = refill_type.end_date(dispatch_date)
+        if self.match_main_program_month_fractions:
+            dispatch_date, end_date = (
+                determine_main_program_compatible_start_end_dates(
+                    dispatch_date,
+                    end_date,
+                    start_date_required_month_parts=prediction_start_date_required_month_parts,
+                    end_date_required_month_parts=prediction_end_date_required_month_parts,
+                )
             )
-        )
 
         super().__init__(
             "fba_rev",
