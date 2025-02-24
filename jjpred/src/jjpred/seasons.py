@@ -49,7 +49,7 @@ class POSeason(EnumLike):
         raise ValueError(f"Cannot parse {x} as {cls}")
 
 
-def season_given_month(month: Month) -> Season:
+def reserve_season_given_month(month: Month) -> Season:
     if month in [
         Month.OCTOBER,
         Month.NOVEMBER,

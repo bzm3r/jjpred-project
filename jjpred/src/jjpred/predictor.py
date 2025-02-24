@@ -1748,12 +1748,18 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             # dupe_check_index=["a_sku", "sku"] + Channel.members(),
         )
 
-        find_dupes(
-            collated_result,
-            ["sku", "a_sku"] + Channel.members(),
-            raise_error=True,
-        )
-
+        if aggregate_final_result:
+            find_dupes(
+                collated_result,
+                ["sku", "a_sku"] + Channel.members(),
+                raise_error=True,
+            )
+        else:
+            find_dupes(
+                collated_result,
+                ["sku", "a_sku"] + Channel.members() + ["date"],
+                raise_error=True,
+            )
         if not force_po_prediction:
             collated_result = collated_result.drop("prediction_type")
 
