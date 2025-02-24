@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from calendar import Month
 from enum import auto
 from typing import Any, Self
 from jjpred.utils.polars import EnumLike
@@ -31,3 +32,17 @@ class Season(EnumLike):
     @classmethod
     def all_seasons(cls) -> list[Self]:
         return [x for x in cls]
+
+
+def season_given_month(month: Month) -> Season:
+    if month in [
+        Month.OCTOBER,
+        Month.NOVEMBER,
+        Month.DECEMBER,
+        Month.JANUARY,
+    ]:
+        return Season.FW
+    elif month in [Month.APRIL, Month.MAY, Month.JUNE, Month.JULY]:
+        return Season.SS
+    else:
+        return Season.AS

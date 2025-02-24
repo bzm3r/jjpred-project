@@ -29,6 +29,7 @@ from jjpred.datagroups import (
     SEASON_IDS,
     WHOLE_SKU_IDS,
 )
+from jjpred.dispatcher import Dispatcher
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.globalvariables import DISPATCH_CUTOFF_QTY, MAIN_VS_THIS_TOLERANCE
 from jjpred.readsupport.mainprogram import (
@@ -126,6 +127,7 @@ def coalesce_check_flags(
 
 def check_dispatch_results(
     analysis_defn: FbaRevDefn,
+    dispatcher: Dispatcher,
     jjpred_dispatch: pl.DataFrame,
     actual_dispatch: pl.DataFrame | None = None,
     read_from_disk: bool = False,
@@ -591,6 +593,7 @@ def check_dispatch_results(
         if ok_dispatch is not None
         else None,
         "all": active_results,
+        "reserved": dispatcher.reserved_quantity,
         "multi_a_sku": multi_a_sku_df,
     }
 

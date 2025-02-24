@@ -383,14 +383,14 @@ def attach_inventory_info(
         )
         .drop("min_keep_default")
         .with_columns(
-            pl.when(
-                pl.col("wh_stock").gt(0)
-                & pl.col("wh_stock").ge(pl.col("min_keep"))
-            )
+            pl.when(pl.col("wh_stock").gt(0))
             .then(
-                pl.col("wh_stock")
-                .sub(pl.col("min_keep"))
-                .alias("wh_dispatchable")
+                pl.max_horizontal(
+                    pl.lit(0),
+                    pl.col("wh_stock")
+                    .sub(pl.col("min_keep"))
+                    .sub(pl.col("reserved")),
+                ).alias("wh_dispatchable")
             )
             .otherwise(pl.lit(0, dtype=pl.Int64()).alias("wh_dispatchable"))
         )

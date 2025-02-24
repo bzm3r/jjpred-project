@@ -296,6 +296,10 @@ class RefillDefn(AnalysisDefn):
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
 
+    jjweb_reserve_to_date: Date | None = field(default=None, compare=False)
+    """The date up to which we will calculate reserved quantities based on J&J
+    website PO predictions."""
+
     qty_box_date: Date | None = field(default=None, compare=False)
     """Date of the ``PO boxes and volume - All seasons`` Excel file to get the
     quantity per box information per category.
@@ -334,6 +338,7 @@ class RefillDefn(AnalysisDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         website_sku_date: DateLike | None = None,
+        jjweb_reserve_to_date: DateLike | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -392,6 +397,12 @@ class RefillDefn(AnalysisDefn):
         self.website_sku_date = (
             Date.from_datelike(website_sku_date)
             if website_sku_date is not None
+            else None
+        )
+
+        self.jjweb_reserve_to_date = (
+            Date.from_datelike(jjweb_reserve_to_date)
+            if jjweb_reserve_to_date is not None
             else None
         )
 
@@ -475,6 +486,7 @@ class FbaRevDefn(RefillDefn):
         refill_type: RefillType,
         check_dispatch_date: bool = True,
         website_sku_date: DateLike | None = None,
+        jjweb_reserve_to_date: DateLike | None = None,
         qty_box_date: DateLike | None = None,
         mon_sale_r_date: DateLike | None = None,
         mainprogram_date: DateLike | None = None,
@@ -546,6 +558,7 @@ class FbaRevDefn(RefillDefn):
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
+            jjweb_reserve_to_date=jjweb_reserve_to_date,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
@@ -663,6 +676,7 @@ class JJWebDefn(RefillDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         proportion_split_date: DateLike,
+        jjweb_reserve_to_date: DateLike | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -691,6 +705,7 @@ class JJWebDefn(RefillDefn):
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
+            jjweb_reserve_to_date=jjweb_reserve_to_date,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,

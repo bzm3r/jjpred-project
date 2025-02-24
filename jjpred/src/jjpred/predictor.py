@@ -1125,7 +1125,9 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
 
         return category_type_df
 
-    def get_input_data_info(self) -> pl.DataFrame:
+    def get_input_data_info(
+        self, force_po_prediction: bool = False
+    ) -> pl.DataFrame:
         """Get dataframe recording:
         * availability of historical sales data, current sales data, PO data
         * what kind of prediction type is used by each SKU
@@ -1180,7 +1182,21 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             .join(
                 self.prediction_types.filter(
                     pl.col.dispatch_month.eq(latest_date.month)
-                ).drop("dispatch_month"),
+                )
+                .drop("dispatch_month")
+                .with_columns(
+                    pl.when(pl.lit(force_po_prediction))
+                    .then(
+                        pl.lit(
+                            "PO",
+                            dtype=self.prediction_types[
+                                "prediction_type"
+                            ].dtype,
+                        )
+                    )
+                    .otherwise(pl.col.prediction_type)
+                    .alias("prediction_type")
+                ),
                 on=ALL_SKU_IDS,
                 how="left",
                 coalesce=True,
@@ -1339,12 +1355,15 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         start_date: DateLike,
         end_date: DateLike,
         aggregate_final_result: bool = True,
+        force_po_prediction: bool = False,
     ) -> pl.DataFrame:
         """Predict demand across all SKUs and channels."""
         channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         expected_demands_per_channel = {}
 
-        input_data_info = self.get_input_data_info()
+        input_data_info = self.get_input_data_info(
+            force_po_prediction=force_po_prediction
+        )
 
         if self.db.dfs[DataVariant.InStockRatio] is not None:
             mean_current_period_isr = (
@@ -1695,6 +1714,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                             pl.col.expected_demand_from_po,
                             pl.col.expected_demand.sum(),
                             pl.col.performance_flag.first(),
+                            pl.col.prediction_type,
                         )
                         .with_columns(
                             uses_overperformer_estimate=pl.lit(
@@ -1729,5 +1749,8 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             ["sku", "a_sku"] + Channel.members(),
             raise_error=True,
         )
+
+        if not force_po_prediction:
+            collated_result = collated_result.drop("prediction_type")
 
         return collated_result

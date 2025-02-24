@@ -192,7 +192,7 @@ REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
 
 # from historic_extract.ipynb
 PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
-    Channel, Mapping[Category, Aggregator]
+    Channel, Mapping[Category, Aggregator] | Aggregator
 ] = {
     Channel.parse("Amazon US RETAIL"): MultiDict(
         data={
@@ -302,45 +302,46 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
             ): AMAZON_CA_AGGREGATOR
         }
     ).as_dict(),
-    Channel.parse("JanAndJul CA|US RETAIL"): MultiDict(
-        data={
-            (
-                "XBK",
-                "XBM",
-                "LBS",
-                "FPM",
-                "BCV",
-                "UT1",
-                "USA",
-                "UG1",
-                "UJ1",
-                "UV2",
-            ): ALL_CHANNEL_AGGREGATOR,
-            (
-                "FMR",
-                "KEH",
-                "WSF",
-                "BSW",
-                "BSA",
-                "BRC",
-                "BTB",
-                "KMT",
-                "WMT",
-                "WSS",
-                "UST",
-                "HBU",
-                "HLC",
-                "HXC",
-                "HXU",
-                "HXP",
-                "GUX",
-                "HBS",
-                "SKG",
-                "SPW",
-                "SJF",
-            ): AMAZON_CA_AGGREGATOR,
-        }
-    ).as_dict(),
+    Channel.parse("JanAndJul CA|US RETAIL"): ALL_CAN_US_RETAIL_AGGREGATOR,
+    # Channel.parse("JanAndJul CA|US RETAIL"): MultiDict(
+    #     data={
+    #         (
+    #             "XBK",
+    #             "XBM",
+    #             "LBS",
+    #             "FPM",
+    #             "BCV",
+    #             "UT1",
+    #             "USA",
+    #             "UG1",
+    #             "UJ1",
+    #             "UV2",
+    #         ): ALL_CAN_US_RETAIL_AGGREGATOR,
+    #         (
+    #             "FMR",
+    #             "KEH",
+    #             "WSF",
+    #             "BSW",
+    #             "BSA",
+    #             "BRC",
+    #             "BTB",
+    #             "KMT",
+    #             "WMT",
+    #             "WSS",
+    #             "UST",
+    #             "HBU",
+    #             "HLC",
+    #             "HXC",
+    #             "HXU",
+    #             "HXP",
+    #             "GUX",
+    #             "HBS",
+    #             "SKG",
+    #             "SPW",
+    #             "SJF",
+    #         ): AMAZON_CA_AGGREGATOR,
+    #     }
+    # ).as_dict(),
     Channel.parse("Amazon DE RETAIL"): MultiDict(
         data={
             (

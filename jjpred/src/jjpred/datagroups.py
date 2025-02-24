@@ -120,10 +120,7 @@ DEMAND_INFO = (
     ]
 )
 INVENTORY_DATA_AVAILABILITY_FLAGS = ["no_wh_stock_info", "no_ch_stock_info"]
-INVENTORY_INFO = [
-    "wh_dispatchable",
-    "ch_stock",
-]
+INVENTORY_INFO = ["wh_dispatchable", "ch_stock", "reserved"]
 DISPATCH_INFO = INVENTORY_INFO + [
     "requesting",
     "qty_box",

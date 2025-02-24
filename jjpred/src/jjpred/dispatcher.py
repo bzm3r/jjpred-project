@@ -167,6 +167,8 @@ class Dispatcher:
     """Current year (relative to the prediction start date)."""
     next_year: int
     """Next year (relative to the prediction start date)."""
+    reserved_quantity: pl.DataFrame | None
+    """Reserved quantity dataframe."""
 
     @property
     def db(self) -> DataBase:
@@ -247,6 +249,34 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
+
+        if analysis_defn.jjweb_reserve_to_date is not None:
+            self.reserved_quantity = predictor.predict_demand(
+                ["janandjul.com"],
+                analysis_defn.dispatch_date,
+                analysis_defn.jjweb_reserve_to_date,
+                force_po_prediction=True,
+            )
+        else:
+            self.reserved_quantity = None
+
+        if self.reserved_quantity is not None:
+            self.all_sku_info = self.all_sku_info.join(
+                self.reserved_quantity.filter(
+                    pl.col.expected_demand_from_po.list.sum().gt(0)
+                )
+                .group_by("sku", "a_sku")
+                .agg(pl.col.expected_demand.sum().round().cast(pl.Int64()))
+                .select(
+                    "sku", "a_sku", pl.col.expected_demand.alias("reserved")
+                ),
+                on=["sku", "a_sku"],
+                how="left",
+            ).with_columns(pl.col.reserved.fill_null(0))
+        else:
+            self.all_sku_info = self.all_sku_info.with_columns(
+                reserved=pl.lit(0)
+            )
 
         # attach warehouse stock information and min_keep_qty information
         self.all_sku_info = attach_inventory_info(
