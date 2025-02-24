@@ -265,6 +265,7 @@ class Dispatcher:
                         "sku",
                         "season",
                         "sku_year_history",
+                        "sku_latest_po_season",
                     ),
                     on=["a_sku", "sku"],
                     how="left",
@@ -287,7 +288,7 @@ class Dispatcher:
                     in_season=pl.col.analysis_season.eq("AS")
                     | pl.col.analysis_season.eq(pl.col.season),
                     produced_this_year=pl.when(
-                        (pl.col.season.eq("AS") | pl.col.season.eq("FW"))
+                        pl.col.sku_latest_po_season.eq("F")
                         & (pl.col.analysis_month < 9)
                     )
                     .then(

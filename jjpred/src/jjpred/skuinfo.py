@@ -46,17 +46,17 @@ from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
 
 
 def get_all_sku_currentness_info(
-    analysis_id_or_database: RefillDefn | DataBase,
+    analysis_defn_or_db: RefillDefn | DataBase,
 ) -> pl.DataFrame:
-    if isinstance(analysis_id_or_database, RefillDefn):
-        analysis_defn = analysis_id_or_database
+    if isinstance(analysis_defn_or_db, RefillDefn):
+        analysis_defn = analysis_defn_or_db
         dispatch_date = analysis_defn.dispatch_date
-    elif isinstance(analysis_id_or_database, DataBase):
-        database = analysis_id_or_database
+    elif isinstance(analysis_defn_or_db, DataBase):
+        database = analysis_defn_or_db
         analysis_defn = database.analysis_defn
         dispatch_date = database.dispatch_date()
     else:
-        raise ValueError(f"No logic to handle {analysis_id_or_database=}")
+        raise ValueError(f"No logic to handle {analysis_defn_or_db=}")
 
     current_year = dispatch_date.year - 2000
     next_year = (dispatch_date.year + 1) - 2000

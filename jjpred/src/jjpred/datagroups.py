@@ -16,6 +16,7 @@ SEASON_IDS = [
     "sku_year_history",
     "category_year_history",
     "sku_latest_year",
+    "sku_latest_po_season",
 ]
 ALL_SKU_AND_CHANNEL_IDS = ALL_SKU_IDS + CHANNEL_IDS
 ALL_IDS = ALL_SKU_IDS + CHANNEL_IDS + SEASON_IDS
