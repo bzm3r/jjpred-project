@@ -4,6 +4,7 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
+import polars as pl
 from dataclasses import dataclass, field
 import datetime
 from functools import total_ordering
@@ -202,7 +203,8 @@ class AnalysisDefn:
         field_value = None
         if hasattr(self, field_name):
             field_value = self.__getattribute__(field_name)
-            # assert isinstance(field_value, field_type)
+            if field_value is not None:
+                assert isinstance(field_value, field_type)
 
         return field_value
 
@@ -269,6 +271,18 @@ class OutperformerSettings:
 
 
 @dataclass
+class ReservationInfo:
+    polars_filter: pl.Expr | None
+    reserve_to_date: Date
+
+    def __init__(
+        self, polars_filter: pl.Expr | None, reserve_to_date: DateLike
+    ):
+        self.polars_filter = polars_filter
+        self.reserve_to_date = Date.from_datelike(reserve_to_date)
+
+
+@dataclass
 class RefillDefn(AnalysisDefn):
     """An analysis definition for review/refill of a channel. It is defined by a
     dispatch date (same as the prediction start date), and the date on which the
@@ -296,7 +310,9 @@ class RefillDefn(AnalysisDefn):
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
 
-    jjweb_reserve_to_date: Date | None = field(default=None, compare=False)
+    jjweb_reserve_to_date: list[ReservationInfo] | None = field(
+        default=None, compare=False
+    )
     """The date up to which we will calculate reserved quantities based on J&J
     website PO predictions."""
 
@@ -338,7 +354,7 @@ class RefillDefn(AnalysisDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_to_date: DateLike | None = None,
+        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -400,11 +416,7 @@ class RefillDefn(AnalysisDefn):
             else None
         )
 
-        self.jjweb_reserve_to_date = (
-            Date.from_datelike(jjweb_reserve_to_date)
-            if jjweb_reserve_to_date is not None
-            else None
-        )
+        self.jjweb_reserve_to_date = jjweb_reserve_to_date
 
         super().__init__(
             refill_description,
@@ -486,7 +498,7 @@ class FbaRevDefn(RefillDefn):
         refill_type: RefillType,
         check_dispatch_date: bool = True,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_to_date: DateLike | None = None,
+        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
         qty_box_date: DateLike | None = None,
         mon_sale_r_date: DateLike | None = None,
         mainprogram_date: DateLike | None = None,
@@ -681,7 +693,7 @@ class JJWebDefn(RefillDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         proportion_split_date: DateLike,
-        jjweb_reserve_to_date: DateLike | None = None,
+        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,

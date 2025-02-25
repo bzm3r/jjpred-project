@@ -5,11 +5,13 @@ from __future__ import annotations
 from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, ReservationInfo
 from jjpred.inputstrategy import RefillType
 
-analysis_date = "2025-FEB-19"
-dispatch_date = "2025-FEB-17"
-master_sku_date = "2025-FEB-19"
-sales_and_inventory_date = "2025-FEB-18"
-warehouse_inventory_date = "2025-FEB-17"
+import polars as pl
+
+analysis_date = "2025-FEB-24"
+dispatch_date = "2025-FEB-01"
+master_sku_date = "2025-FEB-24"
+sales_and_inventory_date = "2025-FEB-24"
+warehouse_inventory_date = "2025-FEB-24"
 config_date = "2025-FEB-18"
 in_stock_ratio_date = "2025-FEB-04"
 prediction_type_meta_date = None
@@ -24,9 +26,9 @@ analysis_defn = FbaRevDefn(
     config_date=config_date,
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
-    refill_type=RefillType.CUSTOM_2025_FEB_18,
-    mainprogram_date="2025-FEB-18",
-    refill_draft_date="2025-FEB-18",
+    refill_type=RefillType.CUSTOM_2025_FEB_24,
+    mainprogram_date=None,  # "2025-FEB-18",
+    refill_draft_date=None,  # "2025-FEB-18",
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,
@@ -44,16 +46,33 @@ analysis_defn_website_reserved = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date="2025-FEB-08",
-    jjweb_reserve_to_date=[ReservationInfo(None, "2025-JUN-01")],
-    refill_type=RefillType.CUSTOM_2025_FEB_18,
-    mainprogram_date=None,  # "2025-FEB-18",
-    refill_draft_date=None,  # "2025-FEB-18",
+    jjweb_reserve_to_date=[
+        ReservationInfo(
+            (
+                pl.col.category.eq("SPW")
+                | pl.col.category.cast(pl.String()).str.starts_with("U")
+            )
+            & pl.col.season.is_in(["AS", "SS"]),
+            "2025-JUL-01",
+        ),
+        ReservationInfo(
+            ~(
+                pl.col.category.eq("SPW")
+                | pl.col.category.cast(pl.String()).str.starts_with("U")
+            )
+            & pl.col.season.is_in(["AS", "SS"]),
+            "2025-JUN-01",
+        ),
+    ],
+    refill_type=RefillType.CUSTOM_2025_FEB_24,
+    mainprogram_date="2025-FEB-18",
+    refill_draft_date="2025-FEB-18",
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,
     match_main_program_month_fractions=True,
     check_dispatch_date=check_dispatch_date,
-    extra_descriptor="website_reserved",
+    extra_descriptor="_website_reserved",
 )
 
 # analysis_defn_main = copy.deepcopy(analysis_defn)

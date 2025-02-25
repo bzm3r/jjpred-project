@@ -8,7 +8,7 @@ import sys
 import polars as pl
 
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import JJWebDefn, RefillDefn
+from jjpred.analysisdefn import JJWebDefn, RefillDefn, ReservationInfo
 from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
@@ -40,6 +40,7 @@ from jjpred.utils.fileio import write_df, write_excel
 from jjpred.utils.polars import (
     FilterStructs,
     binary_partition_weak,
+    concat_enum_extend_vstack_strict,
     find_dupes,
     struct_filter,
 )
@@ -140,47 +141,53 @@ def calculate_required(
 
 
 def calculate_reserved_quantity(
-    analysis_defn: RefillDefn, all_sku_info: pl.DataFrame, predictor: Predictor
+    db: DataBase, predictor: Predictor, reserve_info: ReservationInfo
 ) -> pl.DataFrame | None:
-    if analysis_defn.jjweb_reserve_to_date is None:
-        return None
+    assert isinstance(db.analysis_defn, RefillDefn)
+    find_dupes(db.meta_info.active_sku, ["sku", "a_sku"], raise_error=True)
 
     website_demand = (
         predictor.predict_demand(
             ["janandjul.com"],
-            analysis_defn.dispatch_date,
-            analysis_defn.jjweb_reserve_to_date,
+            db.analysis_defn.dispatch_date,
+            reserve_info.reserve_to_date,
             force_po_prediction=True,
             aggregate_final_result=False,
-        )
-        .join(
-            all_sku_info.select(
+        ).join(
+            db.meta_info.active_sku.select(
                 "a_sku",
                 "sku",
+                "category",
                 "season",
                 "sku_year_history",
                 "sku_latest_po_season",
             ),
             on=["a_sku", "sku"],
-            how="left",
         )
-        .with_columns(
-            # analysis_season=pl.col.date.dt.month().map_elements(
-            #     season_given_month, return_dtype=all_sku_info["season"].dtype
-            # ),
-            analysis_month=pl.lit(int(analysis_defn.dispatch_date.month)),
-            analysis_year=pl.lit(int(analysis_defn.dispatch_date.year - 2000)),
-        )
+        # .with_columns(
+        #     # analysis_season=pl.col.date.dt.month().map_elements(
+        #     #     season_given_month, return_dtype=all_sku_info["season"].dtype
+        #     # ),
+        #     # analysis_month=pl.lit(int(analysis_defn.dispatch_date.month)),
+        #     analysis_year=pl.lit(
+        #         int(db.analysis_defn.dispatch_date.year - 2000)
+        #     ),
+        # )
     )
+
+    if reserve_info.polars_filter is not None:
+        website_demand = website_demand.filter(reserve_info.polars_filter)
 
     reserve_seasons = (
         website_demand.select("date")
         .unique()
         .with_columns(
-            reserve_season=pl.col.date.dt.month().map_elements(
-                reserve_season_given_month,
-                return_dtype=all_sku_info["season"].dtype,
+            reserve_season=pl.col.date.dt.month()
+            .map_elements(
+                lambda x: reserve_season_given_month(x).name,
+                return_dtype=pl.String(),
             )
+            .cast(db.meta_info.active_sku["season"].dtype)
         )
     )
 
@@ -199,7 +206,29 @@ def calculate_reserved_quantity(
             | pl.col.reserve_season.eq(pl.col.season),
         )
         .with_columns(
-            expected_demand=pl.when(~pl.col.month_in_reserve_season)
+            produced_for_this_year=pl.when(
+                pl.col.sku_latest_po_season.eq("F")
+                & (pl.col.date.dt.month() < 9)
+            )
+            .then(
+                (pl.col.date.dt.year() - 2000 - 1).is_in(
+                    pl.col.sku_year_history
+                )
+                | (
+                    (pl.col.date.dt.year() - 2000).is_in(
+                        pl.col.sku_year_history
+                    )
+                )
+            )
+            .otherwise(
+                (pl.col.date.dt.year() - 2000).is_in(pl.col.sku_year_history)
+            ),
+        )
+        .with_columns(
+            expected_demand=pl.when(
+                ~pl.col.month_in_reserve_season
+                | ~pl.col.produced_for_this_year
+            )
             .then(0)
             .otherwise(pl.col.expected_demand)
         )
@@ -223,43 +252,39 @@ def calculate_reserved_quantity(
             pl.col.expected_demand.sum(),
             pl.col.performance_flag.first(),
             pl.col.prediction_type,
-            pl.col.in_season,
+            pl.col.month_in_reserve_season,
+            pl.col.produced_for_this_year,
+            pl.col.season.unique().first(),
+            pl.col.sku_year_history.unique().first(),
+            pl.col.sku_latest_po_season.unique().first(),
+            # "season",
+            # "sku_year_history",
+            # "sku_latest_po_season",
         )
         .with_columns(
             uses_overperformer_estimate=pl.lit(False, dtype=pl.Boolean())
         )
     )
 
-    return website_demand.join(
-        all_sku_info.select(
-            "a_sku",
-            "sku",
-            "season",
-            "sku_year_history",
-            "sku_latest_po_season",
-        ),
-        on=["a_sku", "sku"],
-        how="left",
-    ).with_columns(
-        produced_this_year=pl.when(
-            pl.col.sku_latest_po_season.eq("F") & (pl.col.analysis_month < 9)
+    return website_demand
+
+
+def calculate_reserved_quantity_per_reservation_info(
+    db: DataBase,
+    predictor: Predictor,
+    reserve_info: list[ReservationInfo] | None,
+) -> pl.DataFrame | None:
+    if reserve_info is not None:
+        results = []
+        for ri in reserve_info:
+            results.append(calculate_reserved_quantity(db, predictor, ri))
+        result = concat_enum_extend_vstack_strict(results)
+        find_dupes(
+            result, ["a_sku", "sku"] + Channel.members(), raise_error=True
         )
-        .then(
-            pl.lit(analysis_defn.dispatch_date.year - 2000 - 1).is_in(
-                pl.col.sku_year_history
-            )
-            | (
-                pl.lit(analysis_defn.dispatch_date.year - 2000).is_in(
-                    pl.col.sku_year_history
-                )
-            )
-        )
-        .otherwise(
-            pl.lit(analysis_defn.dispatch_date.year - 2000).is_in(
-                pl.col.sku_year_history
-            )
-        ),
-    )
+        return result
+
+    return None
 
 
 class Dispatcher:
@@ -374,18 +399,18 @@ class Dispatcher:
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
 
-        if analysis_defn.jjweb_reserve_to_date is not None:
-            self.reserved_quantity = calculate_reserved_quantity(
-                analysis_defn, self.all_sku_info, self.predictor
+        self.reserved_quantity = (
+            calculate_reserved_quantity_per_reservation_info(
+                db, self.predictor, analysis_defn.jjweb_reserve_to_date
             )
-        else:
-            self.reserved_quantity = None
+        )
 
         if self.reserved_quantity is not None:
             self.all_sku_info = self.all_sku_info.join(
-                self.reserved_quantity.filter(
-                    pl.col.in_season & pl.col.produced_this_year
-                )
+                self.reserved_quantity
+                # .filter(
+                #     pl.col.in_season & pl.col.produced_this_year
+                # )
                 # .filter(pl.col.expected_demand_from_po.list.sum().gt(0))
                 .group_by("sku", "a_sku")
                 .agg(pl.col.expected_demand.sum().round().cast(pl.Int64()))

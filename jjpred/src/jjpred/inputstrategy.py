@@ -56,6 +56,7 @@ class RefillType(EnumLike):
     CUSTOM_2025_JAN_06 = auto()
     CUSTOM_2025_FEB_03 = auto()
     CUSTOM_2025_FEB_18 = auto()
+    CUSTOM_2025_FEB_24 = auto()
 
     @classmethod
     def match(cls, x: str) -> Self:
@@ -91,12 +92,17 @@ class RefillType(EnumLike):
                     start_date
                 )
                 return Date.from_datelike("2025-APR-01")
-            case RefillType.CUSTOM_2025_FEB_03 | RefillType.CUSTOM_2025_FEB_18:
+            case (
+                RefillType.CUSTOM_2025_FEB_03
+                | RefillType.CUSTOM_2025_FEB_18
+                | RefillType.CUSTOM_2025_FEB_24
+            ):
                 start_date = Date.from_datelike(start_date)
                 assert (
                     start_date == Date.from_datelike("2025-FEB-01")
                     or start_date == Date.from_datelike("2025-FEB-17")
                     or start_date == Date.from_datelike("2025-FEB-15")
+                    or start_date == Date.from_datelike("2025-FEB-24")
                 ), start_date
                 return Date.from_datelike("2025-MAY-01")
             case value:
