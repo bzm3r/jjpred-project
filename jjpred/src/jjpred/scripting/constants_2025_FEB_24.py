@@ -8,14 +8,16 @@ from jjpred.inputstrategy import RefillType
 import polars as pl
 
 analysis_date = "2025-FEB-24"
-dispatch_date = "2025-FEB-01"
-master_sku_date = "2025-FEB-24"
-sales_and_inventory_date = "2025-FEB-24"
+dispatch_date = "2025-FEB-24"
+master_sku_date = "2025-FEB-25"
+sales_and_inventory_date = "2025-FEB-25"
 warehouse_inventory_date = "2025-FEB-24"
-config_date = "2025-FEB-18"
+config_date = "2025-FEB-25"
 in_stock_ratio_date = "2025-FEB-04"
 prediction_type_meta_date = None
 check_dispatch_date = False
+mainprogram_date = "2025-FEB-25"
+refill_draft_date = "2025-FEB-25"
 
 analysis_defn = FbaRevDefn(
     analysis_date=analysis_date,
@@ -27,8 +29,8 @@ analysis_defn = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     refill_type=RefillType.CUSTOM_2025_FEB_24,
-    mainprogram_date=None,  # "2025-FEB-18",
-    refill_draft_date=None,  # "2025-FEB-18",
+    mainprogram_date=mainprogram_date,  # "2025-FEB-18",
+    refill_draft_date=refill_draft_date,  # "2025-FEB-18",
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,
@@ -65,8 +67,8 @@ analysis_defn_website_reserved = FbaRevDefn(
         ),
     ],
     refill_type=RefillType.CUSTOM_2025_FEB_24,
-    mainprogram_date="2025-FEB-18",
-    refill_draft_date="2025-FEB-18",
+    mainprogram_date=mainprogram_date,
+    refill_draft_date=refill_draft_date,
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,

@@ -103,6 +103,7 @@ class RefillType(EnumLike):
                     or start_date == Date.from_datelike("2025-FEB-17")
                     or start_date == Date.from_datelike("2025-FEB-15")
                     or start_date == Date.from_datelike("2025-FEB-24")
+                    or start_date == Date.from_datelike("2025-FEB-22")
                 ), start_date
                 return Date.from_datelike("2025-MAY-01")
             case value:

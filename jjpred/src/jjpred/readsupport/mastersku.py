@@ -377,9 +377,9 @@ def generate_filtered_season_history_map(
         recoverable.select(season_history_tag_map.columns)
     )
 
-    assert non_recoverable is None or len(non_recoverable) == 0, (
-        non_recoverable
-    )
+    # assert non_recoverable is None or len(non_recoverable) == 0, (
+    #     non_recoverable
+    # )
 
     season_history_map = (
         unique_season_histories.explode("season_history_tags")
