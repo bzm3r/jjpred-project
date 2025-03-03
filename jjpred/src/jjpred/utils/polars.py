@@ -610,6 +610,20 @@ def check_dfs_for_differences(
         )
     )
 
-    return check_df.filter(
+    check_failed = check_df.filter(
         pl.col.check_failed,
     )
+
+    if len(check_failed) == 0:
+        print("check passed.")
+    else:
+        print("check failed.")
+
+    return check_failed
+
+
+def display_rows(df: pl.DataFrame, rows: int | None = None) -> None:
+    if rows is not None:
+        pl.Config().set_tbl_rows(rows)
+    sys.displayhook(df)
+    pl.Config().restore_defaults()
