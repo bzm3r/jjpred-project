@@ -267,9 +267,9 @@ def create_dispatch_info(
             on=id_cols + ["channel"],
             how="left",
             validate="1:1",
-            join_nulls=True,
+            nulls_equal=True,
         )
-        # .join(channel_map, on="channel", validate="m:1", join_nulls=True)
+        # .join(channel_map, on="channel", validate="m:1", nulls_equal=True)
         .drop("channel")
     )
 
@@ -331,7 +331,7 @@ def create_dispatch_info(
         how="left",
         # on the LHS, each SKU has multiple entries per channel
         validate="m:1",
-        join_nulls=True,
+        nulls_equal=True,
     )
 
     original_dispatch = original_dispatch.join(
@@ -339,7 +339,7 @@ def create_dispatch_info(
         on=Sku.members(MemberType.META) + Channel.members(),
         how="left",
         validate="1:1",
-        join_nulls=True,
+        nulls_equal=True,
     )
 
     dispatch_info = (
@@ -347,7 +347,7 @@ def create_dispatch_info(
             final_dispatch,
             how="left",
             on=["sku"] + Channel.members(),
-            join_nulls=True,
+            nulls_equal=True,
         )
         .rename({"dispatch": "final_dispatch"})
         .with_columns(pl.col.final_dispatch.fill_null(0))
@@ -387,7 +387,7 @@ def create_dispatch_info(
     #         how="left",
     #         validate="1:1",
     #         suffix="_other",
-    #         join_nulls=True,
+    #         nulls_equal=True,
     #     )
     #     # sys.displayhook(with_final_dispatch)
     #     dispatch_info = concat_to_unified(dispatch_info, country_info)

@@ -497,7 +497,7 @@ class DataBase:
                 on="sku",
                 how="left",
                 validate="m:1",
-                join_nulls=True,
+                nulls_equal=True,
             )
             .select(self.dfs[DataVariant.Inventory].columns)
         )
@@ -625,7 +625,7 @@ def standardize_sku_info(
             ).unique(),
             on=sku_columns,
             validate="m:1",
-            join_nulls=True,
+            nulls_equal=True,
         )
 
     return dfs

@@ -333,7 +333,7 @@ def read_po(
             ]
         ),
         on="sku",
-        join_nulls=True,
+        nulls_equal=True,
     )
 
     # relevant_po_per_sku = all_po_per_sku.filter(

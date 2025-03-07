@@ -160,7 +160,7 @@ def concat_enum_extend_vstack_strict(
     result = reduce(enum_extend_vstack, dfs, None)
     assert result is not None
 
-    return result
+    return result.rechunk()
 
 
 def binary_partition_weak(
@@ -454,7 +454,7 @@ def join_and_coalesce(
     left_df: pl.DataFrame,
     right_df: pl.DataFrame,
     coalesce: OverrideLeft | NoOverride,
-    join_nulls: bool = False,
+    nulls_equal: bool = False,
     dupe_check_index: list[str] | None = None,
     raise_dupe_err: bool = True,
 ):
@@ -489,7 +489,7 @@ def join_and_coalesce(
 
     if isinstance(coalesce, OverrideLeft):
         joined_df = left_df.join(
-            right_df, on=shared_index, how="full", join_nulls=join_nulls
+            right_df, on=shared_index, how="full", nulls_equal=nulls_equal
         )
         coalesced_df = joined_df.with_columns(
             pl.coalesce(

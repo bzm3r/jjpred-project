@@ -449,9 +449,9 @@ historical sales data) as another channel, rather than the default of using
 their own channel's data."""
 
 # When setting the default value for the current period (see below), we are
-# making the assumption: 2024-FEB to *now*, and this has to be less than 12
+# making the assumption: 2024-MAR to *now*, and this has to be less than 12
 # months in length!
-assert datetime.datetime.today().month <= 2
+assert datetime.datetime.today().month <= 3
 
 STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
     LATEST: [
@@ -459,7 +459,7 @@ STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
             Channel.from_str(channel),
             REFERENCE_CATEGORIES.as_dict(),
             defaultdict(
-                lambda: UndeterminedTimePeriod("2024-FEB"),
+                lambda: UndeterminedTimePeriod("2024-MAR"),
                 CURRENT_PERIODS.as_dict(),
             ),
             PER_CHANNEL_REFERENCE_CHANNELS,

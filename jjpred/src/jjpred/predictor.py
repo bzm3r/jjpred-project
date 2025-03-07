@@ -271,7 +271,7 @@ class POPrediction:
                 on="month",
                 # there are multiple entries in the LHS with the same month
                 validate="m:1",
-                join_nulls=True,
+                nulls_equal=True,
             ).with_columns(
                 expected_demand_from_po=(
                     pl.col("monthly_expected_demand_from_po")
@@ -376,7 +376,7 @@ class ExpectedYearSales:
             # each LHS category has print, size, etc.
             # each RHS category has month, current
             validate="m:m",
-            join_nulls=True,
+            nulls_equal=True,
         ).with_columns(
             pl.when(pl.col("current_demand_ratio") > 0.0)
             .then(
@@ -579,7 +579,7 @@ class HistoricalPeriodSales:
             on="month",
             # there are multiple categories in the LHS
             validate="m:1",
-            join_nulls=True,
+            nulls_equal=True,
         )
 
         return demand_ratios
@@ -685,7 +685,7 @@ class PredictionInput(CategoryGroupProtocol):
                 # each category in LHS has print, size etc.
                 # each cateogry in RHS has prediction ratios per month
                 validate="m:m",
-                join_nulls=True,
+                nulls_equal=True,
             ).with_columns(
                 monthly_expected_demand_from_history=pl.col.demand_ratio
                 * pl.col.expected_year_sales,
@@ -1170,14 +1170,14 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 on=["category"] + Channel.members(),
                 how="left",
                 coalesce=True,
-                join_nulls=True,
+                nulls_equal=True,
             )
             .join(
                 po_info,
                 on=ALL_SKU_AND_CHANNEL_IDS,
                 how="left",
                 coalesce=True,
-                join_nulls=True,
+                nulls_equal=True,
             )
             .join(
                 self.prediction_types.filter(
@@ -1200,14 +1200,14 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 on=ALL_SKU_IDS,
                 how="left",
                 coalesce=True,
-                join_nulls=True,
+                nulls_equal=True,
             )
             .join(
                 category_type_df,
                 on=["category"] + Channel.members(),
                 how="left",
                 coalesce=True,
-                join_nulls=True,
+                nulls_equal=True,
             )
         )
         find_dupes(joined_df, ALL_SKU_AND_CHANNEL_IDS, raise_error=True)
@@ -1446,7 +1446,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         on=["a_sku", "sku"] + Channel.members(),
                         how="left",
                         validate="m:1",
-                        join_nulls=True,
+                        nulls_equal=True,
                     )
                     .with_columns(
                         expected_demand=pl.lit(None, dtype=pl.Int64())

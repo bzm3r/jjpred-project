@@ -43,9 +43,13 @@ def try_read_df(save_path: Path, verbose: bool = True) -> pl.DataFrame | None:
         return None
 
 
-def delete_df(save_path: Path) -> bool:
+def delete_df(
+    save_path: Path, check_if_default_storage_format: bool = True
+) -> bool:
     if save_path.exists():
-        if save_path.name.endswith(DEFAULT_STORAGE_FORMAT):
+        if (not check_if_default_storage_format) or save_path.name.endswith(
+            DEFAULT_STORAGE_FORMAT
+        ):
             print(f"Deleting {save_path}...")
             save_path.unlink()
             return True

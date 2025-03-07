@@ -327,7 +327,7 @@ def read_po(
             ]
         ),
         on="sku",
-        join_nulls=True,
+        nulls_equal=True,
     )
 
     dispatch_season, other_season = get_po_season(dispatch_date)
@@ -546,14 +546,14 @@ def read_excel_predictions(
         on="sku",
         # each SKU on the LHS is repeated many times (for example, per month)
         validate="m:1",
-        join_nulls=True,
+        nulls_equal=True,
     )
     result = predicted_demand.join(
         prediction_type,
         on=["category", "month"] + Channel.members(),
         # many SKUs on LHS could have the same category
         validate="m:1",
-        join_nulls=True,
+        nulls_equal=True,
     )
 
     write_df(True, save_path, result)
@@ -764,7 +764,7 @@ def read_qty_box(
             on="sku",
             # we expect 1:1 match on SKUs
             validate="1:1",
-            join_nulls=True,
+            nulls_equal=True,
         )
         .cast({"qty_box": pl.Int64()})
         .drop_nulls()

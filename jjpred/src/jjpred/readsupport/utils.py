@@ -143,7 +143,7 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
         unique_channels,
         on="raw_channel",
         validate="m:1",
-        join_nulls=True,
+        nulls_equal=True,
     )
 
     return df

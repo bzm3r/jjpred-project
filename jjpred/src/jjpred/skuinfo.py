@@ -119,7 +119,7 @@ def override_sku_info(
     | None = None,
     create_info_columns: ScalarOrList[str | pl.Expr] | None = None,
     create_missing_info_flags: bool = False,
-    join_nulls: bool = True,
+    nulls_equal: bool = True,
     dupe_check_index: list[str] | None = None,
 ) -> pl.DataFrame:
     if len(extension_df) == 0:
@@ -170,7 +170,7 @@ def override_sku_info(
         all_sku_info,
         extension_df,
         OverrideLeft(existing_id_columns),
-        join_nulls=join_nulls,
+        nulls_equal=nulls_equal,
         dupe_check_index=dupe_check_index,
     )
 
@@ -329,7 +329,7 @@ def attach_inventory_info(
     #     on=WHOLE_SKU_IDS + CHANNEL_IDS,
     #     how="left",
     #     validate="m:1",
-    #     join_nulls=True,
+    #     nulls_equal=True,
     # )
     # .with_columns(
     #     min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),

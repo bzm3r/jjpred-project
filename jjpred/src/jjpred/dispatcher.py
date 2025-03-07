@@ -456,7 +456,7 @@ class Dispatcher:
                 "current_period_sales",
             ],
             create_missing_info_flags=False,
-            join_nulls=False,
+            nulls_equal=False,
             dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
         )
 

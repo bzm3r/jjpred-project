@@ -867,7 +867,7 @@ def read_master_sku_excel_file(
             on="pause_plan_str",
             # we are doing "map_elements" using a join, so we expect m:1
             validate="m:1",
-            join_nulls=True,
+            nulls_equal=True,
         )
         .drop("pause_plan_str")
     )
@@ -983,7 +983,7 @@ def read_master_sku_excel_file(
         how="left",
         # there are multiple SKU with the same cat in the LHS
         validate="m:1",
-        join_nulls=True,
+        nulls_equal=True,
     ).select("category", "season")
 
     master_sku_df = (
@@ -992,7 +992,7 @@ def read_master_sku_excel_file(
             on="category",
             # there are many SKU with the same category in the LHS
             validate="m:1",
-            join_nulls=True,
+            nulls_equal=True,
         )
         # .drop("season_history_info")
         .cast(
@@ -1035,7 +1035,11 @@ def read_master_sku_excel_file(
         )
     )
     fba_sku = fba_sku.join(
-        country_flag, on="country", how="left", validate="m:1", join_nulls=True
+        country_flag,
+        on="country",
+        how="left",
+        validate="m:1",
+        nulls_equal=True,
     ).drop("country")
 
     assert (
@@ -1304,7 +1308,7 @@ def read_master_sku_excel_file(
 #             on="pause_plan_str",
 #             # we are doing "map_elements" using a join, so we expect m:1
 #             validate="m:1",
-#             join_nulls=True,
+#             nulls_equal=True,
 #         )
 #         .drop("pause_plan_str")
 #     )
@@ -1420,7 +1424,7 @@ def read_master_sku_excel_file(
 #         how="left",
 #         # there are multiple SKU with the same cat in the LHS
 #         validate="m:1",
-#         join_nulls=True,
+#         nulls_equal=True,
 #     ).select("category", "season")
 
 #     master_sku_df = (
@@ -1429,7 +1433,7 @@ def read_master_sku_excel_file(
 #             on="category",
 #             # there are many SKU with the same category in the LHS
 #             validate="m:1",
-#             join_nulls=True,
+#             nulls_equal=True,
 #         )
 #         # .drop("season_history_info")
 #         .cast(
@@ -1472,7 +1476,7 @@ def read_master_sku_excel_file(
 #         )
 #     )
 #     fba_sku = fba_sku.join(
-#         country_flag, on="country", how="left", validate="m:1", join_nulls=True
+#         country_flag, on="country", how="left", validate="m:1", nulls_equal=True
 #     ).drop("country")
 
 #     assert (
@@ -1791,7 +1795,7 @@ def read_master_sku_excel_file(
 #             on="pause_plan_str",
 #             # we are doing "map_elements" using a join, so we expect m:1
 #             validate="m:1",
-#             join_nulls=True,
+#             nulls_equal=True,
 #         )
 #         .drop("pause_plan_str")
 #     )
@@ -1922,7 +1926,7 @@ def read_master_sku_excel_file(
 #         how="left",
 #         # there are multiple SKU with the same cat in the LHS
 #         validate="m:1",
-#         join_nulls=True,
+#         nulls_equal=True,
 #     ).select("category", "season")
 
 #     master_sku_df = (
@@ -1931,7 +1935,7 @@ def read_master_sku_excel_file(
 #             on="category",
 #             # there are many SKU with the same category in the LHS
 #             validate="m:1",
-#             join_nulls=True,
+#             nulls_equal=True,
 #         )
 #         .drop("processed_season_history")
 #         .cast(
@@ -1974,7 +1978,7 @@ def read_master_sku_excel_file(
 #         )
 #     )
 #     fba_sku = fba_sku.join(
-#         country_flag, on="country", how="left", validate="m:1", join_nulls=True
+#         country_flag, on="country", how="left", validate="m:1", nulls_equal=True
 #     ).drop("country")
 
 #     assert (

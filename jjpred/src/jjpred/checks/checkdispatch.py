@@ -456,7 +456,7 @@ def check_dispatch_results(
                 results_with_check_flags,
                 actual_dispatch,
                 NoOverride(),
-                join_nulls=True,
+                nulls_equal=True,
                 dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
             )
             .with_columns(
