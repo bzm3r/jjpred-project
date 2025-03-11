@@ -580,7 +580,10 @@ def extend_df_enum_type(
 
 
 def check_dfs_for_differences(
-    df: pl.DataFrame, other_df: pl.DataFrame, index_cols: list[str]
+    df: pl.DataFrame,
+    other_df: pl.DataFrame,
+    index_cols: list[str],
+    raise_error: bool = False,
 ) -> pl.DataFrame:
     all_columns = []
 
@@ -617,6 +620,10 @@ def check_dfs_for_differences(
     if len(check_failed) == 0:
         print("check passed.")
     else:
+        if raise_error:
+            sys.displayhook(check_failed)
+            raise ValueError("check failed!")
+
         print("check failed.")
 
     return check_failed
