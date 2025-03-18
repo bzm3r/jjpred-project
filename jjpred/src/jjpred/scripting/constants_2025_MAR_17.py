@@ -7,11 +7,12 @@ from jjpred.inputstrategy import RefillType
 
 import polars as pl
 
-analysis_date = "2025-MAR-04"
-dispatch_date = "2025-MAR-03"
-master_sku_date = "2025-MAR-03"
-sales_and_inventory_date = "2025-MAR-04"
-warehouse_inventory_date = "2025-MAR-03"
+analysis_date = "2025-MAR-18"
+dispatch_date = "2025-MAR-17"
+master_sku_date = "2025-MAR-18"
+sales_and_inventory_date = "2025-MAR-18"
+warehouse_inventory_date = "2025-MAR-17"
+website_sku_date = "2025-MAR-18"
 config_date = "2025-FEB-25"
 in_stock_ratio_date = "2025-MAR-11"
 prediction_type_meta_date = None
@@ -47,7 +48,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     config_date=config_date,
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
-    website_sku_date="2025-FEB-08",
+    website_sku_date=website_sku_date,
     jjweb_reserve_to_date=[
         ReservationInfo(
             (
@@ -90,7 +91,7 @@ jjweb_analysis_defn = JJWebDefn(
     analysis_date=analysis_date,
     dispatch_date=dispatch_date,
     end_date="2025-MAY-01",
-    website_sku_date="2025-FEB-08",
+    website_sku_date=website_sku_date,
     master_sku_date=master_sku_date,
     sales_and_inventory_date=sales_and_inventory_date,
     warehouse_inventory_date=warehouse_inventory_date,

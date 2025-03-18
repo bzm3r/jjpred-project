@@ -83,3 +83,13 @@ class Sku(StructLike, matcher=SKU_MATCHER, joiner="-"):
                 }
             )
         )
+
+
+SKU_CATEGORY = ["category"]
+SKU_PRINT = ["print"]
+SKU_SIZE = ["size"]
+SKU_REMAINDER = ["remainder"]
+SKU_CATEGORY_PRINT = SKU_CATEGORY + SKU_PRINT
+SKU_CATEGORY_PRINT_SIZE = SKU_CATEGORY_PRINT + SKU_SIZE
+SKU_CATEGORY_PRINT_SIZE_REMAINDER = SKU_CATEGORY_PRINT_SIZE + SKU_REMAINDER
+SKU_PRINT_SIZE = SKU_PRINT + SKU_SIZE

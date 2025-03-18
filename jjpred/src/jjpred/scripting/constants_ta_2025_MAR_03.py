@@ -11,5 +11,5 @@ analysis_defn = AnalysisDefn(
     sales_and_inventory_date="2025-MAR-03",
     warehouse_inventory_date="2025-MAR-03",
     config_date="2025-FEB-25",
-    in_stock_ratio_date="2025-MAR-03",
+    in_stock_ratio_date="2025-MAR-11",
 )

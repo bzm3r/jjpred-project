@@ -529,6 +529,8 @@ class DataBase:
                     read_from_disk=False,
                 )
             )
+        else:
+            raise ValueError(f"{self.analysis_defn.in_stock_ratio_date=}")
 
         self.dfs, channel_meta = standardize_channel_info(self.dfs)
 

@@ -434,6 +434,121 @@ def check_aggregated_sku_info_for_duplicates(
     return aggregated_sku_info
 
 
+def get_checked_category_print_size_info(
+    analysis_defn_or_db: AnalysisDefn | DataBase,
+    only_active_sku: bool,
+    info_columns: list[str] = ["season_history"],
+    rename_brc_ylw_to_brc_yel: bool = True,
+    rename_icp_to_ipc: bool = True,
+) -> pl.DataFrame:
+    if only_active_sku:
+        info_type = "active_sku"
+    else:
+        info_type = "all_sku"
+
+    sku_info = fetch_master_sku_info(analysis_defn_or_db, info_type)
+
+    cat_print_size = Sku.members(MemberType.PRIMARY)
+    info_columns = [
+        x
+        for x in info_columns
+        if ((x in sku_info.columns) and (x not in cat_print_size))
+    ]
+
+    if rename_brc_ylw_to_brc_yel:
+        sku_info = sku_info.with_columns(
+            print=pl.when(pl.col.category.eq("BRC") & pl.col.print.eq("YEL"))
+            .then(pl.lit("YLW", dtype=sku_info["print"].dtype))
+            .otherwise(pl.col.print)
+        )
+
+    if rename_icp_to_ipc:
+        sku_info = sku_info.with_columns(
+            category=pl.when(pl.col.category.eq("ICP"))
+            .then(pl.lit("IPC", dtype=sku_info["category"].dtype))
+            .otherwise(pl.col.category)
+        )
+
+    sku_info = sku_info.with_columns(id=pl.struct(cat_print_size))
+
+    pre_existing_list_types = [
+        x for x in info_columns if isinstance(sku_info[x].dtype, pl.List)
+    ]
+
+    sku_info = (
+        sku_info.sort("sku_latest_year")
+        .with_columns(rank=pl.col.sku_latest_year.rank("ordinal").over("id"))
+        .with_columns(max_rank=pl.col.rank.max().over("id"))
+        .filter(pl.col.rank.eq(pl.col.max_rank))
+        .drop("max_rank")
+        .select(
+            ["id"] + info_columns,
+        )
+        .group_by("id")
+        .agg(
+            *[
+                pl.col(x).unique()
+                for x in info_columns
+                if x not in pre_existing_list_types
+            ],
+            *[
+                pl.col(x).explode().unique()
+                for x in info_columns
+                if x in pre_existing_list_types
+            ],
+        )
+    )
+
+    # for x in info_columns:
+    #     if x not in ["season_history_info"]:
+    #         sku_info = sku_info.with_columns(pl.col(x).list.unique().alias(x))
+    #     else:
+    #         unique_info = (
+    #             sku_info.select("id", x).explode(x).unnest(x).unique()
+    #         )
+    #         unique_info = (
+    #             unique_info.select(
+    #                 "id",
+    #                 pl.struct(
+    #                     *[y for y in unique_info.columns if y != "id"]
+    #                 ).alias(x),
+    #             )
+    #             .group_by("id")
+    #             .agg(pl.col(x))
+    #         )
+
+    if "season_history" in info_columns:
+        sku_info = sku_info.with_columns(
+            pl.col.season_history.list.sort(descending=True)
+            .list.eval(pl.element().cast(pl.String()))
+            .list.join(",")
+        )
+        sku_info = sku_info.cast(
+            {
+                "season_history": pl.Enum(
+                    sku_info["season_history"].unique().sort()
+                )
+            }
+        )
+
+    for y in ["id"] + info_columns:
+        if (
+            isinstance(sku_info[y].dtype, pl.List)
+            and y not in pre_existing_list_types
+        ):
+            dupes = sku_info.filter(pl.col(y).list.len().gt(1))
+            if len(dupes) > 0:
+                print(f"{y}:")
+                sys.displayhook(dupes)
+                raise ValueError("Found dupes in SKU info!")
+
+            sku_info = sku_info.with_columns(pl.col(y).list.first().alias(y))
+
+    find_dupes(sku_info, ["id"] + info_columns, raise_error=True)
+
+    return sku_info.unnest("id")
+
+
 def get_checked_a_sku_info(
     analysis_defn_or_db: AnalysisDefn | DataBase,
     only_active_sku: bool,
@@ -513,10 +628,11 @@ def get_checked_a_sku_info(
 
 def get_checked_category_level_sku_info(
     db: DataBase,
+    only_active_sku: bool,
     category_info_columns: list[str] = ["season", "category_year_history"],
 ) -> pl.DataFrame:
     extracted_info = get_checked_a_sku_info(
-        db, False, info_columns=category_info_columns
+        db, only_active_sku, info_columns=category_info_columns
     ).select(["category"] + category_info_columns)
 
     season_df = extracted_info.group_by("category").agg(
