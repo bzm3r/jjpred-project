@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum, IntFlag
 from functools import reduce
+from pathlib import Path
 import sys
 from typing import (
     Any,
@@ -13,6 +14,7 @@ from typing import (
 )
 import polars as pl
 import polars.selectors as cs
+import xlsxwriter as xlw
 
 from jjpred.parse.patternmatch import StringPattern
 from jjpred.structlike import StructLike
@@ -579,12 +581,68 @@ def extend_df_enum_type(
     return df
 
 
-def check_dfs_for_differences(
+@dataclass
+class CompareResult:
+    check_passed: pl.DataFrame
+    check_failed: pl.DataFrame
+    full_check: pl.DataFrame
+    has_fails: bool
+
+    def __init__(self, full_check: pl.DataFrame) -> None:
+        self.full_check = full_check
+        self.check_failed, self.check_passed = binary_partition_strict(
+            self.full_check, pl.col.check_failed
+        )
+        self.has_fails = len(self.check_failed) > 0
+
+    def write_excel(self, path: Path) -> None:
+        if path.exists():
+            path.unlink()
+        with xlw.Workbook(path) as workbook:
+            self.full_check.write_excel(
+                workbook=workbook,
+                worksheet="full_check",
+                table_style="Table Style Medium 1",
+                autofit=True,
+                # conditional_formats={
+                #     x: {"type": "2_color_scale"}
+                #     for x in self.full_check.columns
+                #     if x.endswith("_same")
+                # },
+            )
+
+            self.check_passed.write_excel(
+                workbook=workbook,
+                worksheet="check_passed",
+                table_style="Table Style Medium 1",
+                autofit=True,
+                # conditional_formats={
+                #     x: {"type": "2_color_scale"}
+                #     for x in self.full_check.columns
+                #     if x.endswith("_same")
+                # },
+            )
+
+            self.check_failed.write_excel(
+                workbook=workbook,
+                worksheet="check_failed",
+                table_style="Table Style Medium 1",
+                autofit=True,
+                # conditional_formats={
+                #     x: {"type": "2_color_scale"}
+                #     for x in self.full_check.columns
+                #     if x.endswith("_same")
+                # },
+            )
+
+
+def compare_dfs_for_differences(
     df: pl.DataFrame,
     other_df: pl.DataFrame,
     index_cols: list[str],
     raise_error: bool = False,
-) -> pl.DataFrame:
+    suffix: str = "_other",
+) -> CompareResult:
     all_columns = []
 
     assert sorted(df.columns) == sorted(other_df.columns), [
@@ -595,13 +653,17 @@ def check_dfs_for_differences(
 
     for x in df.columns:
         all_columns.append(x)
-        all_columns.append(f"{x}_right")
+        all_columns.append(f"{x}{suffix}")
         all_columns.append(f"{x}_same")
 
     check_df = (
-        df.join(other_df, on=index_cols, how="full")
+        df.join(other_df, on=index_cols, how="full", suffix=suffix)
         .with_columns(
-            pl.col(x).eq(pl.col(f"{x}_right")).alias(f"{x}_same")
+            (
+                ~pl.col(x).is_null()
+                & ~pl.col(f"{x}{suffix}").is_null()
+                & pl.col(x).eq(pl.col(f"{x}{suffix}"))
+            ).alias(f"{x}_same")
             for x in df.columns
         )
         .select(all_columns)
@@ -613,24 +675,29 @@ def check_dfs_for_differences(
         )
     )
 
-    check_failed = check_df.filter(
-        pl.col.check_failed,
-    )
+    compare_result = CompareResult(check_df)
 
-    if len(check_failed) == 0:
+    if not compare_result.has_fails:
         print("check passed.")
     else:
         if raise_error:
-            sys.displayhook(check_failed)
+            sys.displayhook(compare_result.check_failed)
             raise ValueError("check failed!")
 
         print("check failed.")
 
-    return check_failed
+    return compare_result
 
 
-def display_rows(df: pl.DataFrame, rows: int | None = None) -> None:
+def display_rows(
+    df: pl.DataFrame,
+    rows: int | None = None,
+    table_cell_list_len: int | None = None,
+) -> None:
     if rows is not None:
         pl.Config().set_tbl_rows(rows)
+    if table_cell_list_len is not None:
+        pl.Config().set_fmt_table_cell_list_len(table_cell_list_len)
+
     sys.displayhook(df)
     pl.Config().restore_defaults()

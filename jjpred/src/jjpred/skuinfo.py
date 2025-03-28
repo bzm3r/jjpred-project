@@ -549,6 +549,30 @@ def get_checked_category_print_size_info(
     return sku_info.unnest("id")
 
 
+def get_checked_category_print_history(db: DataBase) -> pl.DataFrame:
+    return (
+        get_checked_category_print_size_info(
+            db,
+            only_active_sku=False,
+            info_columns=["season_history_info"],
+        )
+        .explode("season_history_info")
+        .group_by("category", "print")
+        .agg(pl.col.season_history_info.unique().sort().alias("print_history"))
+        .with_columns(
+            print_years=pl.col.print_history.list.eval(
+                pl.element().struct.field("year")
+            ),
+            print_history=pl.col.print_history.list.eval(
+                pl.concat_str(
+                    pl.element().struct.field(x).cast(pl.String())
+                    for x in ["year", "po_season"]
+                )
+            ),
+        )
+    )
+
+
 def get_checked_a_sku_info(
     analysis_defn_or_db: AnalysisDefn | DataBase,
     only_active_sku: bool,
