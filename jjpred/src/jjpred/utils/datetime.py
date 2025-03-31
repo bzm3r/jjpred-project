@@ -104,6 +104,10 @@ class Date:
         assert_assumed_locale(ASSUMED_LOCALE)
         return self.strftime(fmt)
 
+    def format_iso(self) -> str:
+        assert_assumed_locale(ASSUMED_LOCALE)
+        return self.date.isoformat()
+
     @classmethod
     def from_datelike(cls, x: DateLike) -> Self:
         assert_assumed_locale(ASSUMED_LOCALE)

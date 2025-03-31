@@ -75,7 +75,9 @@ def write_df(overwrite: bool, save_path: Path, df: pl.DataFrame) -> Path:
 
 
 def write_excel(
-    save_path: Path, sheet_dict: Mapping[str, pl.DataFrame | None]
+    save_path: Path,
+    sheet_dict: Mapping[str, pl.DataFrame | None],
+    autofit: bool = False,
 ) -> Path:
     print(f"Saving to: {save_path}")
 
@@ -85,7 +87,7 @@ def write_excel(
         for key, df in sheet_dict.items():
             if df is not None:
                 convert_df_for_excel(df).write_excel(
-                    workbook=workbook, worksheet=key
+                    workbook=workbook, worksheet=key, autofit=autofit
                 )
             # worksheet = workbook.get_worksheet_by_name(key)
             # assert worksheet is not None
