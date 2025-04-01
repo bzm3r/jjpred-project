@@ -592,6 +592,21 @@ def check_dispatch_results(
         "(ok) MainProg|JJPRED": ok_dispatch.drop(contained_check_flags)
         if ok_dispatch is not None
         else None,
+        "Current Period": active_results.select(
+            "category", "season", "current_period"
+        )
+        .unique()
+        .sort("season", "category"),
+        "Reference Category": active_results.select(
+            "season",
+            "category",
+            "category_year_history",
+            "category_type",
+            "refers_to",
+            "referred_by",
+        )
+        .unique()
+        .sort("season", "category"),
         "all": active_results,
         "reserved": dispatcher.reserved_quantity,
         "multi_a_sku": multi_a_sku_df,

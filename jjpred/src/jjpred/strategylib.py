@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from calendar import month_abbr
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-import datetime
 from functools import total_ordering
 
 from jjpred.aggregator import (
@@ -14,6 +14,7 @@ from jjpred.aggregator import (
     UsingCanUSRetail,
     UsingRetail,
 )
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
 from jjpred.inputstrategy import (
     InputStrategy,
@@ -68,41 +69,41 @@ AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
 CURRENT_PERIODS: MultiDict[Category, TimePeriod | UndeterminedTimePeriod] = (
     MultiDict(
         data={
-            (
-                "HCF0",
-                "HCB0",
-                "HCA0",
-                "HAD0",
-                "HAV0",
-                "HBS",
-                "HXP",
-                "HXC",
-                "HXU",
-                "HBU",
-                "HLH",
-                "GUX",
-                "GUA",
-                "GBX",
-                "GHA",
-                "SKB",
-                "SKG",
-                "SJF",
-                "SJD",
-                "SKX",
-                "SMF",
-                "HJS",
-                "UJ1",
-                "UT1",
-                "UV2",
-                "UG1",
-                "USA",
-                "AAA",
-                "ACA",
-                "ACB",
-                "AJS",
-                "AHJ",
-                "SPW",
-            ): TimePeriod("2024-MAR-01", "2024-NOV-01"),
+            # (
+            #     "HCF0",
+            #     "HCB0",
+            #     "HCA0",
+            #     "HAD0",
+            #     "HAV0",
+            #     "HBS",
+            #     "HXP",
+            #     "HXC",
+            #     "HXU",
+            #     "HBU",
+            #     "HLH",
+            #     "GUX",
+            #     "GUA",
+            #     "GBX",
+            #     "GHA",
+            #     "SKB",
+            #     "SKG",
+            #     "SJF",
+            #     "SJD",
+            #     "SKX",
+            #     "SMF",
+            #     "HJS",
+            #     "UJ1",
+            #     "UT1",
+            #     "UV2",
+            #     "UG1",
+            #     "USA",
+            #     "AAA",
+            #     "ACA",
+            #     "ACB",
+            #     "AJS",
+            #     "AHJ",
+            #     "SPW",
+            # ): TimePeriod("2025-JAN-01", "2025-APR-01"),
             ("BSL",): UndeterminedTimePeriod("2024-JUL-01"),
             (
                 "WPS",
@@ -448,35 +449,42 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
 historical sales data) as another channel, rather than the default of using
 their own channel's data."""
 
-# When setting the default value for the current period (see below), we are
-# making the assumption: 2024-MAR to *now*, and this has to be less than 12
-# months in length!
-assert datetime.datetime.today().month <= 3
-
-STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
-    LATEST: [
-        InputStrategy(
-            Channel.from_str(channel),
-            REFERENCE_CATEGORIES.as_dict(),
-            defaultdict(
-                lambda: UndeterminedTimePeriod("2024-MAR"),
-                CURRENT_PERIODS.as_dict(),
-            ),
-            PER_CHANNEL_REFERENCE_CHANNELS,
-        )
-        for channel in [
-            "amazon.com",
-            "amazon.ca",
-            "janandjul.com",
-            "wholesale",
-            "amazon.co.uk",
-            "amazon.de",
-        ]
-    ],
-}
+# # When setting the default value for the current period (see below), we are
+# # making the assumption: 2024-MAR to *now*, and this has to be less than 12
+# # months in length!
+# assert datetime.datetime.today().month <= 3
 
 
-def get_strategy_from_library(id: StrategyId) -> list[InputStrategy]:
+def get_strategy_from_library(
+    analysis_defn: RefillDefn, id: StrategyId
+) -> list[InputStrategy]:
+    default_time_period = UndeterminedTimePeriod(
+        f"{analysis_defn.dispatch_date.year - 1}-{month_abbr[(analysis_defn.dispatch_date.month - 1) % 12].upper()}"
+    )
+    print(f"{default_time_period}: {default_time_period.start}")
+
+    STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
+        LATEST: [
+            InputStrategy(
+                Channel.from_str(channel),
+                REFERENCE_CATEGORIES.as_dict(),
+                defaultdict(
+                    lambda: default_time_period,
+                    CURRENT_PERIODS.as_dict(),
+                ),
+                PER_CHANNEL_REFERENCE_CHANNELS,
+            )
+            for channel in [
+                "amazon.com",
+                "amazon.ca",
+                "janandjul.com",
+                "wholesale",
+                "amazon.co.uk",
+                "amazon.de",
+            ]
+        ],
+    }
+
     try:
         return STRATEGY_LIBRARY[id]
     except KeyError as e:

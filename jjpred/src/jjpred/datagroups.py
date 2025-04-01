@@ -21,9 +21,10 @@ SEASON_IDS = [
 ALL_SKU_AND_CHANNEL_IDS = ALL_SKU_IDS + CHANNEL_IDS
 ALL_IDS = ALL_SKU_IDS + CHANNEL_IDS + SEASON_IDS
 PAUSE_PLAN_IDS = [
+    "website_sku",
     "pause_plan",
 ]
-STATUS_IDS = ["status", "website_sku", "orphan_sku"]
+STATUS_IDS = ["status", "orphan_sku"]
 MASTER_PAUSE_FLAGS = [
     "is_active",
     "is_master_paused",

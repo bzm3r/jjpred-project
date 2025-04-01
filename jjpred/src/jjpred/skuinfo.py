@@ -66,7 +66,7 @@ def get_all_sku_currentness_info(
         master_all_sku.select(
             ALL_SKU_IDS
             + SEASON_IDS
-            + PAUSE_PLAN_IDS
+            + [x for x in PAUSE_PLAN_IDS if x in master_all_sku]
             + [x for x in STATUS_IDS if x in master_all_sku]
         )
         .with_columns(
@@ -280,7 +280,7 @@ def attach_channel_info(
         .then(pl.col("country_flag").and_(pl.col("pause_plan")).gt(0))
         .when(pl.col.platform.eq("JanAndJul"))
         .then(~pl.col.website_sku)
-        .otherwise(pl.lit(True))
+        .otherwise(pl.lit(True)),
     )
 
 
