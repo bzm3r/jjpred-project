@@ -312,6 +312,14 @@ def generate_filtered_season_history_map(
         )
     )
 
+    po_season_map = pl.from_dict(
+        {"po_season_code": ["F", "S"], "po_season": ["FW", "SS"]},
+        schema={
+            "po_season_code": pl.Enum(["F", "S"]),
+            "po_season": POSeason.polars_type(),
+        },
+    )
+
     season_history_tag_map = (
         unique_season_histories.select("season_history_tags")
         .explode("season_history_tags")
@@ -331,12 +339,12 @@ def generate_filtered_season_history_map(
         .drop("season_history_tag_parts")
         .with_columns(
             season_year_remainder=pl.col.main_season_tag.str.extract_groups(
-                r"^(?P<year>\d+)(?P<po_season>F|S)?(?P<remainder>.*)"
+                r"^(?P<year>\d+)(?P<po_season_code>F|S)?(?P<remainder>.*)"
             ).cast(
                 pl.Struct(
                     {
                         "year": pl.Int64(),
-                        "po_season": POSeason.polars_type(),
+                        "po_season_code": pl.Enum(["F", "S"]),
                         "remainder": pl.String(),
                     }
                 )
@@ -351,7 +359,11 @@ def generate_filtered_season_history_map(
             .then(None)
             .otherwise(pl.col.remainder)
         )
+        .join(po_season_map, on=["po_season_code"], how="left")
     )
+
+    assert len(season_history_tag_map.filter(pl.col.po_season.is_null())) == 0
+    season_history_tag_map = season_history_tag_map.drop("po_season_code")
 
     season_history_tag_map, non_empty_extras = binary_partition_strict(
         season_history_tag_map, ~pl.col.season_tag_extra.list.len().gt(0)

@@ -207,8 +207,8 @@ def calculate_reserved_quantity(
         )
         .with_columns(
             produced_for_this_year=pl.when(
-                pl.col.sku_latest_po_season.eq("F")
-                & (pl.col.date.dt.month() < 9)
+                pl.col.sku_latest_po_season.eq("FW")
+                & (pl.col.date.dt.month() < 7)
             )
             .then(
                 (pl.col.date.dt.year() - 2000 - 1).is_in(
