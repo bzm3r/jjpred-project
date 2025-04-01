@@ -370,7 +370,7 @@ def generate_filtered_season_history_map(
     )
 
     recoverable = recoverable.with_columns(
-        po_season=pl.lit(["S", "F"], dtype=pl.List(POSeason.polars_type()))
+        po_season=pl.lit(["SS", "FW"], dtype=pl.List(POSeason.polars_type()))
     ).explode("po_season")
 
     season_history_tag_map = season_history_tag_map.vstack(
@@ -942,18 +942,18 @@ def read_master_sku_excel_file(
             )
         )
         .with_columns(
-            is_f=pl.col.latest_po_season.eq("F"),
-            is_s=pl.col.latest_po_season.eq("S"),
+            is_fw=pl.col.latest_po_season.eq("FW"),
+            is_ss=pl.col.latest_po_season.eq("SS"),
         )
         .group_by(pl.col.category)
         .agg(
-            pl.col.is_f.sum().alias("f_tally"),
-            pl.col.is_s.sum().alias("s_tally"),
+            pl.col.is_fw.sum().alias("fw_tally"),
+            pl.col.is_ss.sum().alias("ss_tally"),
             pl.col.latest_po_season.alias("latest_po_seasons"),
         )
-        .with_columns(total_tally=pl.col.f_tally + pl.col.s_tally)
+        .with_columns(total_tally=pl.col.fw_tally + pl.col.ss_tally)
         .with_columns(
-            tally_fraction=pl.col.f_tally / pl.col.total_tally,
+            tally_fraction=pl.col.fw_tally / pl.col.total_tally,
             latest_po_seasons=pl.col.latest_po_seasons.list.unique()
             .list.eval(pl.element().cast(pl.String()))
             .list.sort()
@@ -967,7 +967,7 @@ def read_master_sku_excel_file(
         # later on, we just read from the CONFIG file to determine seasonality
         # of items
         latest_po_seasons=pl.when(pl.col.category.is_in(["WSF", "WJT", "IHT"]))
-        .then(pl.lit("F"))
+        .then(pl.lit("FW"))
         .otherwise(pl.col.latest_po_seasons)
     )
 
@@ -1384,13 +1384,13 @@ def read_master_sku_excel_file(
 #             )
 #         )
 #         .with_columns(
-#             is_f=pl.col.latest_season.eq("F"),
-#             is_s=pl.col.latest_season.eq("S"),
+#             is_fw=pl.col.latest_season.eq("F"),
+#             is_ss=pl.col.latest_season.eq("S"),
 #         )
 #         .group_by(pl.col.category)
 #         .agg(
-#             pl.col.is_f.sum().alias("f_tally"),
-#             pl.col.is_s.sum().alias("s_tally"),
+#             pl.col.is_fw.sum().alias("f_tally"),
+#             pl.col.is_ss.sum().alias("s_tally"),
 #             pl.col.latest_season.alias("latest_seasons"),
 #         )
 #         .with_columns(total_tally=pl.col.f_tally + pl.col.s_tally)
@@ -1886,13 +1886,13 @@ def read_master_sku_excel_file(
 #             )
 #         )
 #         .with_columns(
-#             is_f=pl.col.latest_season.eq("F"),
-#             is_s=pl.col.latest_season.eq("S"),
+#             is_fw=pl.col.latest_season.eq("F"),
+#             is_ss=pl.col.latest_season.eq("S"),
 #         )
 #         .group_by(pl.col.category)
 #         .agg(
-#             pl.col.is_f.sum().alias("f_tally"),
-#             pl.col.is_s.sum().alias("s_tally"),
+#             pl.col.is_fw.sum().alias("f_tally"),
+#             pl.col.is_ss.sum().alias("s_tally"),
 #             pl.col.latest_season.alias("latest_seasons"),
 #         )
 #         .with_columns(total_tally=pl.col.f_tally + pl.col.s_tally)

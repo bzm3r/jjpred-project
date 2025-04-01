@@ -18,7 +18,7 @@ import polars.selectors as cs
 from jjpred.readsupport.utils import (
     cast_standard,
 )
-from jjpred.seasons import Season
+from jjpred.seasons import POSeason, Season
 from jjpred.sku import Sku
 from jjpred.structlike import MemberType
 from jjpred.utils.datetime import (
@@ -62,16 +62,16 @@ def get_static_po_path() -> Path:
     raise OSError(f"Could not find valid static PO file: {file_path}.")
 
 
-def get_po_season(
+def get_dispatch_season_for_all_season_items(
     dispatch_date: Date,
 ) -> (
-    tuple[Literal[Season.FW], Literal[Season.SS]]
-    | tuple[Literal[Season.SS], Literal[Season.FW]]
+    tuple[Literal[POSeason.FW], Literal[POSeason.SS]]
+    | tuple[Literal[POSeason.SS], Literal[POSeason.FW]]
 ):
-    if dispatch_date.month <= 3 and dispatch_date.month <= 9:
-        return Season.SS, Season.FW
+    if 3 <= dispatch_date.month and dispatch_date.month <= 9:
+        return POSeason.SS, POSeason.FW
     else:
-        return Season.FW, Season.SS
+        return POSeason.FW, POSeason.SS
 
 
 @dataclass
@@ -264,7 +264,7 @@ def read_all_po(
 
 
 def relevant_year_per_season_tag(
-    relevant_year_per_season: dict[Literal[Season.FW, Season.SS], int],
+    relevant_year_per_season: dict[POSeason, int],
 ) -> str:
     return "_".join(
         [
@@ -289,14 +289,48 @@ def read_po(
         analysis_defn = analysis_defn_and_dispatch_date[0]
         dispatch_date = Date.from_datelike(analysis_defn_and_dispatch_date[1])
 
-    dispatch_season, other_season = get_po_season(dispatch_date)
+    # relevant_year_per_season_offset: dict[Month, dict[POSeason, int]] = {
+    #     Month.JANUARY: {POSeason.FW: -1, POSeason.SS: 0},
+    #     Month.FEBRUARY: {POSeason.FW: -1, POSeason.SS: 0},
+    #     Month.MARCH: {POSeason.FW: -1, POSeason.SS: 0},
+    #     Month.APRIL: {POSeason.FW: -1, POSeason.SS: 0},
+    #     Month.MAY: {POSeason.FW: -1, POSeason.SS: 0},
+    #     Month.JUNE: {POSeason.FW: -1, POSeason.SS: 0},
+    #     Month.JULY: {POSeason.FW: 0, POSeason.SS: 0},
+    #     Month.AUGUST: {POSeason.FW: 0, POSeason.SS: 0},
+    #     Month.SEPTEMBER: {POSeason.FW: 0, POSeason.SS: 0},
+    #     Month.OCTOBER: {POSeason.FW: 0, POSeason.SS: 0},
+    #     Month.NOVEMBER: {POSeason.FW: 0, POSeason.SS: 0},
+    #     Month.DECEMBER: {POSeason.FW: 0, POSeason.SS: 0},
+    # }
 
-    relevant_year_per_season = {}
-    for season in [Season.FW, Season.SS]:
-        if season == dispatch_season:
-            relevant_year_per_season[season] = dispatch_date.year
-        else:
-            relevant_year_per_season[season] = dispatch_date.year - 1
+    # relevant_year_per_season: dict[POSeason, int] = {
+    #     season: dispatch_date.year + offset
+    #     for season, offset in relevant_year_per_season_offset[
+    #         dispatch_date.month
+    #     ].items()
+    # }
+
+    po_focus_season, other_season = (
+        (POSeason.SS, POSeason.FW)
+        if dispatch_date.month <= 6
+        else (POSeason.FW, POSeason.SS)
+    )
+    assert po_focus_season != other_season
+
+    relevant_year_per_season: dict[POSeason, int] = {
+        season: dispatch_date.year
+        + (
+            -1
+            if (season == POSeason.FW) and (po_focus_season == POSeason.SS)
+            else 0
+        )
+        for season in POSeason
+    }
+
+    focus_season, other_season = get_dispatch_season_for_all_season_items(
+        dispatch_date
+    )
 
     po_per_sku_path = gen_support_info_path(
         analysis_defn,
@@ -340,39 +374,29 @@ def read_po(
     #     pl.col.po_year == pl.col.latest_po_year
     # )
 
-    if relevant_year_per_season is None:
-        relevant_po_per_sku = all_po_per_sku.filter(
-            pl.col.po_year == pl.col.latest_po_year
-        )
-    else:
-        parts = []
-        for season in [Season.FW, Season.SS]:
-            year = relevant_year_per_season.get(season)
-            if year is not None:
-                parts.append(
-                    all_po_per_sku.filter(
-                        pl.col.po_season.eq(str(season)),
-                        pl.col.po_year.eq(year),
-                    )
-                )
-            else:
-                parts.append(
-                    all_po_per_sku.filter(
-                        pl.col.po_season.eq(str(season)),
-                        pl.col.po_year == pl.col.latest_po_year,
-                    )
-                )
-        relevant_po_per_sku = pl.concat(parts)
+    available_po_seasons = [
+        POSeason.from_str(x) for x in all_po_per_sku["po_season"].unique()
+    ]
+    assert len(available_po_seasons) == len(list(POSeason))
 
-    dispatch_season_info = relevant_po_per_sku.filter(
-        pl.col.po_season.eq(dispatch_season.name)
+    relevant_po_parts = {}
+    for season in available_po_seasons:
+        relevant_po_parts[season] = all_po_per_sku.filter(
+            pl.col.po_season.eq(season.name),
+            pl.col.po_year.eq(relevant_year_per_season[season]),
+        )
+
+    # relevant_po_per_sku = pl.concat(relevant_po_parts)
+
+    focus_season_info = relevant_po_parts[focus_season].filter(
+        pl.col.po_season.eq(focus_season.name)
     )
-    other_season_info = relevant_po_per_sku.filter(
+    other_season_info = relevant_po_parts[other_season].filter(
         pl.col.po_season.eq(other_season.name)
     )
 
     find_dupes(
-        dispatch_season_info,
+        focus_season_info,
         ALL_SKU_AND_CHANNEL_IDS + ["month"],
         raise_error=True,
     )
@@ -382,13 +406,13 @@ def read_po(
         raise_error=True,
     )
 
-    in_dispatch_season_info = dispatch_season_info["sku"].unique()
+    in_dispatch_season_info = focus_season_info["sku"].unique()
     other_season_info = other_season_info.with_columns(
         in_dispatch_season_info=pl.col.sku.is_in(in_dispatch_season_info)
     ).filter(~pl.col.in_dispatch_season_info)
 
-    po_per_sku = dispatch_season_info.vstack(
-        other_season_info.select(dispatch_season_info.columns)
+    po_per_sku = focus_season_info.vstack(
+        other_season_info.select(focus_season_info.columns)
     )
 
     find_dupes(

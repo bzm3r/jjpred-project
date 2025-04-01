@@ -35,16 +35,18 @@ class Season(EnumLike):
 
 
 class POSeason(EnumLike):
-    F = auto()
-    S = auto()
+    FW = auto()
+    """Fall/Winter"""
+    SS = auto()
+    """Spring/Summer"""
 
     @classmethod
     def map_polars(cls, x: Any) -> str:
         if isinstance(x, str):
-            if "F" == x:
-                return POSeason.F.name
-            elif "S" == x:
-                return POSeason.S.name
+            if x in ["F", "FW"]:
+                return POSeason.FW.name
+            elif x in ["S", "SS"]:
+                return POSeason.SS.name
 
         raise ValueError(f"Cannot parse {x} as {cls}")
 
