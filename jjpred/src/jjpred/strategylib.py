@@ -459,7 +459,7 @@ def get_strategy_from_library(
     analysis_defn: RefillDefn, id: StrategyId
 ) -> list[InputStrategy]:
     default_time_period = UndeterminedTimePeriod(
-        f"{analysis_defn.dispatch_date.year - 1}-{month_abbr[(analysis_defn.dispatch_date.month - 1) % 12].upper()}"
+        f"{analysis_defn.dispatch_date.year - 1}-{month_abbr[analysis_defn.dispatch_date.month].upper()}"
     )
     print(f"{default_time_period}: {default_time_period.start}")
 
