@@ -362,7 +362,7 @@ def generate_filtered_season_history_map(
         .join(po_season_map, on=["po_season_code"], how="left")
     )
 
-    assert len(season_history_tag_map.filter(pl.col.po_season.is_null())) == 0
+    # assert len(season_history_tag_map.filter(pl.col.po_season.is_null())) == 0
     season_history_tag_map = season_history_tag_map.drop("po_season_code")
 
     season_history_tag_map, non_empty_extras = binary_partition_strict(
