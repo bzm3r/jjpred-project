@@ -1627,13 +1627,11 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                                     & pl.col.has_po_data
                                     & (
                                         (
-                                            (
-                                                pl.col.expected_demand_from_history
-                                                < 0.5
-                                                * pl.col.expected_demand_from_po
-                                            )
-                                            & pl.col.is_new_sku
+                                            pl.col.expected_demand_from_history
+                                            < 0.5
+                                            * pl.col.expected_demand_from_po
                                         )
+                                        # & pl.col.is_new_sku
                                         | (
                                             pl.col.expected_demand_from_history
                                             > pl.col.expected_demand_from_po
