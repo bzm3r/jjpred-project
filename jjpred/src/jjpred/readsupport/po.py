@@ -68,7 +68,7 @@ def get_po_season(
     tuple[Literal[Season.FW], Literal[Season.SS]]
     | tuple[Literal[Season.SS], Literal[Season.FW]]
 ):
-    if dispatch_date.month <= 3 and dispatch_date.month <= 9:
+    if 3 <= dispatch_date.month and dispatch_date.month <= 9:
         return Season.SS, Season.FW
     else:
         return Season.FW, Season.SS
