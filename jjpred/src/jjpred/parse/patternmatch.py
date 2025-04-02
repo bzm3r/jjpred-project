@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from jjpred.utils.typ import (
     Additive,
     ScalarOrList,
+    expect_scalar,
     normalize_as_list,
 )
 
@@ -458,6 +459,55 @@ class PatternMatcher(Additive, Protocol):
         self, target_strings: ScalarOrList[str]
     ) -> PatternMatchResult | None:
         raise NotImplementedError()
+
+
+class DictionaryMatcher(PatternMatcher):
+    """A dictionary based matcher."""
+
+    name: str
+    match_dict: dict[str, PatternMatchResult]
+
+    def __init__(
+        self, name: str, match_dict: Mapping[str, Mapping[str, Any]]
+    ) -> None:
+        self.name = name
+        self.match_dict = {
+            k: PatternMatchResult(v) for k, v in match_dict.items()
+        }
+        super().__init__()
+
+    @classmethod
+    def combine(cls, left: Self, right: Self) -> Self:
+        """Combine (concatenate) two dictionary matchers in sequence.
+
+        They must not have any of the same keys in order to be concatenated,
+        otherwise a :py:class:`ValueError` will be raised.
+        """
+
+        if not left.match_dict.keys().isdisjoint(right.match_dict.keys()):
+            raise ValueError(
+                f"Shared keys: {
+                    set(left.match_dict.keys()).intersection(
+                        right.match_dict.keys()
+                    )
+                }"
+            )
+
+        return cls(
+            " ".join([left.name, right.name]),
+            left.match_dict | right.match_dict,
+        )
+
+    def apply(
+        self, target_strings: ScalarOrList[str]
+    ) -> PatternMatchResult | None:
+        target_string = expect_scalar(target_strings).strip().lower()
+        result = self.match_dict.get(target_string)
+
+        if result is None:
+            print(f"{self.name} asked to match: {target_string}")
+
+        return result
 
 
 @dataclass

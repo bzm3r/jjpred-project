@@ -466,7 +466,7 @@ class DataBase:
             .cast(pl.String())
             .append(pl.Series(IGNORE_SKU_LIST))
         )
-        ignore_skus = self.meta_info.ignored_sku["sku"].unique()
+        # ignore_skus = self.meta_info.ignored_sku["sku"].unique()
         self.dfs[DataVariant.Inventory] = parse_channels(
             cast_standard(
                 [self.meta_info.all_sku],

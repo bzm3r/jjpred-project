@@ -249,6 +249,17 @@ class SumTypeLike:
         raise NotImplementedError()
 
     @classmethod
+    def try_from(cls, obj: Any) -> Self | None:
+        try:
+            if isinstance(obj, cls):
+                return obj
+            elif isinstance(obj, str):
+                return cls.try_from_str(obj)
+        except ValueError:
+            ...
+        return None
+
+    @classmethod
     def try_from_str(cls, string: str | None) -> Self | None:
         try:
             if string:
@@ -355,7 +366,7 @@ class IntFlagLike(SumTypeLike, IntFlag):
             )
 
     @classmethod
-    def parse(cls, x: int | str) -> Self:
+    def parse(cls, x: Any) -> Self:
         if isinstance(x, int):
             return cls.from_int(x)
         elif isinstance(x, str):
@@ -364,9 +375,9 @@ class IntFlagLike(SumTypeLike, IntFlag):
             raise ValueError(f"No logic to parse {x} as {cls.__qualname__}.")
 
     @classmethod
-    def try_parse(cls, x: int | str | None) -> Self | None:
-        if x is not None:
-            return cls.parse(x)
+    def try_from(cls, obj: Any) -> Self | None:
+        if obj is not None:
+            return cls.parse(obj)
         else:
             return None
 

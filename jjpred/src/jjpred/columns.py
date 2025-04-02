@@ -19,9 +19,10 @@ import re
 import polars as pl
 import calendar as cal
 
-from jjpred.channel import Channel
+from jjpred.channel import KNOWN_AMAZON_CHANNEL_MATCHERS, Channel
 from jjpred.parse.patternmatch import (
     CompiledPattern,
+    DictionaryMatcher,
     PatternMatchResult,
     ReMatchResult,
     PatternMatcher,
@@ -29,7 +30,6 @@ from jjpred.parse.patternmatch import (
     ReMatchCondition,
     StringPattern,
 )
-from jjpred.channel import Platform
 from jjpred.structlike import StructLike
 from jjpred.utils.typ import (
     Additive,
@@ -414,7 +414,7 @@ IN_STOCK_RATIO_YEAR_MONTH_STOCK_DAYS_LABEL_DEFN = LabelDefn(
 
 INV_CHANNEL_LABEL_DEFN = LabelDefn(
     "channel",
-    Platform.amazon_matcher(),
+    DictionaryMatcher("amazon_matcher", KNOWN_AMAZON_CHANNEL_MATCHERS),
     default_transform=use_dict_and_channel,
 )
 
