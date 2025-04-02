@@ -46,6 +46,7 @@ def read_netsuite_inv(
     analysis_defn: AnalysisDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ):
     save_path = gen_support_info_path(
         analysis_defn,
@@ -102,6 +103,6 @@ def read_netsuite_inv(
 
     ns_inv_df = parse_channels(raw_df)
 
-    write_df(True, save_path, ns_inv_df)
+    write_df(overwrite, save_path, ns_inv_df)
 
     return ns_inv_df

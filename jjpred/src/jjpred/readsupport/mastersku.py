@@ -145,18 +145,21 @@ plotting."""
 
         return result
 
-    def write_to_disk(self, analysis_defn: AnalysisDefn) -> None:
+    def write_to_disk(
+        self, analysis_defn: AnalysisDefn, overwrite: bool = True
+    ) -> None:
         """Write master SKU information dataframes to disk."""
         save_paths = MasterSkuInfo.generate_save_paths(analysis_defn)
         for f, save_path in save_paths.items():
-            write_df(True, save_path, self.__getattribute__(f))
+            write_df(overwrite, save_path, self.__getattribute__(f))
 
     @classmethod
     def get_master_sku_info(
         cls,
         analysis_defn: AnalysisDefn,
-        read_from_disk=False,
-        delete_if_exists=False,
+        read_from_disk: bool = False,
+        delete_if_exists: bool = False,
+        overwrite: bool = True,
         # website_sku_fetch_info: WebsiteSkuFetchInfo | None = None,
     ) -> MasterSkuInfo:
         master_sku_info = None
@@ -177,6 +180,7 @@ plotting."""
                         InventoryType.AUTO,
                         read_from_disk=read_from_disk,
                         delete_if_exists=delete_if_exists,
+                        overwrite=overwrite,
                     ),
                 )
             else:
@@ -187,7 +191,7 @@ plotting."""
                 website_sku_fetch_info,
             )
 
-            master_sku_info.write_to_disk(analysis_defn)
+            master_sku_info.write_to_disk(analysis_defn, overwrite=overwrite)
 
             return master_sku_info
 
@@ -587,6 +591,7 @@ def get_relevant_website_sku(
 def read_master_sku_excel_file(
     master_sku_date: DateLike,
     website_sku_fetch_info: WebsiteSkuFetchInfo | None,
+    overwrite: bool = True,
 ) -> MasterSkuInfo:
     """Read the master information excel file."""
 

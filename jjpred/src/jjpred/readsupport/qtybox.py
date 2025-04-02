@@ -57,7 +57,7 @@ class SheetInfo:
         raw_name: str,
         required_name: str,
         data_type: pl.DataType,
-        overwrite: bool = False,
+        overwrite: bool = True,
     ):
         if required_name in self.required_names:
             if not overwrite:
@@ -102,7 +102,7 @@ class InfoPerSheet:
         raw_name: str,
         required_name: str,
         data_type: pl.DataType,
-        overwrite: bool = False,
+        overwrite: bool = True,
     ):
         if sheet_name not in self.meta_infos.keys():
             self.meta_infos[sheet_name] = SheetInfo()
@@ -116,6 +116,7 @@ def read_qty_box(
     analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ):
     """Read qty/box information from the main program file."""
 
@@ -209,6 +210,6 @@ def read_qty_box(
         qty_box_df, on=["category", "size"]
     ).select("sku", "a_sku", "qty_box")
 
-    write_df(True, save_path, qty_box_info)
+    write_df(overwrite, save_path, qty_box_info)
 
     return qty_box_info

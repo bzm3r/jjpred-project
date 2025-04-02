@@ -229,6 +229,7 @@ def read_isr_year_info(
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
     years: int | list[int] | None = None,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     isr_path = gen_isr_year_info_path(years)
 
@@ -242,12 +243,14 @@ def read_isr_year_info(
     raw_isr = read_isr_year_info_raw(raw_isr_date, years)
 
     master_sku_info = MasterSkuInfo.get_master_sku_info(
-        analysis_defn, read_from_disk=read_master_sku_info_from_disk
+        analysis_defn,
+        read_from_disk=read_master_sku_info_from_disk,
+        overwrite=overwrite,
     )
 
     isr_df = process_isr_year_info_raw(master_sku_info, raw_isr)
 
-    write_df(True, isr_path, isr_df)
+    write_df(overwrite, isr_path, isr_df)
 
     return isr_df
 
@@ -269,6 +272,7 @@ def read_isr_from_excel_file_given_meta_info(
     all_sku_info: pl.DataFrame,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     """Read in-stock ratios from the ``All Marketplace by MSKU - InStockRatio``
     file, given required meta-information directly."""
@@ -423,6 +427,6 @@ def read_isr_from_excel_file_given_meta_info(
         + ["date", "in_stock_days", "days_in_month", "in_stock_ratio"]
     )
 
-    write_df(True, isr_path, isr_df)
+    write_df(overwrite, isr_path, isr_df)
 
     return isr_df

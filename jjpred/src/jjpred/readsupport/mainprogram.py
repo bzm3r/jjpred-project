@@ -100,6 +100,7 @@ def read_po(
     | tuple[AnalysisDefn, DateLike],
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     """Read PO data from the main program ``FBA Inventory Opimization Recall
     and Replenish`` file."""
@@ -367,7 +368,7 @@ def read_po(
         raise_error=True,
     )
 
-    write_df(True, per_sku_path, per_sku)
+    write_df(overwrite, per_sku_path, per_sku)
     # write_df(True, per_cat_path, per_cat)
 
     return per_sku
@@ -386,6 +387,7 @@ def read_excel_predictions(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     """Read predicted sales information from the main program ``FBA Inventory
     Opimization Recall and Replenish`` file."""
@@ -556,7 +558,7 @@ def read_excel_predictions(
         nulls_equal=True,
     )
 
-    write_df(True, save_path, result)
+    write_df(overwrite, save_path, result)
 
     return result
 
@@ -575,6 +577,7 @@ def read_current_period_defn(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ):
     """Read current period definitions for each category from the main program
     file (``FBA Inventory Opimization Recall and Replenish``)."""
@@ -684,7 +687,7 @@ def read_current_period_defn(
         [active_sku_info, channel_info], current_period_df
     )
 
-    write_df(True, save_path, current_period_df)
+    write_df(overwrite, save_path, current_period_df)
 
     return current_period_df
 
@@ -693,6 +696,7 @@ def read_qty_box(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ):
     """Read qty/box information from the main program file."""
     save_path = gen_support_info_path(
@@ -771,6 +775,6 @@ def read_qty_box(
         .unique()
     )
 
-    write_df(True, save_path, qty_box_df)
+    write_df(overwrite, save_path, qty_box_df)
 
     return qty_box_df

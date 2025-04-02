@@ -92,6 +92,7 @@ def read_all_po(
     delete_if_exists: bool = False,
     treat_negative_po_as_zero: bool = True,
     treat_negative_po_as_error: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     """Read all PO data from static PO sheets."""
 
@@ -258,7 +259,7 @@ def read_all_po(
             .otherwise(pl.col.sku)
         )
 
-    write_df(True, all_po_per_sku_path, all_po_per_sku)
+    write_df(overwrite, all_po_per_sku_path, all_po_per_sku)
 
     return all_po_per_sku
 
@@ -279,6 +280,7 @@ def read_po(
     | tuple[AnalysisDefn, DateLike],
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     disable_fastexcel_dtypes_logger()
 
@@ -350,6 +352,7 @@ def read_po(
         analysis_defn,
         read_from_disk=read_from_disk,
         delete_if_exists=delete_if_exists,
+        overwrite=overwrite,
     )
 
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
@@ -421,7 +424,7 @@ def read_po(
         raise_error=True,
     )
 
-    write_df(True, po_per_sku_path, po_per_sku)
+    write_df(overwrite, po_per_sku_path, po_per_sku)
 
     return po_per_sku
 
