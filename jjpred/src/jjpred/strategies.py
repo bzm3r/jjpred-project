@@ -15,7 +15,7 @@ from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel
 from jjpred.inputstrategy import (
     InputStrategy,
-    TimePeriod,
+    ContiguousTimePeriod,
     UndeterminedTimePeriod,
 )
 from jjpred.sku import Category
@@ -53,7 +53,7 @@ class StrategyGroup(CategoryGroupProtocol):
     channel: Channel  # strategy groups are specific to a channel we are making a prediction for
     primary_cats: list[Category] = field(compare=False, hash=False)
     current_periods: MultiDict[
-        Category, TimePeriod | UndeterminedTimePeriod
+        Category, ContiguousTimePeriod | UndeterminedTimePeriod
     ] = field(compare=False, hash=False)
     aggregator: Aggregator = field(compare=True, hash=True)
     primary_to_referred: dict[Category, list[Category]] = field(
@@ -211,7 +211,9 @@ class StrategyGroup(CategoryGroupProtocol):
         history_df: pl.DataFrame,
         dispatch_date: Date,
     ) -> HistoricalDfs:
-        history_time_period = TimePeriod.make_history_period(dispatch_date)
+        history_time_period = ContiguousTimePeriod.make_history_period(
+            dispatch_date
+        )
         historical = self.aggregator(
             history_df.filter(
                 pl.col("category").is_in(self.primary_cats),
@@ -409,7 +411,7 @@ class StrategyGroups(CategoryGroups[StrategyGroup]):
         self,
         category: Category,
         current_periods: MultiDict[
-            Category, TimePeriod | UndeterminedTimePeriod
+            Category, ContiguousTimePeriod | UndeterminedTimePeriod
         ],
         aggregator: Aggregator,
     ):

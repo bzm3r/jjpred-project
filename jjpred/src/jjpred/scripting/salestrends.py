@@ -13,7 +13,7 @@ import altair as alt
 
 from jjpred.channel import Channel
 from jjpred.countryflags import CountryFlags
-from jjpred.inputstrategy import TimePeriod
+from jjpred.inputstrategy import ContiguousTimePeriod
 from jjpred.utils.datetime import Date, Month
 from jjpred.utils.polars import struct_filter
 from jjpred.utils.typ import ScalarOrList, normalize_as_list
@@ -83,14 +83,14 @@ def filter_and_aggregate(
     for year in [x for x in valid_years]:
         if end is not None:
             tpoints.extend(
-                TimePeriod(
+                ContiguousTimePeriod(
                     Date.from_ymd(year, start, 1),
                     Date.from_ymd(year, end, 1),
                 ).tpoints
             )
         else:
             tpoints.extend(
-                TimePeriod(
+                ContiguousTimePeriod(
                     Date.from_ymd(year, start, 1),
                     Date.from_ymd(year + 1, Month(1), 1),
                 ).tpoints

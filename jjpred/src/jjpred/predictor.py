@@ -22,7 +22,7 @@ from jjpred.globalvariables import (
     NEW_CATEGORIES,
     OUTPERFORM_FACTOR,
 )
-from jjpred.inputstrategy import TimePeriod
+from jjpred.inputstrategy import ContiguousTimePeriod
 from jjpred.performanceflags import PerformanceFlag
 from jjpred.predictiontypes import PredictionType
 from jjpred.readsupport.utils import cast_standard
@@ -323,14 +323,14 @@ class CurrentPeriodSales:
         result = MultiDict({})
         for categories, monthly_sales in all_monthly_sales.data.items():
             current_period = strategy.current_periods.data[categories]
-            assert isinstance(current_period, TimePeriod)
+            assert isinstance(current_period, ContiguousTimePeriod)
             result.data[categories] = cls(current_period, monthly_sales)
 
         return result
 
     def __init__(
         self,
-        current_period: TimePeriod,
+        current_period: ContiguousTimePeriod,
         monthly_sales: pl.DataFrame,
     ):
         self.monthly_sales = monthly_sales

@@ -28,7 +28,6 @@ from jjpred.utils.datetime import (
     DateOffset,
     DateUnit,
     YearMonthDay,
-    first_day_next_month,
     first_day,
     offset_date,
 )
@@ -154,8 +153,8 @@ class UndeterminedTimePeriod:
     ):
         self.start = Date.from_datelike(start)
 
-    def with_end_date(self, end: DateLike) -> TimePeriod:
-        return TimePeriod(self.start, end)
+    def with_end_date(self, end: DateLike) -> ContiguousTimePeriod:
+        return ContiguousTimePeriod(self.start, end)
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, self.__class__):
@@ -169,10 +168,10 @@ class UndeterminedTimePeriod:
 
 @dataclass
 class HistoryTimePeriod:
-    historical_year: TimePeriod
+    historical_year: ContiguousTimePeriod
     """The historical year whose sales data we use to generate initial monthly
     ratios."""
-    working_year: TimePeriod
+    working_year: ContiguousTimePeriod
     """The working year whose sales data we use to adjust historical year
     monthly ratios."""
     months_missing_from_working_year: list[int] = field(
@@ -180,7 +179,11 @@ class HistoryTimePeriod:
     )
     """Incomplete months from the working year."""
 
-    def __init__(self, historical_year: TimePeriod, working_year: TimePeriod):
+    def __init__(
+        self,
+        historical_year: ContiguousTimePeriod,
+        working_year: ContiguousTimePeriod,
+    ):
         self.historical_year = historical_year
         self.working_year = working_year
         self.months_missing_from_working_year = [
@@ -191,17 +194,16 @@ class HistoryTimePeriod:
 
 
 @total_ordering
-class TimePeriod:
+class ContiguousTimePeriod:
     start: Date
     end: Date
     tpoints: pl.Series
-    """Timepoints making up this time period."""
+    """Timepoints making up this contiguous time period."""
 
     def __init__(
         self,
         start: DateLike,
         end: DateLike,
-        tpoints: pl.Series | None = None,
     ):
         self.start = Date.from_datelike(start).with_day(1)
         self.end = Date.from_datelike(end).with_day(1)
@@ -212,27 +214,22 @@ class TimePeriod:
 
         assert 0 <= (self.end.year - self.start.year) <= 1
         if (self.end.year - self.start.year) > 0:
-            assert (self.end.month - self.start.month) <= 1
+            assert (self.end.month - self.start.month) == 0
 
-        if tpoints is not None:
-            assert tpoints[0] == start
-            assert tpoints[-1] == first_day_next_month(self.end)
-            self.tpoints = tpoints
-        else:
-            self.tpoints = pl.date_range(
-                self.start.date,
-                self.end.date,
-                closed="left",
-                eager=True,
-                interval=str(DateOffset(1, DateUnit.MONTH)),
-            )
+        self.tpoints = pl.date_range(
+            self.start.date,
+            self.end.date,
+            closed="left",
+            eager=True,
+            interval=str(DateOffset(1, DateUnit.MONTH)),
+        )
 
-    def with_end_date(self, end_date: DateLike) -> TimePeriod:
+    def with_end_date(self, end_date: DateLike) -> ContiguousTimePeriod:
         end_date = Date.from_datelike(end_date)
         if self.end == end_date:
             return self
         else:
-            return TimePeriod(self.start, end_date)
+            return ContiguousTimePeriod(self.start, end_date)
 
     @classmethod
     def make_current_period(
@@ -341,7 +338,9 @@ class InputStrategy(PrettyPrint):
 
     channels: list[Channel]
     referred_to_primary_map: dict[Category, Category]
-    current_periods: defaultdict[Category, TimePeriod | UndeterminedTimePeriod]
+    current_periods: defaultdict[
+        Category, ContiguousTimePeriod | UndeterminedTimePeriod
+    ]
     aggregators: defaultdict[Category, Aggregator]
 
     def __pprint_items__(self) -> dict[str, Any]:
@@ -351,8 +350,8 @@ class InputStrategy(PrettyPrint):
         self,
         channel: str | Channel,
         referred_to_primary_map: dict[Category, Category],
-        current: TimePeriod
-        | defaultdict[Category, TimePeriod | UndeterminedTimePeriod],
+        current: ContiguousTimePeriod
+        | defaultdict[Category, ContiguousTimePeriod | UndeterminedTimePeriod],
         per_channel_aggregator_map: Mapping[
             Channel, Aggregator | Mapping[Category, Aggregator]
         ],
