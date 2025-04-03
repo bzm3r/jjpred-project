@@ -499,24 +499,6 @@ def get_checked_category_print_size_info(
         )
     )
 
-    # for x in info_columns:
-    #     if x not in ["season_history_info"]:
-    #         sku_info = sku_info.with_columns(pl.col(x).list.unique().alias(x))
-    #     else:
-    #         unique_info = (
-    #             sku_info.select("id", x).explode(x).unnest(x).unique()
-    #         )
-    #         unique_info = (
-    #             unique_info.select(
-    #                 "id",
-    #                 pl.struct(
-    #                     *[y for y in unique_info.columns if y != "id"]
-    #                 ).alias(x),
-    #             )
-    #             .group_by("id")
-    #             .agg(pl.col(x))
-    #         )
-
     if "season_history" in info_columns:
         sku_info = sku_info.with_columns(
             pl.col.season_history.list.sort(descending=True)
@@ -562,7 +544,9 @@ def get_checked_category_print_history(db: DataBase) -> pl.DataFrame:
         .with_columns(
             print_years=pl.col.print_history.list.eval(
                 pl.element().struct.field("year")
-            ),
+            )
+            .list.unique()
+            .list.sort(),
             print_history=pl.col.print_history.list.eval(
                 pl.concat_str(
                     pl.element().struct.field(x).cast(pl.String())
