@@ -183,6 +183,7 @@ def create_dispatch_info(
     save_path: Path,
     original_dispatch: pl.DataFrame,
     final_dispatch: pl.DataFrame,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
     channel_info = read_meta_info(analysis_defn, "channel")
@@ -414,7 +415,7 @@ def create_dispatch_info(
         + sorted(cs.expand_selector(dispatch_info, cs.contains("dispatch")))
     )
 
-    write_df(True, save_path, dispatch_info)
+    write_df(overwrite, save_path, dispatch_info)
     return dispatch_info
 
 
@@ -423,6 +424,7 @@ def read_dispatch_from_refill_draft(
     read_from_disk: bool = False,
     delete_if_exists: bool = False,
     target_channels: list[str | Channel] = ["amazon.ca", "amazon.com"],
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     save_path = gen_support_info_path(
         analysis_defn,
@@ -460,4 +462,5 @@ def read_dispatch_from_refill_draft(
         save_path,
         original_plan,
         final_dispatch,
+        overwrite=overwrite,
     )

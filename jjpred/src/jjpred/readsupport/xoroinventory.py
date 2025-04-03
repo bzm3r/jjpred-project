@@ -45,6 +45,7 @@ def read_xoro_inv(
     analysis_defn: AnalysisDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ):
     save_path = gen_support_info_path(
         analysis_defn,
@@ -117,6 +118,6 @@ def read_xoro_inv(
     #     .unique()
     # )
 
-    write_df(True, save_path, xoro_inv_df)
+    write_df(overwrite, save_path, xoro_inv_df)
 
     return xoro_inv_df

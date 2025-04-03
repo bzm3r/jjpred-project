@@ -66,6 +66,7 @@ def read_mon_sale_r_params(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ):
     """Read calculation parameter information (e.g. historical year, reference channel, reference category, etc.) from the ``Historic sales and inv`` data for all cats calculation file."""
 
@@ -177,7 +178,7 @@ def read_mon_sale_r_params(
         },
     )
 
-    write_df(True, save_path, calc_params_df)
+    write_df(overwrite, save_path, calc_params_df)
 
     return calc_params_df
 
@@ -186,6 +187,7 @@ def read_demand_ratios(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = True,
     delete_if_exists=False,
+    overwrite: bool = True,
 ):
     """Read demand ratios (monthly ratios) from ``Historic sales and inv`` data for all cats file."""
     save_path = gen_support_info_path(
@@ -289,7 +291,7 @@ def read_demand_ratios(
     monthly_demand_ratio_df = cast_standard(
         [active_sku_info, channel_info], monthly_demand_ratio_df
     )
-    write_df(True, save_path, monthly_demand_ratio_df)
+    write_df(overwrite, save_path, monthly_demand_ratio_df)
 
     return monthly_demand_ratio_df
 
@@ -348,12 +350,14 @@ def read_specific_calc_param_multidict(
     remove_missing: bool = False,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> dict[Channel, MultiDict[str, str]]:
     """Read a specific calculation parameter from the ``Historic sales and inv`` data for all cats file, returning a multi-valued (tuple-valued) dictionary as output."""
     mon_sale_r = read_mon_sale_r_params(
         analysis_defn,
         read_from_disk=read_from_disk,
         delete_if_exists=delete_if_exists,
+        overwrite=overwrite,
     )
     result = {}
     specific_param_df = specific_calc_param.filter(
@@ -390,6 +394,7 @@ def read_specific_calc_param(
     remove_missing: bool = False,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     """Read a specific calculation parameter from the ``Historic sales and inv`` data for all cats file, returning a dataframe as output."""
     return specific_calc_param.filter(
@@ -397,6 +402,7 @@ def read_specific_calc_param(
             analysis_defn,
             read_from_disk=read_from_disk,
             delete_if_exists=delete_if_exists,
+            overwrite=overwrite,
         ),
         additional_filters=additional_filters,
         remove_missing=remove_missing,

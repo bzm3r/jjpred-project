@@ -78,6 +78,7 @@ def read_in_stock_ratios(
     analysis_defn_or_database: AnalysisDefn | DataBase,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     """Read in-stock ratios from the ``All Marketplace by MSKU - InStockRatio``
     file."""
@@ -97,6 +98,7 @@ def read_in_stock_ratios(
         all_sku_info,
         read_from_disk=read_from_disk,
         delete_if_exists=delete_if_exists,
+        overwrite=overwrite,
     )
 
 
@@ -212,7 +214,8 @@ class DataBase:
         self,
         analysis_defn: AnalysisDefn,
         filters: list[StructLike] | None = None,
-        read_from_disk=True,
+        read_from_disk: bool = True,
+        overwrite: bool = True,
     ):
         self.analysis_defn = analysis_defn
 
@@ -224,7 +227,9 @@ class DataBase:
         self.dfs: dict[DataVariant, pl.DataFrame] = dict()
 
         master_sku_result = MasterSkuInfo.get_master_sku_info(
-            self.analysis_defn, read_from_disk=read_from_disk
+            self.analysis_defn,
+            read_from_disk=read_from_disk,
+            overwrite=overwrite,
         )
         self.meta_info = MetaInfo.from_master_sku_result(master_sku_result)
 
@@ -235,7 +240,7 @@ class DataBase:
             success = self.read_saved_dfs()
 
         if not success:
-            self.generate_from_excel()
+            self.generate_from_excel(overwrite=overwrite)
 
         if self.analysis_defn.config_date is not None:
             config_data = read_config(self.analysis_defn)
@@ -243,7 +248,8 @@ class DataBase:
             print(
                 "INFO: resaving meta dfs after updating season information..."
             )
-            self.save_meta_dfs()
+
+            self.save_meta_dfs(overwrite)
 
     def dispatch_date(self) -> Date:
         """Get the dispatch date associated with the ID of this database."""
@@ -287,7 +293,7 @@ class DataBase:
             )
         self.filters = list(set(filters))
 
-    def save_meta_dfs(self, overwrite=True) -> dict[str, Path]:
+    def save_meta_dfs(self, overwrite: bool = True) -> dict[str, Path]:
         """Save meta-information dataframes."""
         paths = {}
         for meta_name in self.meta_info.fields():
@@ -299,7 +305,7 @@ class DataBase:
 
         return paths
 
-    def save_data_dfs(self, overwrite=False) -> dict[DataVariant, Path]:
+    def save_data_dfs(self, overwrite: bool = True) -> dict[DataVariant, Path]:
         """Same primary information data frames."""
         paths: dict[DataVariant, Path] = DataVariant.gen_save_paths(
             self.analysis_defn
@@ -316,11 +322,11 @@ class DataBase:
 
         return paths
 
-    def generate_from_excel(self):
+    def generate_from_excel(self, overwrite: bool = True):
         """Generate from Excel input files."""
         disable_fastexcel_dtypes_logger()
         self.execute_read_from_excel(
-            focus_categories=self.focus_categories,
+            focus_categories=self.focus_categories, overwrite=overwrite
         )
         self.meta_info.date = (
             self.dfs[DataVariant.History]
@@ -341,7 +347,7 @@ class DataBase:
             )
             .drop("month_end_date")
         )
-        self.save_all(True)
+        self.save_all(overwrite)
 
     def filter(self, additional_filters: Sequence[StructLike] | None = None):
         """Filter this database's information based on its existing filters and
@@ -353,7 +359,9 @@ class DataBase:
         for k, df in self.dfs.items():
             self.dfs[k] = struct_filter(df, *self.filters)
 
-    def save_all(self, overwrite=False) -> dict[DataVariant | str, Path]:
+    def save_all(
+        self, overwrite: bool = True
+    ) -> dict[DataVariant | str, Path]:
         """Save meta and primary information dataframes."""
         paths = self.save_data_dfs(overwrite)
         paths |= self.save_meta_dfs(overwrite)
@@ -380,8 +388,7 @@ class DataBase:
         return True
 
     def execute_read_from_excel(
-        self,
-        focus_categories: list[Category],
+        self, focus_categories: list[Category], overwrite: bool = True
     ):
         """Read historical data and channel inventory data from a ``All
         Marketplace All SKU Categories`` file, and warehouse inventory data from
@@ -484,6 +491,7 @@ class DataBase:
                     self.analysis_defn,
                     InventoryType.AUTO,
                     read_from_disk=False,
+                    overwrite=overwrite,
                 )
                 .filter(
                     pl.col.sku.is_in(self.meta_info.all_sku["sku"].unique())
@@ -527,6 +535,7 @@ class DataBase:
                     self.meta_info.active_sku,
                     self.meta_info.all_sku,
                     read_from_disk=False,
+                    overwrite=overwrite,
                 )
             )
         else:

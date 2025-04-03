@@ -27,6 +27,7 @@ def read_inventory(
     inventory_type: InventoryType,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
+    overwrite: bool = True,
 ) -> pl.DataFrame:
     if inventory_type == InventoryType.AUTO:
         try:
@@ -52,10 +53,12 @@ def read_inventory(
                 analysis_defn,
                 read_from_disk=read_from_disk,
                 delete_if_exists=delete_if_exists,
+                overwrite=overwrite,
             )
         case InventoryType.XORO:
             return read_xoro_inv(
                 analysis_defn,
                 read_from_disk=read_from_disk,
                 delete_if_exists=delete_if_exists,
+                overwrite=overwrite,
             )

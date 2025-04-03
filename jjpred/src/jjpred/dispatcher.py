@@ -331,6 +331,7 @@ class Dispatcher:
         predictor: Predictor,
         filters: list[StructLike] | None = [],
         read_from_disk: bool = False,
+        overwrite: bool = True,
     ) -> None:
         analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
         assert isinstance(analysis_defn, RefillDefn)
@@ -345,7 +346,7 @@ class Dispatcher:
         self.config_data = read_config(analysis_defn)
         # read qty/box information
         self.qty_box_info = read_qty_box(
-            analysis_defn, read_from_disk=read_from_disk
+            analysis_defn, read_from_disk=read_from_disk, overwrite=overwrite
         )
         # parse the given focus channels as Channels
         self.dispatch_channels = list(
