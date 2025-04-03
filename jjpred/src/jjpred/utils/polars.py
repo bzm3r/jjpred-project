@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum, IntFlag
 from functools import reduce
+from operator import xor
 from pathlib import Path
 import sys
 from typing import (
@@ -660,9 +661,11 @@ def compare_dfs_for_differences(
         df.join(other_df, on=index_cols, how="full", suffix=suffix)
         .with_columns(
             (
-                ~pl.col(x).is_null()
-                & ~pl.col(f"{x}{suffix}").is_null()
-                & pl.col(x).eq(pl.col(f"{x}{suffix}"))
+                ~(pl.col(x).is_null().xor(pl.col(f"{x}{suffix}").is_null()))
+                & (
+                    pl.col(x).eq(pl.col(f"{x}{suffix}"))
+                    | (pl.col(x).is_null() & pl.col(f"{x}{suffix}").is_null())
+                )
             ).alias(f"{x}_same")
             for x in df.columns
         )

@@ -248,6 +248,7 @@ class DataBase:
             print(
                 "INFO: resaving meta dfs after updating season information..."
             )
+
             self.save_meta_dfs(overwrite)
 
     def dispatch_date(self) -> Date:

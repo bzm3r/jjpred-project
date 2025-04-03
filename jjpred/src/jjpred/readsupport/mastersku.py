@@ -168,32 +168,32 @@ plotting."""
                 analysis_defn, delete_if_exists
             )
 
-        if master_sku_info is not None:
-            return master_sku_info
-        else:
-            website_sku_date = analysis_defn.get_website_sku_date()
-            if website_sku_date is not None:
-                website_sku_fetch_info = WebsiteSkuFetchInfo(
-                    website_sku_date,
-                    read_inventory(
-                        analysis_defn,
-                        InventoryType.AUTO,
-                        read_from_disk=read_from_disk,
-                        delete_if_exists=delete_if_exists,
-                        overwrite=overwrite,
-                    ),
-                )
-            else:
-                website_sku_fetch_info = None
+            if master_sku_info is not None:
+                return master_sku_info
 
-            master_sku_info = read_master_sku_excel_file(
-                analysis_defn.master_sku_date,
-                website_sku_fetch_info,
+        website_sku_date = analysis_defn.get_website_sku_date()
+        if website_sku_date is not None:
+            website_sku_fetch_info = WebsiteSkuFetchInfo(
+                website_sku_date,
+                read_inventory(
+                    analysis_defn,
+                    InventoryType.AUTO,
+                    read_from_disk=read_from_disk,
+                    delete_if_exists=delete_if_exists,
+                    overwrite=overwrite,
+                ),
             )
+        else:
+            website_sku_fetch_info = None
 
-            master_sku_info.write_to_disk(analysis_defn, overwrite=overwrite)
+        master_sku_info = read_master_sku_excel_file(
+            analysis_defn.master_sku_date,
+            website_sku_fetch_info,
+        )
 
-            return master_sku_info
+        master_sku_info.write_to_disk(analysis_defn, overwrite=overwrite)
+
+        return master_sku_info
 
 
 def filter_m_and_u_types(all_sku_info: pl.DataFrame) -> pl.DataFrame:
