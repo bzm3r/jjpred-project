@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import UserList
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from enum import auto
+from enum import auto, unique
 import re
 from typing import (
     Any,
@@ -202,55 +202,70 @@ class ChannelMatcher(ReMatcher):
 class PlatformAttrs(NamedTuple):
     """Various meta information associated with a platform."""
 
+    ix: int
     country_info: PossibleCountries | FixedCountries
     distribution_mode: DistributionMode
 
 
+@unique
 class Platform(PlatformAttrs, EnumLike):
     """A platform represents a group of related channels. For example: "Amazon"
     or "HongMall"."""
 
     Amazon = (
-        PossibleCountries([x for x in CountryFlags]),
+        auto(),
+        PossibleCountries(
+            [x for x in CountryFlags if x != CountryFlags.GlobalUS]
+        ),
         DistributionMode.RETAIL,
     )
     Faire = (
+        auto(),
         FixedCountries(CountryFlags.US),
         DistributionMode.WHOLESALE,
     )
     HongMall = (
+        auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.US]),
         DistributionMode.RETAIL,
     )
     JanAndJul = (
+        auto(),
         FixedCountries(CountryFlags.CA | CountryFlags.US),
         DistributionMode.RETAIL,
     )
     PopUp = (
+        auto(),
         FixedCountries(CountryFlags.CA),
         DistributionMode.RETAIL,
     )
     Bay = (
+        auto(),
         FixedCountries(CountryFlags.CA),
         DistributionMode.RETAIL,
     )
     Walmart = (
+        auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.US]),
         DistributionMode.RETAIL,
     )
     Warehouse = (
+        auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.CN]),
         DistributionMode.WAREHOUSE,
     )
     Wholesale = (
+        auto(),
         FixedCountries(CountryFlags.all_regions()),
         DistributionMode.WHOLESALE,
     )
     XiaoHongShu = (
+        auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.US, CountryFlags.CN]),
         DistributionMode.RETAIL,
     )
     AllChannels = (
+        auto(),
         FixedCountries(CountryFlags.all_regions() | CountryFlags.GlobalUS),
         DistributionMode.NO_MODE,
     )
@@ -319,7 +334,11 @@ def create_amazon(country_flag: CountryFlags) -> ChannelDictType:
         country_flag
     )
     return RawChannel(
-        Platform.Amazon, country_flag, DistributionMode.RETAIL
+        Platform.Amazon,
+        country_flag
+        if country_flag != CountryFlags.GlobalUS
+        else CountryFlags(0),
+        DistributionMode.RETAIL,
     ).as_dict()
 
 
@@ -333,7 +352,9 @@ def create_janandjul(
         country_flag = country_info.fixed
 
     return RawChannel(
-        Platform.Amazon, country_flag, DistributionMode.RETAIL
+        Platform.JanAndJul,
+        country_flag,
+        DistributionMode.RETAIL,
     ).as_dict()
 
 
