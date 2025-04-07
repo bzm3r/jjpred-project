@@ -275,6 +275,55 @@ def relevant_year_per_season_tag(
     )
 
 
+def rename_25SS_gra_to_asg_for_hca0_hcb0(
+    active_sku_info: pl.DataFrame, df: pl.DataFrame
+) -> pl.DataFrame:
+    return cast_standard(
+        [active_sku_info],
+        df.with_columns(
+            print=pl.when(
+                pl.col.print.eq("GRA")
+                & pl.col.category.is_in(["HCA0", "HCB0"])
+                & pl.col.po_year.eq(2025)
+            )
+            .then(pl.lit("ASG"))
+            .otherwise(pl.col.print),
+            sku=pl.when(
+                pl.col.print.eq("GRA")
+                & pl.col.category.is_in(["HCA0", "HCB0"])
+                & pl.col.po_year.eq(2025)
+            )
+            .then(
+                pl.concat_str(
+                    [
+                        pl.col.category.cast(pl.String()),
+                        pl.lit("ASG"),
+                        pl.col.size.cast(pl.String()),
+                    ],
+                    separator="-",
+                )
+            )
+            .otherwise(pl.col.sku),
+            a_sku=pl.when(
+                pl.col.print.eq("GRA")
+                & pl.col.category.is_in(["HCA0", "HCB0"])
+                & pl.col.po_year.eq(2025)
+            )
+            .then(
+                pl.concat_str(
+                    [
+                        pl.col.category.cast(pl.String()),
+                        pl.lit("ASG"),
+                        pl.col.size.cast(pl.String()),
+                    ],
+                    separator="-",
+                )
+            )
+            .otherwise(pl.col.a_sku),
+        ),
+    )
+
+
 def read_po(
     analysis_defn_and_dispatch_date: RefillDefn
     | tuple[AnalysisDefn, DateLike],
@@ -346,7 +395,9 @@ def read_po(
         # per_cat = delete_or_read_df(delete_if_exists, per_cat_path)
 
         if po_per_sku is not None:  # and per_cat is not None:
-            return po_per_sku
+            return rename_25SS_gra_to_asg_for_hca0_hcb0(
+                read_meta_info(analysis_defn, "active_sku"), po_per_sku
+            )
 
     all_po_per_sku = read_all_po(
         analysis_defn,
@@ -426,7 +477,7 @@ def read_po(
 
     write_df(overwrite, po_per_sku_path, po_per_sku)
 
-    return po_per_sku
+    return rename_25SS_gra_to_asg_for_hca0_hcb0(active_sku_info, po_per_sku)
 
 
 class PredictedDemandData(NamedTuple):
