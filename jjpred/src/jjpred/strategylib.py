@@ -194,7 +194,7 @@ REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
 PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
     Channel, Mapping[Category, Aggregator] | Aggregator
 ] = {
-    Channel.parse("Amazon US RETAIL"): MultiDict(
+    Channel.parse("Amazon US"): MultiDict(
         data={
             (
                 "XBK",
@@ -212,13 +212,13 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
             ("FMR", "KEH", "BSW", "BSA", "BRC", "KMT"): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
-    Channel.parse("Wholesale ALL_REGION WHOLESALE"): MultiDict(
+    Channel.parse("Wholesale"): MultiDict(
         data={
             ("XBM", "LBS", "FPM", "BCV"): ALL_CHANNEL_AGGREGATOR,
             ("UST", "HBU", "HLC", "HXC", "HXU", "HXP"): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
-    Channel.parse("Amazon UK RETAIL"): MultiDict(
+    Channel.parse("Amazon UK"): MultiDict(
         data={
             (
                 "AJA",
@@ -302,8 +302,8 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
             ): AMAZON_CA_AGGREGATOR
         }
     ).as_dict(),
-    Channel.parse("JanAndJul CA|US RETAIL"): ALL_CAN_US_RETAIL_AGGREGATOR,
-    Channel.parse("Amazon DE RETAIL"): MultiDict(
+    Channel.parse("janandjul.com"): ALL_CAN_US_RETAIL_AGGREGATOR,
+    Channel.parse("Amazon DE"): MultiDict(
         data={
             (
                 "AJA",
@@ -387,7 +387,7 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
             ): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
-    Channel.parse("Amazon CA RETAIL"): MultiDict(
+    Channel.parse("Amazon CA"): MultiDict(
         data={
             (
                 "XBK",
