@@ -11,6 +11,7 @@ from functools import total_ordering
 from typing import Self
 
 from jjpred.inputstrategy import RefillType
+from jjpred.analysisconfig import RefillConfigInfo
 from jjpred.scripting.dateoffset import (
     determine_main_program_compatible_start_end_dates,
 )
@@ -342,6 +343,15 @@ class RefillDefn(AnalysisDefn):
     warehouse_min_keep_qty: int = field(default=12)
     """Minimum quantity to keep in the warehouse for this dispatch."""
 
+    extra_refill_config_info: list[RefillConfigInfo] = field(
+        default_factory=lambda: []
+    )
+    """Additional refill config info, apart from what might be given in the main
+    marketing config file."""
+
+    combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
+    """Whether HCA0 GRA and HCA0 ASG should be combined in history."""
+
     def __init__(
         self,
         refill_description: str,
@@ -369,6 +379,8 @@ class RefillDefn(AnalysisDefn):
         extra_descriptor: str | None = None,
         warehouse_min_keep_qty: int = 12,
         dispatch_cutoff_qty: int = 2,
+        extra_refill_config_info: list[RefillConfigInfo] = [],
+        combine_hca0_hcb0_gra_asg_history: bool = False,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -417,6 +429,12 @@ class RefillDefn(AnalysisDefn):
         )
 
         self.jjweb_reserve_to_date = jjweb_reserve_to_date
+
+        self.extra_refill_config_info = extra_refill_config_info
+
+        self.combine_hca0_hcb0_gra_asg_history = (
+            combine_hca0_hcb0_gra_asg_history
+        )
 
         super().__init__(
             refill_description,
@@ -518,6 +536,8 @@ class FbaRevDefn(RefillDefn):
         warehouse_min_keep_qty: int = 12,
         dispatch_cutoff_qty: int = 2,
         extra_descriptor: str | None = None,
+        extra_refill_config_info: list[RefillConfigInfo] = [],
+        combine_hca0_hcb0_gra_asg_history: bool = False,
     ):
         self.refill_type = refill_type
 
@@ -588,6 +608,8 @@ class FbaRevDefn(RefillDefn):
             extra_descriptor=extra_descriptor,
             warehouse_min_keep_qty=warehouse_min_keep_qty,
             dispatch_cutoff_qty=dispatch_cutoff_qty,
+            extra_refill_config_info=extra_refill_config_info,
+            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
         )
 
     @classmethod
@@ -613,6 +635,8 @@ class FbaRevDefn(RefillDefn):
         enable_full_box_logic: bool = True,
         enable_low_current_period_isr_logic: bool = False,
         match_main_program_month_fractions: bool = True,
+        extra_refill_config_info: list[RefillConfigInfo] = [],
+        combine_hca0_hcb0_gra_asg_history: bool = False,
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
         compare against a real analysis.
@@ -654,6 +678,8 @@ class FbaRevDefn(RefillDefn):
             demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
             match_main_program_month_fractions=match_main_program_month_fractions,
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
+            extra_refill_config_info=extra_refill_config_info,
+            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
         )
 
     def _get_date(self, date_name: str) -> Date:
@@ -706,6 +732,8 @@ class JJWebDefn(RefillDefn):
         demand_ratio_rolling_update_to: DateLike | None = None,
         enable_low_current_period_isr_logic: bool = True,
         extra_descriptor: str | None = None,
+        extra_refill_config_info: list[RefillConfigInfo] = [],
+        combine_hca0_hcb0_gra_asg_history: bool = False,
     ):
         self.website_proportions_split_date = Date.from_datelike(
             proportion_split_date
@@ -735,4 +763,6 @@ class JJWebDefn(RefillDefn):
             extra_descriptor=extra_descriptor,
             warehouse_min_keep_qty=12,
             dispatch_cutoff_qty=0,
+            extra_refill_config_info=extra_refill_config_info,
+            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
         )

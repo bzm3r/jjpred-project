@@ -214,7 +214,7 @@ class ContiguousTimePeriod:
 
         assert 0 <= (self.end.year - self.start.year) <= 1
         if (self.end.year - self.start.year) > 0:
-            assert (self.end.month - self.start.month) == 0
+            assert (self.end.month - self.start.month) <= 0
 
         self.tpoints = pl.date_range(
             self.start.date,
