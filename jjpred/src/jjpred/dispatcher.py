@@ -634,7 +634,6 @@ class Dispatcher:
             required_gt_supply=(
                 ~(
                     pl.col("total_required").eq(0)
-                    | pl.col("wh_dispatchable").eq(0)
                     | pl.col("total_required").le(pl.col("wh_dispatchable"))
                 )
             )
