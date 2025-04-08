@@ -563,7 +563,7 @@ class DataBase:
                         .join(
                             self.meta_info.active_sku.filter(
                                 pl.col.sku.cast(pl.String()).str.starts_with(
-                                    "HCA0-ASG"
+                                    f"{category}-{ref}"
                                 )
                             )
                             .select("a_sku", "size")
@@ -571,7 +571,7 @@ class DataBase:
                                 self.meta_info.active_sku.filter(
                                     pl.col.sku.cast(
                                         pl.String()
-                                    ).str.starts_with("HCA0-GRA")
+                                    ).str.starts_with(f"{category}-{target}")
                                 ).select("a_sku", "size"),
                                 on="size",
                                 suffix="_target",
@@ -580,75 +580,9 @@ class DataBase:
                             on=["a_sku"],
                         )
                         .with_columns(a_sku=pl.col.a_sku_target)
-                        .drop("a_sku_target"),
-                        self.dfs[DataVariant.History]
-                        .join(
-                            self.meta_info.active_sku.filter(
-                                pl.col.sku.cast(pl.String()).str.starts_with(
-                                    "HCA0-GRA"
-                                )
-                            )
-                            .select("a_sku", "size")
-                            .join(
-                                self.meta_info.active_sku.filter(
-                                    pl.col.sku.cast(
-                                        pl.String()
-                                    ).str.starts_with("HCA0-ASG")
-                                ).select("a_sku", "size"),
-                                on="size",
-                                suffix="_target",
-                            )
-                            .drop("size"),
-                            on=["a_sku"],
-                        )
-                        .with_columns(a_sku=pl.col.a_sku_target)
-                        .drop("a_sku_target"),
-                    ]
-                    + [
-                        self.dfs[DataVariant.History]
-                        .join(
-                            self.meta_info.active_sku.filter(
-                                pl.col.sku.cast(pl.String()).str.starts_with(
-                                    "HCB0-ASG"
-                                )
-                            )
-                            .select("a_sku", "size")
-                            .join(
-                                self.meta_info.active_sku.filter(
-                                    pl.col.sku.cast(
-                                        pl.String()
-                                    ).str.starts_with("HCB0-GRA")
-                                ).select("a_sku", "size"),
-                                on="size",
-                                suffix="_target",
-                            )
-                            .drop("size"),
-                            on=["a_sku"],
-                        )
-                        .with_columns(a_sku=pl.col.a_sku_target)
-                        .drop("a_sku_target"),
-                        self.dfs[DataVariant.History]
-                        .join(
-                            self.meta_info.active_sku.filter(
-                                pl.col.sku.cast(pl.String()).str.starts_with(
-                                    "HCB0-GRA"
-                                )
-                            )
-                            .select("a_sku", "size")
-                            .join(
-                                self.meta_info.active_sku.filter(
-                                    pl.col.sku.cast(
-                                        pl.String()
-                                    ).str.starts_with("HCB0-ASG")
-                                ).select("a_sku", "size"),
-                                on="size",
-                                suffix="_target",
-                            )
-                            .drop("size"),
-                            on=["a_sku"],
-                        )
-                        .with_columns(a_sku=pl.col.a_sku_target)
-                        .drop("a_sku_target"),
+                        .drop("a_sku_target")
+                        for (ref, target) in [("ASG", "GRA"), ("GRA", "ASG")]
+                        for category in ["HCA0", "HCB0"]
                     ]
                 )
                 .group_by(
