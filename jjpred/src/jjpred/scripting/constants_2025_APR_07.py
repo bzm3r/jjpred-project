@@ -7,23 +7,25 @@ from jjpred.inputstrategy import RefillType
 
 import polars as pl
 
-from jjpred.analysisconfig import RefillConfigInfo
+from jjpred.analysisconfig import AdjustHistorySkuInfo, RefillConfigInfo
 
-analysis_date = "2025-APR-01"
-dispatch_date = "2025-APR-01"
-master_sku_date = "2025-APR-01"
-sales_and_inventory_date = "2025-APR-01"
-warehouse_inventory_date = "2025-APR-01"
+analysis_date = "2025-APR-07"
+dispatch_date = "2025-APR-07"
+master_sku_date = "2025-APR-07"
+sales_and_inventory_date = "2025-APR-07"
+warehouse_inventory_date = "2025-APR-07"
 website_sku_date = "2025-MAR-18"
-config_date = "2025-FEB-25"
+config_date = "2025-APR-07"
 in_stock_ratio_date = "2025-APR-01"
 prediction_type_meta_date = None
 check_dispatch_date = False
 mainprogram_date = None  # "2025-FEB-25"
 refill_draft_date = None  # "2025-FEB-25"
+
 extra_refill_config_info: list[RefillConfigInfo] = [
     RefillConfigInfo(["amazon.ca", "amazon.com"], 5, "HCA0-SND-S")
 ]
+combine_hca0_hcb0_gra_asg_history: bool = True
 
 analysis_defn = FbaRevDefn(
     analysis_date=analysis_date,
@@ -43,6 +45,7 @@ analysis_defn = FbaRevDefn(
     match_main_program_month_fractions=True,
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
+    combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
 )
 
 analysis_defn_website_reserved = FbaRevDefn(
@@ -83,6 +86,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     check_dispatch_date=check_dispatch_date,
     extra_descriptor="_website_reserved",
     extra_refill_config_info=extra_refill_config_info,
+    combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
 )
 
 # analysis_defn_main = copy.deepcopy(analysis_defn)
@@ -108,6 +112,7 @@ jjweb_analysis_defn = JJWebDefn(
     proportion_split_date="2025-FEB-13",
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
+    combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
 )
 
 

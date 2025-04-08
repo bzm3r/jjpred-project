@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import field
+import copy
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple, Self
 from jjpred.analysisdefn import AnalysisDefn
@@ -14,7 +15,8 @@ from jjpred.parse.patternmatch import (
     PatternMatcher,
 )
 from jjpred.readsupport.utils import cast_standard, parse_channels
-from jjpred.sku import Sku
+from jjpred.analysisconfig import RefillConfigInfo
+from jjpred.sku import SKU_CATEGORY_PRINT_SIZE_REMAINDER, Sku
 from jjpred.structlike import FieldMeta, MemberType, StructLike
 from jjpred.utils.datetime import Date, DateLike
 import polars as pl
@@ -23,9 +25,15 @@ import polars.selectors as cs
 from jjpred.utils.fileio import read_meta_info
 from jjpred.utils.polars import (
     binary_partition_strict,
+    concat_enum_extend_vstack_strict,
+    find_dupes,
     sanitize_excel_extraction,
 )
-from jjpred.utils.typ import ScalarOrList, create_assert_result, do_nothing
+from jjpred.utils.typ import (
+    ScalarOrList,
+    create_assert_result,
+    do_nothing,
+)
 
 
 def gen_config_path(analysis_input_folder: Path, date: DateLike) -> Path:
@@ -194,7 +202,8 @@ class RefillParams(
         return super().__hash__()
 
 
-class ConfigData(NamedTuple):
+@dataclass
+class ConfigData:
     """Configuration data read from the marketing configuration file."""
 
     refill: pl.DataFrame
@@ -208,6 +217,54 @@ class ConfigData(NamedTuple):
     """Configured category season.
 
     This can affect the prediction type (E vs. PO based) for items."""
+
+    def extra_refill_info(
+        self,
+        active_sku_info: pl.DataFrame,
+        extra_refill_info: list[RefillConfigInfo],
+    ) -> Self:
+        if len(extra_refill_info) > 0:
+            result = copy.deepcopy(self)
+            extra_refill_df = cast_standard(
+                [active_sku_info],
+                parse_channels(
+                    pl.from_dicts(
+                        [x.as_dict() for x in extra_refill_info]
+                    ).explode("channel")
+                ).drop("raw_channel", "channel"),
+            ).join(
+                active_sku_info.select(
+                    "sku", "a_sku", *SKU_CATEGORY_PRINT_SIZE_REMAINDER
+                ),
+                on=["sku"],
+                how="left",
+            )
+            assert len(extra_refill_df.filter(pl.col.category.is_null())) == 0
+
+            new_refill_df = concat_enum_extend_vstack_strict(
+                [
+                    result.refill.filter(
+                        ~pl.struct("sku", *Channel.members()).is_in(
+                            extra_refill_df.select(
+                                pl.struct("sku", *Channel.members()).alias(
+                                    "id"
+                                )
+                            )["id"]
+                        )
+                    ),
+                    extra_refill_df,
+                ]
+            )
+
+            find_dupes(
+                new_refill_df, ["sku"] + Channel.members(), raise_error=True
+            )
+
+            result.refill = new_refill_df
+
+            return result
+
+        return self
 
     @classmethod
     def create(

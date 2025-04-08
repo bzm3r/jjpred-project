@@ -46,6 +46,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
+    concat_enum_extend_vstack_strict,
     vstack_to_unified,
     struct_filter,
 )
@@ -542,6 +543,119 @@ class DataBase:
             raise ValueError(f"{self.analysis_defn.in_stock_ratio_date=}")
 
         self.dfs, channel_meta = standardize_channel_info(self.dfs)
+
+        combine_hca0_hcb0_gra_asg_history = (
+            self.analysis_defn.get_field_if_available(
+                "combine_hca0_hcb0_gra_asg_history", bool
+            )
+        )
+        if combine_hca0_hcb0_gra_asg_history is None:
+            combine_hca0_hcb0_gra_asg_history = False
+
+        if combine_hca0_hcb0_gra_asg_history:
+            self.dfs[DataVariant.History] = (
+                concat_enum_extend_vstack_strict(
+                    [
+                        self.dfs[DataVariant.History],
+                    ]
+                    + [
+                        self.dfs[DataVariant.History]
+                        .join(
+                            self.meta_info.active_sku.filter(
+                                pl.col.sku.cast(pl.String()).str.starts_with(
+                                    "HCA0-ASG"
+                                )
+                            )
+                            .select("a_sku", "size")
+                            .join(
+                                self.meta_info.active_sku.filter(
+                                    pl.col.sku.cast(
+                                        pl.String()
+                                    ).str.starts_with("HCA0-GRA")
+                                ).select("a_sku", "size"),
+                                on="size",
+                                suffix="_target",
+                            )
+                            .drop("size"),
+                            on=["a_sku"],
+                        )
+                        .with_columns(a_sku=pl.col.a_sku_target)
+                        .drop("a_sku_target"),
+                        self.dfs[DataVariant.History]
+                        .join(
+                            self.meta_info.active_sku.filter(
+                                pl.col.sku.cast(pl.String()).str.starts_with(
+                                    "HCA0-GRA"
+                                )
+                            )
+                            .select("a_sku", "size")
+                            .join(
+                                self.meta_info.active_sku.filter(
+                                    pl.col.sku.cast(
+                                        pl.String()
+                                    ).str.starts_with("HCA0-ASG")
+                                ).select("a_sku", "size"),
+                                on="size",
+                                suffix="_target",
+                            )
+                            .drop("size"),
+                            on=["a_sku"],
+                        )
+                        .with_columns(a_sku=pl.col.a_sku_target)
+                        .drop("a_sku_target"),
+                    ]
+                    + [
+                        self.dfs[DataVariant.History]
+                        .join(
+                            self.meta_info.active_sku.filter(
+                                pl.col.sku.cast(pl.String()).str.starts_with(
+                                    "HCB0-ASG"
+                                )
+                            )
+                            .select("a_sku", "size")
+                            .join(
+                                self.meta_info.active_sku.filter(
+                                    pl.col.sku.cast(
+                                        pl.String()
+                                    ).str.starts_with("HCB0-GRA")
+                                ).select("a_sku", "size"),
+                                on="size",
+                                suffix="_target",
+                            )
+                            .drop("size"),
+                            on=["a_sku"],
+                        )
+                        .with_columns(a_sku=pl.col.a_sku_target)
+                        .drop("a_sku_target"),
+                        self.dfs[DataVariant.History]
+                        .join(
+                            self.meta_info.active_sku.filter(
+                                pl.col.sku.cast(pl.String()).str.starts_with(
+                                    "HCB0-GRA"
+                                )
+                            )
+                            .select("a_sku", "size")
+                            .join(
+                                self.meta_info.active_sku.filter(
+                                    pl.col.sku.cast(
+                                        pl.String()
+                                    ).str.starts_with("HCB0-ASG")
+                                ).select("a_sku", "size"),
+                                on="size",
+                                suffix="_target",
+                            )
+                            .drop("size"),
+                            on=["a_sku"],
+                        )
+                        .with_columns(a_sku=pl.col.a_sku_target)
+                        .drop("a_sku_target"),
+                    ]
+                )
+                .group_by(
+                    "a_sku", "date", "category", "channel", *Channel.members()
+                )
+                .agg(pl.col.sales.sum())
+            )
 
         self.meta_info.channel = channel_meta
 

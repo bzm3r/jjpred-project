@@ -343,7 +343,11 @@ class Dispatcher:
         # data is attached to the output dataframe
         # (see attach_refill_info_from_config)
         # (see attach_inventory_info)
-        self.config_data = read_config(analysis_defn)
+
+        self.config_data = read_config(analysis_defn).extra_refill_info(
+            db.meta_info.active_sku, analysis_defn.extra_refill_config_info
+        )
+
         # read qty/box information
         self.qty_box_info = read_qty_box(
             analysis_defn, read_from_disk=read_from_disk, overwrite=overwrite

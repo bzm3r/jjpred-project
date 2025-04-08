@@ -183,6 +183,7 @@ REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
         ("HLC", "HXC", "HXU"): "HXP",
         ("HJS", "AJS", "ACB", "ACA", "AAA", "HLH"): "HCF0",
         ("SPW", "SJF"): "SKB",
+        ("BSL",): "BSA",
     }
 )
 """Reference category definitions for SKUs, determined from historical
@@ -302,45 +303,6 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
         }
     ).as_dict(),
     Channel.parse("JanAndJul CA|US RETAIL"): ALL_CAN_US_RETAIL_AGGREGATOR,
-    # Channel.parse("JanAndJul CA|US RETAIL"): MultiDict(
-    #     data={
-    #         (
-    #             "XBK",
-    #             "XBM",
-    #             "LBS",
-    #             "FPM",
-    #             "BCV",
-    #             "UT1",
-    #             "USA",
-    #             "UG1",
-    #             "UJ1",
-    #             "UV2",
-    #         ): ALL_CAN_US_RETAIL_AGGREGATOR,
-    #         (
-    #             "FMR",
-    #             "KEH",
-    #             "WSF",
-    #             "BSW",
-    #             "BSA",
-    #             "BRC",
-    #             "BTB",
-    #             "KMT",
-    #             "WMT",
-    #             "WSS",
-    #             "UST",
-    #             "HBU",
-    #             "HLC",
-    #             "HXC",
-    #             "HXU",
-    #             "HXP",
-    #             "GUX",
-    #             "HBS",
-    #             "SKG",
-    #             "SPW",
-    #             "SJF",
-    #         ): AMAZON_CA_AGGREGATOR,
-    #     }
-    # ).as_dict(),
     Channel.parse("Amazon DE RETAIL"): MultiDict(
         data={
             (
