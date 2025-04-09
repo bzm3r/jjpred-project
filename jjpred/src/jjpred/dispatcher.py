@@ -146,40 +146,29 @@ def calculate_reserved_quantity(
     assert isinstance(db.analysis_defn, RefillDefn)
     find_dupes(db.meta_info.active_sku, ["sku", "a_sku"], raise_error=True)
 
-    website_demand = (
-        predictor.predict_demand(
-            ["janandjul.com"],
-            db.analysis_defn.dispatch_date,
-            reserve_info.reserve_to_date,
-            force_po_prediction=True,
-            aggregate_final_result=False,
-        ).join(
-            db.meta_info.active_sku.select(
-                "a_sku",
-                "sku",
-                "category",
-                "season",
-                "sku_year_history",
-                "sku_latest_po_season",
-            ),
-            on=["a_sku", "sku"],
-        )
-        # .with_columns(
-        #     # analysis_season=pl.col.date.dt.month().map_elements(
-        #     #     season_given_month, return_dtype=all_sku_info["season"].dtype
-        #     # ),
-        #     # analysis_month=pl.lit(int(analysis_defn.dispatch_date.month)),
-        #     analysis_year=pl.lit(
-        #         int(db.analysis_defn.dispatch_date.year - 2000)
-        #     ),
-        # )
+    reserve_demand = predictor.predict_demand(
+        ["janandjul.com"],
+        db.analysis_defn.dispatch_date,
+        reserve_info.reserve_to_date,
+        force_po_prediction=reserve_info.force_po_prediction,
+        aggregate_final_result=False,
+    ).join(
+        db.meta_info.active_sku.select(
+            "a_sku",
+            "sku",
+            "category",
+            "season",
+            "sku_year_history",
+            "sku_latest_po_season",
+        ),
+        on=["a_sku", "sku"],
     )
 
     if reserve_info.polars_filter is not None:
-        website_demand = website_demand.filter(reserve_info.polars_filter)
+        reserve_demand = reserve_demand.filter(reserve_info.polars_filter)
 
     reserve_seasons = (
-        website_demand.select("date")
+        reserve_demand.select("date")
         .unique()
         .with_columns(
             reserve_season=pl.col.date.dt.month()
@@ -195,8 +184,8 @@ def calculate_reserved_quantity(
         reserve_seasons.filter(pl.col.reserve_season.is_null())
     )
 
-    website_demand = (
-        website_demand.join(
+    reserve_demand = (
+        reserve_demand.join(
             reserve_seasons,
             on=["date"],
             how="left",
@@ -234,8 +223,8 @@ def calculate_reserved_quantity(
         )
     )
 
-    website_demand = (
-        website_demand.group_by(["sku", "a_sku"] + Channel.members())
+    reserve_demand = (
+        reserve_demand.group_by(["sku", "a_sku"] + Channel.members())
         .agg(
             pl.col.date,
             pl.col.date.len().alias("prediction_parts"),
@@ -266,7 +255,7 @@ def calculate_reserved_quantity(
         )
     )
 
-    return website_demand
+    return reserve_demand
 
 
 def calculate_reserved_quantity_per_reservation_info(

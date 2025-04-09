@@ -275,6 +275,7 @@ class OutperformerSettings:
 class ReservationInfo:
     polars_filter: pl.Expr | None
     reserve_to_date: Date
+    force_po_prediction: bool = field(default=True)
 
     def __init__(
         self, polars_filter: pl.Expr | None, reserve_to_date: DateLike
