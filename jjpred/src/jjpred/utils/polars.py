@@ -5,7 +5,6 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import Enum, IntFlag
 from functools import reduce
-from operator import xor
 from pathlib import Path
 import sys
 from typing import (
@@ -116,7 +115,9 @@ def check_is_df(x: Any) -> pl.DataFrame:
 
 
 def enum_extend_vstack(
-    df: pl.DataFrame | None, other_df: pl.DataFrame
+    df: pl.DataFrame | None,
+    other_df: pl.DataFrame,
+    coerce_dtypes: bool = False,
 ) -> pl.DataFrame:
     """
     Vertically stack two dataframes, ensuring that the enum types for their
@@ -150,7 +151,12 @@ def enum_extend_vstack(
                         {column: pl.Enum(combined_categories)}
                     )
 
-        return df.vstack(other_df.select(df.columns))
+        if not coerce_dtypes:
+            how = "vertical"
+        else:
+            how = "vertical_relaxed"
+
+        return pl.concat([df, other_df.select(df.columns)], how=how)
 
 
 def concat_enum_extend_vstack(dfs: list[pl.DataFrame]) -> pl.DataFrame | None:
@@ -158,9 +164,13 @@ def concat_enum_extend_vstack(dfs: list[pl.DataFrame]) -> pl.DataFrame | None:
 
 
 def concat_enum_extend_vstack_strict(
-    dfs: list[pl.DataFrame],
+    dfs: list[pl.DataFrame], coerce_dtypes: bool = False
 ) -> pl.DataFrame:
-    result = reduce(enum_extend_vstack, dfs, None)
+    result = reduce(
+        lambda x, y: enum_extend_vstack(x, y, coerce_dtypes=coerce_dtypes),
+        dfs,
+        None,
+    )
     assert result is not None
 
     return result.rechunk()
