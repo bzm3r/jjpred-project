@@ -467,13 +467,15 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             Platform.JJWeb,
             CountryFlags.CA,
             DistributionMode.RETAIL,
-            sub_country=SubCountry.EAST,
+            sub_country=SubCountry.WEST,
         ).as_dict(),
         (
             "pop-up shop",
             "vancouver showroom",
             "surrey showroom",
             "richmond showroom",
+            "surrey shop",
+            "richmond shop",
         ): RawChannel(
             Platform.JJPhysical,
             CountryFlags.CA,
@@ -495,6 +497,16 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
         ("wholesale",): RawChannel(
             Platform.Wholesale,
             CountryFlags.all_regions(),
+            DistributionMode.WHOLESALE,
+        ).as_dict(),
+        ("wholesale-ca", "wholesale ca"): RawChannel(
+            Platform.Wholesale,
+            CountryFlags.CA,
+            DistributionMode.WHOLESALE,
+        ).as_dict(),
+        ("wholesale-us", "wholesale us"): RawChannel(
+            Platform.Wholesale,
+            CountryFlags.US,
             DistributionMode.WHOLESALE,
         ).as_dict(),
         ("xiaohongshu.ca",): RawChannel(

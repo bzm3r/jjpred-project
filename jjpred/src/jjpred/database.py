@@ -17,7 +17,7 @@ from pathlib import Path
 import polars as pl
 import polars.selectors as cs
 from jjpred.analysisdefn import AnalysisDefn, RefillDefn
-from jjpred.channel import Channel
+from jjpred.channel import Channel, Platform
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
@@ -46,6 +46,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
+    binary_partition_strict,
     concat_enum_extend_vstack_strict,
     vstack_to_unified,
     struct_filter,
@@ -111,7 +112,9 @@ class MetaInfo(MasterSkuInfo):
     """The dates associated with the gathered historical information."""
     channel: pl.DataFrame = field(init=False)
     """The channels associated with gathered historical/inventory information."""
-    # category_compare: pl.DataFrame = field(init=False)
+    expanded_jjweb_history: pl.DataFrame = field(init=False)
+    """The channels associated with gathered historical/inventory
+    information."""
 
     @classmethod
     def from_master_sku_result(cls, master_sku_result: MasterSkuInfo) -> Self:
@@ -544,6 +547,8 @@ class DataBase:
 
         self.dfs, channel_meta = standardize_channel_info(self.dfs)
 
+        self.meta_info.channel = channel_meta
+
         combine_hca0_hcb0_gra_asg_history = (
             self.analysis_defn.get_field_if_available(
                 "combine_hca0_hcb0_gra_asg_history", bool
@@ -591,7 +596,36 @@ class DataBase:
                 .agg(pl.col.sales.sum())
             )
 
-        self.meta_info.channel = channel_meta
+        jjweb_history, other_history = binary_partition_strict(
+            self.dfs[DataVariant.History],
+            pl.col.platform.eq(Platform.JJWeb.name),
+        )
+        aggregated_jjweb_history = (
+            jjweb_history.group_by("a_sku", "date", "category")
+            .agg(pl.col.sales.sum())
+            .join(
+                self.meta_info.channel.filter(
+                    pl.col.channel.eq(
+                        Channel.parse("janandjul.com").pretty_string_repr()
+                    )
+                ),
+                how="cross",
+            )
+        )
+        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
+            [aggregated_jjweb_history, other_history]
+        )
+        assert (
+            len(
+                self.dfs[DataVariant.History].filter(
+                    pl.col.sub_country.ne("ALL")
+                )
+            )
+            == 0
+        )
+        self.meta_info.expanded_jjweb_history = jjweb_history.filter(
+            pl.col.sub_country.ne("ALL")
+        )
 
         self.filter()
 
