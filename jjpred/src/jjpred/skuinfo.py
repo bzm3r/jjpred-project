@@ -17,7 +17,7 @@ from typing import Literal
 import polars as pl
 
 from jjpred.analysisdefn import AnalysisDefn, RefillDefn
-from jjpred.channel import Channel
+from jjpred.channel import Channel, Platform
 from jjpred.datagroups import (
     ALL_SKU_AND_CHANNEL_IDS,
     ALL_SKU_IDS,
@@ -276,9 +276,9 @@ def attach_channel_info(
     all_sku_info: pl.DataFrame, channel_info: pl.DataFrame
 ) -> pl.DataFrame:
     return all_sku_info.join(channel_info, how="cross", on=None).with_columns(
-        is_master_paused=pl.when(pl.col.platform.eq("Amazon"))
+        is_master_paused=pl.when(pl.col.platform.eq(Platform.Amazon.name))
         .then(pl.col("country_flag").and_(pl.col("pause_plan")).gt(0))
-        .when(pl.col.platform.eq("JanAndJul"))
+        .when(pl.col.platform.eq(Platform.JJWeb.name))
         .then(~pl.col.website_sku)
         .otherwise(pl.lit(True)),
     )

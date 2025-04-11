@@ -35,6 +35,18 @@ from jjpred.utils.typ import (
 )
 
 
+class SubCountry(EnumLike):
+    """:py:class:`EnumLike` representing different areas within a country/region
+    that a channel might operate in."""
+
+    ALL = auto()
+    """The default value: the entire country."""
+    EAST = auto()
+    """The EAST part of a country."""
+    WEST = auto()
+    """The WEST part of a country."""
+
+
 class DistributionMode(EnumLike):
     """:py:class:`EnumLike` representing different modes a channel might
     operate under."""
@@ -85,6 +97,11 @@ class PossibleCountries(UserList[CountryFlags], CountryInfo):
             if country in x:
                 return True
         return False
+
+
+@dataclass
+class PossibleSubCountry(UserList[SubCountry]):
+    data: list[SubCountry]
 
 
 @dataclass
@@ -205,6 +222,7 @@ class PlatformAttrs(NamedTuple):
     ix: int
     country_info: PossibleCountries | FixedCountries
     distribution_mode: DistributionMode
+    sub_country_info: PossibleSubCountry
 
 
 @unique
@@ -218,56 +236,67 @@ class Platform(PlatformAttrs, EnumLike):
             [x for x in CountryFlags if x != CountryFlags.GlobalUS]
         ),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     Faire = (
         auto(),
         FixedCountries(CountryFlags.US),
         DistributionMode.WHOLESALE,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     HongMall = (
         auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.US]),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL]),
     )
-    JanAndJul = (
+    JJWeb = (
         auto(),
         FixedCountries(CountryFlags.CA | CountryFlags.US),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL, SubCountry.EAST, SubCountry.WEST]),
     )
-    PopUp = (
+    JJPhysical = (
         auto(),
         FixedCountries(CountryFlags.CA),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL, SubCountry.EAST, SubCountry.WEST]),
     )
     Bay = (
         auto(),
         FixedCountries(CountryFlags.CA),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     Walmart = (
         auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.US]),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     Warehouse = (
         auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.CN]),
         DistributionMode.WAREHOUSE,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     Wholesale = (
         auto(),
         FixedCountries(CountryFlags.all_regions()),
         DistributionMode.WHOLESALE,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     XiaoHongShu = (
         auto(),
         PossibleCountries([CountryFlags.CA, CountryFlags.US, CountryFlags.CN]),
         DistributionMode.RETAIL,
+        PossibleSubCountry([SubCountry.ALL]),
     )
     AllChannels = (
         auto(),
         FixedCountries(CountryFlags.all_regions() | CountryFlags.GlobalUS),
         DistributionMode.NO_MODE,
+        PossibleSubCountry([SubCountry.ALL]),
     )
 
     def __str__(self) -> str:
@@ -302,9 +331,13 @@ def country_parser(
 
 
 class ChannelDictType(TypedDict):
+    """Typed dictionary useful for making sure that we are returning all known
+    aspecets of a channel."""
+
     platform: Platform
     country_flag: CountryFlags
     mode: DistributionMode
+    sub_country: SubCountry
 
 
 @dataclass
@@ -312,21 +345,15 @@ class RawChannel:
     platform: Platform
     country_flag: CountryFlags
     mode: DistributionMode
+    sub_country: SubCountry = field(default=SubCountry.ALL)
 
     def as_dict(self) -> ChannelDictType:
         return {
             "platform": self.platform,
             "country_flag": self.country_flag,
             "mode": self.mode,
+            "sub_country": self.sub_country,
         }
-
-
-# amazon_matcher asked to match: Inv_AMZ USA
-# amazon_matcher asked to match: Inv_AMZ CA
-# amazon_matcher asked to match: Inv_AMZ MX
-# amazon_matcher asked to match: Inv_AMZ AU
-# amazon_matcher asked to match: Inv_AMZ UK
-# amazon_matcher asked to match: Inv_AMZ EU
 
 
 def create_amazon(country_flag: CountryFlags) -> ChannelDictType:
@@ -352,7 +379,7 @@ def create_janandjul(
         country_flag = country_info.fixed
 
     return RawChannel(
-        Platform.JanAndJul,
+        Platform.JJWeb,
         country_flag,
         DistributionMode.RETAIL,
     ).as_dict()
@@ -392,7 +419,7 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
         ("faire.com",): RawChannel(
             Platform.Faire,
             CountryFlags.US,
-            DistributionMode.WAREHOUSE,
+            DistributionMode.WHOLESALE,
         ).as_dict(),
         ("hongmall.ca",): RawChannel(
             Platform.HongMall,
@@ -404,34 +431,71 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             CountryFlags.US,
             DistributionMode.RETAIL,
         ).as_dict(),
-        ("janandjul.com",): create_janandjul(),
+        ("janandjul.com", "jjweb"): RawChannel(
+            Platform.JJWeb,
+            CountryFlags.CA | CountryFlags.US,
+            DistributionMode.RETAIL,
+            sub_country=SubCountry.ALL,
+        ).as_dict(),
+        ("usa.janandjul.com", "jjweb usa", "jjweb us"): RawChannel(
+            Platform.JJWeb,
+            CountryFlags.US,
+            DistributionMode.RETAIL,
+            sub_country=SubCountry.ALL,
+        ).as_dict(),
+        ("ca.janandjul.com", "jjweb ca"): RawChannel(
+            Platform.JJWeb,
+            CountryFlags.CA,
+            DistributionMode.RETAIL,
+            sub_country=SubCountry.ALL,
+        ).as_dict(),
+        (
+            "ca.janandjul.com (east)",
+            "ca.janandjul.com east",
+            "jjweb ca east",
+        ): RawChannel(
+            Platform.JJWeb,
+            CountryFlags.CA,
+            DistributionMode.RETAIL,
+            sub_country=SubCountry.EAST,
+        ).as_dict(),
+        (
+            "ca.janandjul.com (west)",
+            "ca.janandjul.com west",
+            "jjweb ca west",
+        ): RawChannel(
+            Platform.JJWeb,
+            CountryFlags.CA,
+            DistributionMode.RETAIL,
+            sub_country=SubCountry.EAST,
+        ).as_dict(),
         (
             "pop-up shop",
             "vancouver showroom",
             "surrey showroom",
             "richmond showroom",
         ): RawChannel(
-            Platform.PopUp,
+            Platform.JJPhysical,
             CountryFlags.CA,
             DistributionMode.RETAIL,
         ).as_dict(),
         ("walmart.ca",): RawChannel(
             Platform.Walmart,
             CountryFlags.CA,
-            DistributionMode.WAREHOUSE,
+            DistributionMode.RETAIL,
         ).as_dict(),
         ("walmart.com",): RawChannel(
             Platform.Walmart,
             CountryFlags.US,
-            DistributionMode.WAREHOUSE,
+            DistributionMode.RETAIL,
         ).as_dict(),
-        ("warehouse ca",): RawChannel(
+        ("warehouse ca", "jj warehouse"): RawChannel(
             Platform.Warehouse, CountryFlags.CA, DistributionMode.WAREHOUSE
         ).as_dict(),
         ("wholesale",): RawChannel(
             Platform.Wholesale,
             CountryFlags.all_regions(),
-            DistributionMode.WAREHOUSE,
+            DistributionMode.WHOLESALE,
         ).as_dict(),
         ("xiaohongshu.ca",): RawChannel(
             Platform.XiaoHongShu,
@@ -451,16 +515,6 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
     }
 ).as_dict()
 
-# {
-
-#     # f"{x.name} {y} {x.distribution_mode}": {
-#     #     "platform": x,
-#     #     "country_flag": x.country_info,
-#     #     "mode": x.distribution_mode,
-#     # }
-#     # for x in Platform
-#     # for y in x.country_info
-# }
 
 KNOWN_AMAZON_CHANNEL_MATCHERS = {
     k: v
@@ -523,9 +577,27 @@ class Channel(
     )
     """The distribution mode this channel operates in."""
 
+    sub_country: SubCountry = field(
+        default=SubCountry.ALL,
+        kw_only=True,
+        hash=False,
+        compare=True,
+        metadata=FieldMeta(
+            MemberType.PRIMARY,
+            str,
+            SubCountry.polars_type(),
+            intermediate_polars_dtype=pl.String(),
+        ),
+    )
+    """The sub-country that this channel operates in (e.g. EAST or WEST, usually
+    ALL)."""
+
     @classmethod
     def from_dict(
-        cls, x: Mapping[str, str | Platform | CountryFlags | DistributionMode]
+        cls,
+        x: Mapping[
+            str, str | Platform | CountryFlags | DistributionMode | SubCountry
+        ],
     ) -> Channel:
         platform = Platform.try_from(x["platform"])
         if platform:
@@ -534,12 +606,26 @@ class Channel(
                 platform.country_info, FixedCountries
             ):
                 country = platform.country_info.fixed
-            mode = platform.distribution_mode
+
+            mode = DistributionMode.try_from(x.get("mode"))
+            if mode is not None:
+                assert mode == platform.distribution_mode, (
+                    f"when parsing: {x}"
+                    f"{mode=} != {platform.distribution_mode=}"
+                )
+
+            sub_country = SubCountry.try_from(x.get("sub_country"))
+            if sub_country is not None:
+                assert sub_country in platform.sub_country_info, (
+                    f"{sub_country=} not in {platform.sub_country_info=}"
+                )
+
             channel_dict: dict[str, Any] = {
                 "channel": x.get("channel"),
                 "platform": platform.name,
                 "country_flag": country,
                 "mode": mode,
+                "sub_country": sub_country,
             }
             return cls(**(cls.field_defaults | channel_dict))
         else:
@@ -561,131 +647,17 @@ class Channel(
         if mode is None:
             mode = "MODE=??"
 
-        return f"{self.platform} {country_flag} {mode}"
+        sub_country = self.sub_country.try_to_string()
+        if sub_country is None or sub_country.lower() == "all":
+            sub_country = ""
+
+        return " ".join(
+            x
+            for x in [self.platform, country_flag, sub_country, mode]
+            if len(x) > 0
+        )
 
     @classmethod
     def map_polars_struct_to_string(cls, polars_struct: Any) -> str:
         assert all([x in polars_struct.keys() for x in Channel.members()])
         return Channel.from_dict(polars_struct).pretty_string_repr()
-
-
-# class Platform(PlatformAttrs, EnumLike):
-#     """A platform represents a group of related channels. For example: "Amazon"
-#     or "HongMall"."""
-
-#     Amazon = (
-#         ChannelMatcher(
-#             ["amazon", "amz"],
-#             PossibleCountries([x for x in CountryFlags]),
-#         ),
-#         DistributionMode.RETAIL,
-#     )
-#     Faire = (
-#         ChannelMatcher(["faire"], FixedCountries(CountryFlags.US)),
-#         DistributionMode.WHOLESALE,
-#     )
-#     HongMall = (
-#         ChannelMatcher(
-#             ["hongmall"],
-#             PossibleCountries([CountryFlags.CA, CountryFlags.US]),
-#         ),
-#         DistributionMode.RETAIL,
-#     )
-#     JanAndJul = (
-#         ChannelMatcher(
-#             ["janandjul"],
-#             FixedCountries(CountryFlags.CA | CountryFlags.US),
-#             skip_patterns=[r"^inv_jj"],
-#         ),
-#         DistributionMode.RETAIL,
-#     )
-#     PopUp = (
-#         ChannelMatcher(
-#             [
-#                 "pop-up shop",
-#                 "popup",
-#                 "vancouver showroom",
-#             ],
-#             FixedCountries(CountryFlags.CA),
-#         ),
-#         DistributionMode.RETAIL,
-#     )
-#     Bay = (
-#         ChannelMatcher(["thebay", "thebay"], FixedCountries(CountryFlags.CA)),
-#         DistributionMode.RETAIL,
-#     )
-#     Walmart = (
-#         ChannelMatcher(
-#             ["walmart"],
-#             PossibleCountries([CountryFlags.CA, CountryFlags.US]),
-#         ),
-#         DistributionMode.RETAIL,
-#     )
-#     Warehouse = (
-#         ChannelMatcher(
-#             ["inv_wh", "warehouse"],
-#             PossibleCountries([CountryFlags.CA, CountryFlags.CN]),
-#         ),
-#         DistributionMode.WAREHOUSE,
-#     )
-#     Wholesale = (
-#         ChannelMatcher(
-#             ["wholesale"],
-#             FixedCountries(CountryFlags.all_regions()),
-#         ),
-#         DistributionMode.WHOLESALE,
-#     )
-#     XiaoHongShu = (
-#         ChannelMatcher(
-#             ["xiaohongshu"],
-#             PossibleCountries(
-#                 [CountryFlags.CA, CountryFlags.US, CountryFlags.CN]
-#             ),
-#         ),
-#         DistributionMode.RETAIL,
-#     )
-#     AllChannels = (
-#         ChannelMatcher(
-#             ["all channels"],
-#             FixedCountries(CountryFlags.all_regions() | CountryFlags.GlobalUS),
-#         ),
-#         DistributionMode.NO_MODE,
-#     )
-
-#     @classmethod
-#     def matcher(
-#         cls,
-#     ) -> ReMatcher:
-#         """Creates matcher to parse a string that might represent any channel."""
-#         return ReMatcher(
-#             "all_channels",
-#             [x.channel_matcher.match_skip for x in cls],
-#             ReMatchCondition.DeepAny,
-#         )
-
-#     @classmethod
-#     def amazon_matcher(
-#         cls,
-#     ) -> ReMatcher:
-#         """Creates a matcher to parse a string that might represent an Amazon channel."""
-#         return ReMatcher(
-#             "amazon_matcher",
-#             [
-#                 x.channel_matcher.match_skip
-#                 for x in cls
-#                 if "amazon" in x.name.lower()
-#             ],
-#             ReMatchCondition.DeepAny,
-#         )
-
-#     @classmethod
-#     def from_str(cls, string: str) -> Self:
-#         low_string = string.lower()
-#         for x in cls:
-#             if x.name.lower() == low_string or x.channel_matcher.apply(string):
-#                 return x
-
-#         raise ValueError(f"Cannot parse {string} as {cls.__qualname__}.")
-
-#     def __str__(self) -> str:
-#         return self.name

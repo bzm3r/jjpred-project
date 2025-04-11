@@ -145,18 +145,21 @@ def read_all_po(
 
         intermediate_names = []
         final_names = {}
+        possible_channels = [
+            "amazon.ca",
+            "amazon.com",
+            "amazon.uk",
+            "amazon.co.uk",
+            "amazon.de",
+            "amazon.eu",
+            "janandjul.com",
+        ]
         for k, v in rename_map.items():
             v = v.lower()
             for x in [
                 "category",
                 "sku",
-                "amazon.com",
-                "amazon.ca",
-                "amazon.uk",
-                "amazon.co.uk",
-                "amazon.de",
-                "janandjul.com",
-            ]:
+            ] + possible_channels:
                 if x in v and not any([y in v for y in ["ratio"]]):
                     if "amazon" in x or "janandjul" in x:
                         final_names[v] = v.split(" ")[-1]
@@ -190,14 +193,41 @@ def read_all_po(
         )
         del raw_season_po
 
-        for channel in [
+        expected_channels = [
             "amazon.com",
             "amazon.ca",
             "amazon.uk",
             "amazon.co.uk",
             "amazon.de",
             "janandjul.com",
-        ]:
+        ]
+
+        channel_columns = []
+        for x in season_po.columns:
+            split_parts = x.split(" ")
+
+            if len(split_parts) > 1:
+                try:
+                    int_part = int(split_parts[-1])
+                except ValueError:
+                    int_part = None
+
+                if int_part is not None:
+                    x = " ".join(split_parts[:-1])
+
+            ch = Channel.try_from_str(x)
+            if ch is not None and ch not in channel_columns:
+                channel_columns.append(ch)
+
+        assert all(
+            [Channel.parse(x) in channel_columns for x in expected_channels]
+        ), [
+            x
+            for x in expected_channels
+            if Channel.parse(x) not in channel_columns
+        ]
+
+        for channel in expected_channels:
             ch = Channel.parse(channel)
             this_columns = cs.expand_selector(
                 season_po,

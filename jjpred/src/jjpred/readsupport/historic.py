@@ -10,7 +10,7 @@ import numpy as np
 import polars as pl
 
 from jjpred.analysisdefn import FbaRevDefn
-from jjpred.channel import Channel
+from jjpred.channel import Channel, Platform
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.readsupport.utils import (
     cast_standard,
@@ -286,7 +286,7 @@ def read_demand_ratios(
         )
 
     monthly_demand_ratio_df = monthly_demand_ratio_df.filter(
-        ~pl.col.platform.eq("Wholesale")
+        ~pl.col.platform.eq(Platform.Wholesale.name)
     )
     monthly_demand_ratio_df = cast_standard(
         [active_sku_info, channel_info], monthly_demand_ratio_df

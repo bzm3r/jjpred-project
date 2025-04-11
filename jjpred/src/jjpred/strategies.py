@@ -344,7 +344,7 @@ def collate_groups_per_channel(
 ) -> pl.DataFrame:
     result = pl.DataFrame()
 
-    for channel, group_dfs in results_per_channel.items():
+    for ch, group_dfs in results_per_channel.items():
         collated = collate_groups(group_dfs, dupe_check_index=dupe_check_index)
 
         if dupe_check_index is not None and len(dupe_check_index) > 0:
@@ -355,7 +355,7 @@ def collate_groups_per_channel(
             )
 
         if attach_channel:
-            collated = collated.with_columns(**channel.to_columns())
+            collated = collated.with_columns(**ch.to_columns())
         result = vstack_to_unified(result, collated)
 
     return result

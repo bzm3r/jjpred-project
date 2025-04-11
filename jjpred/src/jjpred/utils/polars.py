@@ -11,6 +11,7 @@ from typing import (
     Any,
     Literal,
     Self,
+    Sequence,
 )
 import polars as pl
 import polars.selectors as cs
@@ -252,7 +253,7 @@ class SumTypeLike:
         raise NotImplementedError()
 
     @classmethod
-    def combinations(cls) -> list[Self]:
+    def combinations(cls) -> Sequence[Self]:
         raise NotImplementedError()
 
     @classmethod
@@ -713,13 +714,16 @@ def compare_dfs_for_differences(
     return compare_result
 
 
-def display_rows(
+def display_df(
     df: pl.DataFrame,
     rows: int | None = None,
+    cols: int | None = None,
     table_cell_list_len: int | None = None,
 ) -> None:
     if rows is not None:
         pl.Config().set_tbl_rows(rows)
+    if cols is not None:
+        pl.Config().set_tbl_cols(cols)
     if table_cell_list_len is not None:
         pl.Config().set_fmt_table_cell_list_len(table_cell_list_len)
 

@@ -235,7 +235,7 @@ class StructLike(Hashable, Protocol):
     def to_columns(
         self,
         keys: set[str] | list[str] | None = None,
-        remove_defaults: bool = True,
+        remove_defaults: bool = False,
     ) -> dict[str, pl.Expr]:
         return {
             k: pl.lit(v)
@@ -325,7 +325,7 @@ class StructLike(Hashable, Protocol):
 
     def raw_str(self) -> str:
         result = (
-            f"({"".join(self.__class__.fields_by_priority[MemberType.META])})"
+            f"({''.join(self.__class__.fields_by_priority[MemberType.META])})"
         )
         if len(result) > 0:
             return result

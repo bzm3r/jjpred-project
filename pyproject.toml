@@ -7,6 +7,7 @@ dependencies = [
   "altair>=5.5.0",
   "analysis-tools",
   "fastexcel>=0.12.0",
+  "great-tables>=0.17.0",
   "ipykernel>=6.29.5",
   "jjpred",
   "jupyter>=1.1.1",
