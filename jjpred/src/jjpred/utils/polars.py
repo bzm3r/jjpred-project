@@ -1,7 +1,7 @@
 """Utilites for dealing with Polars dataframes and datatypes."""
 
 from __future__ import annotations
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum, IntFlag
 from functools import reduce
@@ -11,8 +11,9 @@ from typing import (
     Any,
     Literal,
     Self,
-    Sequence,
 )
+from great_tables import GT
+from great_tables import loc, style
 import polars as pl
 import polars.selectors as cs
 import xlsxwriter as xlw
@@ -618,6 +619,18 @@ class CompareResult:
         )
         self.has_fails = len(self.check_failed) > 0
 
+    def pretty_print_failures(
+        self, filter_expr: pl.Expr | None = None, n_rows: int = 10
+    ) -> GT:
+        failed_df = self.check_failed
+        if filter_expr is not None:
+            failed_df = failed_df.filter(filter_expr)
+
+        return GT(failed_df.limit(n_rows)).tab_style(
+            style.fill("yellow"),
+            loc.body(mask=cs.ends_with("_same").eq(False)),
+        )
+
     def write_excel(self, path: Path) -> None:
         if path.exists():
             path.unlink()
@@ -665,6 +678,8 @@ def compare_dfs_for_differences(
     index_cols: list[str],
     raise_error: bool = False,
     suffix: str = "_other",
+    round_floats_to_n_places: int | None = None,
+    cast_enum_or_cat_to_string: bool = False,
 ) -> CompareResult:
     all_columns = []
 
@@ -678,6 +693,20 @@ def compare_dfs_for_differences(
         all_columns.append(x)
         all_columns.append(f"{x}{suffix}")
         all_columns.append(f"{x}_same")
+
+    if round_floats_to_n_places is not None:
+        df, other_df = (
+            d.with_columns(
+                cs.float().round(round_floats_to_n_places),
+                *[
+                    cs.by_dtype(pl.List(x)).list.eval(
+                        pl.element().round(round_floats_to_n_places)
+                    )
+                    for x in [pl.Float32(), pl.Float64()]
+                ],
+            ).cast({pl.Enum: pl.String(), pl.Categorical: pl.String()})
+            for d in (df, other_df)
+        )
 
     check_df = (
         df.join(other_df, on=index_cols, how="full", suffix=suffix)
