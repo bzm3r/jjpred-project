@@ -192,7 +192,10 @@ def calculate_reserved_quantity(
         )
         .with_columns(
             month_in_reserve_season=pl.col.reserve_season.eq("AS")
-            | pl.col.reserve_season.eq(pl.col.season),
+            | (
+                pl.col.reserve_season.eq(pl.col.season)
+                | pl.col.season.eq("AS")
+            ),
         )
         .with_columns(
             produced_for_this_year=pl.when(

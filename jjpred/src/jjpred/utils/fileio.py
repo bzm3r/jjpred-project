@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import polars as pl
+import polars._typing as pltypes
 import xlsxwriter as xlw  # type: ignore
 
 from jjpred.analysisdefn import AnalysisDefn
@@ -78,16 +79,21 @@ def write_excel(
     save_path: Path,
     sheet_dict: Mapping[str, pl.DataFrame | None],
     autofit: bool = False,
+    column_formats: pltypes.ColumnFormatDict | None = None,
 ) -> Path:
     print(f"Saving to: {save_path}")
 
     if save_path.exists():
         save_path.unlink()
+
     with xlw.Workbook(save_path) as workbook:
         for key, df in sheet_dict.items():
             if df is not None:
                 convert_df_for_excel(df).write_excel(
-                    workbook=workbook, worksheet=key, autofit=autofit
+                    workbook=workbook,
+                    worksheet=key,
+                    autofit=autofit,
+                    column_formats=column_formats,
                 )
             # worksheet = workbook.get_worksheet_by_name(key)
             # assert worksheet is not None

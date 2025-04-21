@@ -9,11 +9,11 @@ import polars as pl
 
 from jjpred.analysisconfig import RefillConfigInfo
 
-analysis_date = "2025-APR-07"
-dispatch_date = "2025-APR-07"
-master_sku_date = "2025-APR-07"
-sales_and_inventory_date = "2025-APR-07"
-warehouse_inventory_date = "2025-APR-07"
+analysis_date = "2025-APR-14"
+dispatch_date = "2025-APR-14"
+master_sku_date = "2025-APR-14"
+sales_and_inventory_date = "2025-APR-14"
+warehouse_inventory_date = "2025-APR-14"
 website_sku_date = "2025-MAR-18"
 config_date = "2025-APR-07"
 in_stock_ratio_date = "2025-APR-01"
