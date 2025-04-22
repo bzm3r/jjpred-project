@@ -19,28 +19,20 @@ import polars as pl
 from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel, Platform
 from jjpred.datagroups import (
-    ALL_SKU_AND_CHANNEL_IDS,
     ALL_SKU_IDS,
-    CHANNEL_IDS,
     PAUSE_PLAN_IDS,
     SEASON_IDS,
     STATUS_IDS,
-    WHOLE_SKU_IDS,
 )
-from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
-from jjpred.readsheet import DataVariant
 from jjpred.readsupport.marketing import ConfigData
 from jjpred.sku import Sku
 from jjpred.structlike import MemberType
 from jjpred.utils.fileio import read_meta_info
 from jjpred.utils.polars import (
-    FilterStructs,
     OverrideLeft,
-    binary_partition_strict,
     find_dupes,
     join_and_coalesce,
-    struct_filter,
 )
 from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
 

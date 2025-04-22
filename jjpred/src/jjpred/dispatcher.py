@@ -748,6 +748,7 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
 
         # select particular columns out of all_sku_info
         self.all_sku_info = self.all_sku_info.select(
@@ -762,6 +763,7 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
 
         if self.analysis_defn.jjweb_reserve_info is None:
             self.reserved_quantity = None
@@ -806,6 +808,7 @@ class Dispatcher:
             analysis_defn.warehouse_min_keep_qty,
             self.filters,
         )
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
         if "ch_stock" not in self.all_sku_info.columns:
             self.all_sku_info = self.all_sku_info.with_columns(
                 ch_stock=pl.when(pl.col.is_active).then(pl.lit(0))
@@ -864,8 +867,11 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
 
-        input_data_info = self.predictor.get_input_data_info()
+        input_data_info = self.predictor.get_input_data_info().join(
+            self.channel_info, on=Channel.members()
+        )
         # attach input data information
         self.all_sku_info = override_sku_info(
             self.all_sku_info,
@@ -878,10 +884,10 @@ class Dispatcher:
             nulls_equal=False,
             dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
         )
-
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
 
         # attach demand predictions
         demand_predictions = self.predictor.predict_demand(
@@ -955,6 +961,7 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
 
         # attach qty/box information
         self.all_sku_info = override_sku_info(
@@ -967,6 +974,8 @@ class Dispatcher:
             .then(pl.lit(True))
             .otherwise(pl.col.no_qty_box_info)
         )
+
+        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
 
         # if isinstance(db.analysis_defn, JJWebDefn):
         #     jjweb_proportions = read_jjweb_proportions(db)
