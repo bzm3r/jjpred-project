@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, ReservationInfo
+from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, JJWebPredictionInfo
 from jjpred.inputstrategy import RefillType
 
 analysis_date = "2025-FEB-19"
@@ -44,7 +44,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date="2025-FEB-08",
-    jjweb_reserve_info=[ReservationInfo(None, "2025-JUN-01")],
+    jjweb_reserve_info=[JJWebPredictionInfo(None, "2025-JUN-01")],
     refill_type=RefillType.CUSTOM_2025_FEB_18,
     mainprogram_date=None,  # "2025-FEB-18",
     refill_draft_date=None,  # "2025-FEB-18",

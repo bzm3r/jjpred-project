@@ -4,30 +4,30 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-import sys
 import polars as pl
 
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import JJWebDefn, RefillDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
     ALL_SKU_AND_CHANNEL_IDS,
+    CHANNEL_IDS,
     MASTER_PAUSE_FLAGS,
     PAUSE_PLAN_IDS,
     NOVELTY_FLAGS,
+    WHOLE_SKU_IDS,
 )
 from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
 from jjpred.dispatchformatter import format_dispatch_for_netsuite
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.predictor import Predictor
-from jjpred.readsupport.proportions import read_jjweb_proportions
+from jjpred.readsheet import DataVariant
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
 from jjpred.sku import Sku
 from jjpred.skuinfo import (
-    attach_inventory_info,
     override_sku_info,
     attach_channel_info,
     attach_refill_info_from_config,
@@ -38,7 +38,7 @@ from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.fileio import write_df, write_excel
 from jjpred.utils.polars import (
     FilterStructs,
-    binary_partition_weak,
+    binary_partition_strict,
     concat_enum_extend_vstack_strict,
     find_dupes,
     struct_filter,
@@ -291,6 +291,333 @@ def calculate_reserved_quantity(
     return concat_enum_extend_vstack_strict(reserve_demands)
 
 
+def attach_inventory_info(
+    db: DataBase,
+    config_data: ConfigData,
+    all_sku_info: pl.DataFrame,
+    warehouse_filter: pl.Expr,
+    warehouse_min_keep_qty: int,
+    filters: FilterStructs | None = None,
+) -> pl.DataFrame:
+    inv_df = struct_filter(db.dfs[DataVariant.Inventory], filters)
+    wh_stock, ch_stock = binary_partition_strict(
+        inv_df.select(WHOLE_SKU_IDS + CHANNEL_IDS + ["stock"]),
+        warehouse_filter,
+    )
+    wh_stock = (
+        wh_stock.filter(
+            pl.col("country_flag").eq(int(CountryFlags.CA)),
+        )
+        .drop(Channel.members())
+        .rename({"stock": "wh_stock"})
+        .select(WHOLE_SKU_IDS + ["wh_stock"])
+    )
+    ch_stock = ch_stock.rename({"stock": "ch_stock"})
+
+    all_sku_info = override_sku_info(
+        all_sku_info,
+        wh_stock,
+        fill_null_value=PolarsLit(0),
+        create_info_columns=[
+            "wh_stock",
+            (
+                pl.col("wh_stock").is_not_null() & pl.col("wh_stock").lt(0)
+            ).alias("negative_wh_stock"),
+        ],
+        dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
+    )
+
+    all_sku_info = override_sku_info(
+        all_sku_info,
+        ch_stock,
+        fill_null_value=PolarsLit(0),
+        create_info_columns=[
+            "ch_stock",
+            (
+                (
+                    ~(
+                        pl.col("ch_stock").is_not_null()
+                        & pl.col("ch_stock").gt(0)
+                    )
+                ).alias("zero_ch_stock")
+            ),
+        ],
+    )
+
+    all_sku_info = (
+        override_sku_info(
+            all_sku_info,
+            config_data.min_keep,
+            create_info_columns=["min_keep"],
+        )
+        .with_columns(
+            min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
+        )
+        .with_columns(
+            min_keep=pl.max_horizontal("min_keep", "min_keep_default")
+        )
+        .drop("min_keep_default")
+    )
+
+    return all_sku_info
+
+
+def calculate_dispatch_given_all_sku_info(
+    analysis_defn: RefillDefn,
+    all_sku_info: pl.DataFrame,
+) -> pl.DataFrame:
+    # calculated what each channel + SKU requires for dispatch
+    required_df = calculate_required(
+        all_sku_info.filter(
+            pl.col("is_active")
+            & ~pl.col("is_master_paused")
+            & ~pl.col("is_config_paused")
+            & ~pl.col("no_wh_stock_info")
+            & ~pl.col("zero_wh_dispatchable")
+        ),
+        analysis_defn.enable_full_box_logic,
+    )
+    all_sku_info = override_sku_info(
+        all_sku_info,
+        required_df,
+        fill_null_value=defaultdict(
+            lambda: PolarsLit(0),
+            {
+                "uses_refill_request": PolarsLit(False),
+                "enable_full_box_logic": PolarsLit(False),
+                "rounded_to_closest_box": PolarsLit(False),
+            },
+        ),
+        create_info_columns=[
+            (pl.col("required").is_null() | pl.col("required").eq(0)).alias(
+                "zero_required"
+            ),
+            (
+                pl.col("total_required").is_null()
+                | pl.col("total_required").eq(0)
+            ).alias("zero_total_required"),
+        ],
+    )
+
+    # setup for partitioning information into stuff where the total
+    # required for a SKU across all channels is less than what the
+    # warehouse has in stock, and the case where the total required is
+    # greater than what the channel has in stock
+    all_sku_info = all_sku_info.with_columns(
+        required_gt_supply=(
+            ~(
+                pl.col("total_required").eq(0)
+                | pl.col("total_required").le(pl.col("wh_dispatchable"))
+            )
+        )
+    ).with_columns(
+        # for cases where required is not greater than supply, the dispatch
+        # is just the required
+        dispatch=pl.when(~pl.col("required_gt_supply"))
+        .then(pl.col("required"))
+        .otherwise(None)
+    )
+    assert all_sku_info["dispatch"].dtype == pl.Int64()
+
+    # filter for the cases where the total required is greater than the
+    # supply available
+    required_gt_supply = all_sku_info.filter(pl.col("required_gt_supply"))
+
+    if required_gt_supply.shape[0] > 0:
+        # when total required is greater than supply, partition supply by
+        # relative proportion of requested amount
+        required_gt_supply = required_gt_supply.with_columns(
+            fraction_dispatch=(pl.col("required") / pl.col("total_required"))
+        ).with_columns(
+            prebox_required=(
+                pl.col("wh_dispatchable") * pl.col("fraction_dispatch")
+            )
+            .round()
+            .cast(pl.Int64()),
+        )
+
+        # redo the full-box shipment logic, this time checking to see the
+        # the rounded quantity is strictly less than prebox_dispatch
+        required_gt_supply = (
+            required_gt_supply.with_columns(
+                exact_boxes=pl.when(
+                    pl.col.qty_box.is_not_null() & pl.col.qty_box.gt(0)
+                )
+                .then((pl.col("prebox_required") / pl.col("qty_box")).round())
+                .cast(pl.Int64())
+            )
+            .with_columns(
+                rounded_to_closest_box=pl.when(
+                    pl.col.exact_boxes.is_not_null()
+                    & pl.col.prebox_required.gt(0)
+                    & pl.col.enable_full_box_logic
+                )
+                .then(
+                    (1.0 * pl.col.qty_box * pl.col.exact_boxes).le(
+                        pl.col.prebox_required
+                    )
+                    # & (0.9 * pl.col.qty_box * pl.col.exact_boxes).le(
+                    #     pl.col.prebox_dispatch
+                    # )
+                    & (pl.col.prebox_required).le(
+                        1.1 * pl.col.qty_box * pl.col.exact_boxes
+                    )
+                )
+                .otherwise(False)
+            )
+            .with_columns(
+                dispatch=pl.when(pl.col.rounded_to_closest_box)
+                .then(pl.col.exact_boxes * pl.col.qty_box)
+                .otherwise(pl.col.prebox_required)
+            )
+        )
+        assert required_gt_supply["required"].dtype == pl.Int64()
+
+        # set up to check whether the total dispatch across channels for a
+        # SKU is still somehow greater than required (possible due to
+        # rounding issues)
+        required_gt_supply = required_gt_supply.with_columns(
+            total_dispatch=pl.col("dispatch")
+            .sum()
+            .over(Sku.members(MemberType.META))
+        )
+        # FINE AUTOSPLIT LOGIC: removed for now after discussion with Matt
+
+        # # partition data set into those which require further fixing, and
+        # # those that do not
+        # requires_fine_splitting, no_further_fix_required = (
+        #     binary_partition_strict(
+        #         required_gt_supply,
+        #         (pl.col("total_dispatch") > pl.col("wh_dispatchable"))
+        #         .and_(pl.col("wh_dispatchable").gt(0))
+        #         .and_(pl.col("dispatch").gt(0)),
+        #     )
+        # )
+
+        # those SKUs which do not require further fixing can now have their
+        # dispatch quantity updated in the main info dataframe
+        all_sku_info = override_sku_info(
+            all_sku_info.with_columns(auto_split=pl.lit(False)),
+            # no_futher_fix_required
+            required_gt_supply.with_columns(auto_split=pl.lit(True)).select(
+                Sku.members(MemberType.META)
+                + Channel.members()
+                + [
+                    "prebox_required",
+                    "dispatch",
+                    "rounded_to_closest_box",
+                    "auto_split",
+                ]
+            ),
+            fill_null_value=None,
+            create_info_columns=None,
+            create_missing_info_flags=False,
+        )
+
+        # FINE AUTOSPLIT LOGIC: removed for now after discussion with Matt
+        # This was meant to make sure that auto-splits do not spill into the
+        # minimum quantity meant to be kept in a warehouse.
+        # if (
+        #     requires_fine_splitting is not None
+        #     or len(requires_fine_splitting) > 0
+        # ):
+        #     # the fundamental assumption here is that at this point, the
+        #     # delta between supply and total required cannot be greater than
+        #     # the number of SKUs * the number of channels = N
+        #     #
+        #     # for those cases where a fix is still required, we rank the
+        #     # SKUs by their dispatch fraction, and then subtract one from
+        #     # the dispatch of the bottom K SKUs, where 0 < K <= N.
+        #     requires_fine_splitting = (
+        #         # sort the data by Sku, to make the ranking performed
+        #         # deterministic
+        #         requires_fine_splitting.sort(
+        #             Sku.members(MemberType.META)
+        #         ).with_columns(
+        #             delta_wh=(
+        #                 pl.col("total_dispatch")
+        #                 - pl.col("wh_dispatchable")
+        #             ),
+        #             # rank the data for each SKU by size of dispatch
+        #             # resolve tie-breaks by the order of SKU in the group
+        #             # (groups are per channel)
+        #             index=(
+        #                 pl.col("fraction_dispatch")
+        #                 .rank("ordinal")
+        #                 .over(Sku.members())
+        #                 - 1
+        #             ),
+        #         )
+        #     ).with_columns(
+        #         # subtract -1 from the bottom "delta_wh" SKUs by
+        #         # dispatch fraction
+        #         fixed_dispatch=pl.when(
+        #             (pl.col("index") < pl.col("delta_wh"))
+        #             & (pl.col("dispatch").gt(0))
+        #         )
+        #         .then(pl.col("dispatch") - 1)
+        #         .otherwise(pl.col("dispatch"))
+        #     )
+        #     # setup for checking that now we have fixed the total dispatch
+        #     requires_fine_splitting = requires_fine_splitting.with_columns(
+        #         fixed_total_dispatch=pl.col("fixed_dispatch")
+        #         .sum()
+        #         .over(Sku.members(MemberType.META))
+        #     ).with_columns(
+        #         fixed_delta_inv=(
+        #             pl.col("fixed_total_dispatch")
+        #             - pl.col("wh_dispatchable")
+        #         )
+        #     )
+        #     # fixed_delta_inv should now be 0 across all entries
+        #     assert (
+        #         requires_fine_splitting["fixed_delta_inv"].min() == 0
+        #         and requires_fine_splitting["fixed_delta_inv"].max() == 0
+        #     ), requires_fine_splitting.filter(
+        #         ~pl.col("fixed_delta_inv").eq(0)
+        #     )
+
+        #     requires_fine_splitting = requires_fine_splitting.with_columns(
+        #         dispatch=pl.col("fixed_dispatch"),
+        #         auto_split=pl.lit(True),
+        #         fine_auto_split=pl.lit(True),
+        #     )
+        #     assert requires_fine_splitting["dispatch"].dtype == pl.Int64()
+
+        #     self.all_sku_info = override_sku_info(
+        #         self.all_sku_info.with_columns(
+        #             fine_auto_split=pl.lit(False)
+        #         ),
+        #         requires_fine_splitting.select(
+        #             Sku.members(MemberType.META)
+        #             + Channel.members()
+        #             + [
+        #                 "prebox_required",
+        #                 "dispatch",
+        #                 "rounded_to_closest_box",
+        #                 "auto_split",
+        #                 "fine_auto_split",
+        #             ]
+        #         ),
+        #         fill_null_value=None,
+        #         create_info_columns=None,
+        #         create_missing_info_flags=False,
+        #     ).with_columns(pl.col.auto_split.fill_null(False))
+
+    all_sku_info = all_sku_info.with_columns(
+        pl.col("dispatch").fill_null(0),
+    )
+    assert all_sku_info["dispatch"].dtype == pl.Int64()
+
+    all_sku_info = all_sku_info.with_columns(
+        dispatch_below_cutoff=pl.col("dispatch").lt(
+            analysis_defn.dispatch_cutoff_qty
+        )
+    )
+
+    return all_sku_info
+
+
 class Dispatcher:
     """Manages calculation of a dispatch for FBA refill."""
 
@@ -408,20 +735,15 @@ class Dispatcher:
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
 
-        self.reserved_quantity = calculate_reserved_quantity(
-            db,
-            self.predictor,
-            (
-                analysis_defn.jjweb_reserve_info.reservation_expr
-                if analysis_defn.jjweb_reserve_info is not None
-                else None
-            ),
-            force_po_predictions=(
-                analysis_defn.jjweb_reserve_info.force_po_prediction
-                if analysis_defn.jjweb_reserve_info is not None
-                else True
-            ),
-        )
+        if self.analysis_defn.jjweb_reserve_info is None:
+            self.reserved_quantity = None
+        else:
+            self.reserved_quantity = calculate_reserved_quantity(
+                db,
+                self.predictor,
+                self.analysis_defn.jjweb_reserve_info.reservation_expr,
+                force_po_predictions=self.analysis_defn.jjweb_reserve_info.force_po_prediction,
+            )
 
         if self.reserved_quantity is not None:
             self.all_sku_info = self.all_sku_info.join(
@@ -460,6 +782,60 @@ class Dispatcher:
             self.all_sku_info = self.all_sku_info.with_columns(
                 ch_stock=pl.when(pl.col.is_active).then(pl.lit(0))
             )
+
+        jjweb_channel = Channel.parse("janandjul.com")
+
+        skus_with_reservation = self.all_sku_info.filter(
+            pl.col.reserved.gt(0)
+        )["sku"].unique()
+
+        self.all_sku_info = self.all_sku_info.with_columns(
+            jjweb_inv_3pl=pl.lit(0)
+        )
+        self.all_sku_info = self.all_sku_info.with_columns(
+            jjweb_east_percent=pl.lit(0.0)
+        )
+
+        self.all_sku_info = (
+            self.all_sku_info.with_columns(
+                has_reservation=pl.col.sku.is_in(skus_with_reservation)
+            )
+            .with_columns(
+                reserved=pl.when(
+                    pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
+                )
+                .then(pl.lit(0))
+                .otherwise(pl.col.reserved)
+            )
+            .with_columns(
+                pl.when(pl.col("wh_stock").gt(0))
+                .then(
+                    pl.max_horizontal(
+                        pl.lit(0),
+                        pl.min_horizontal(
+                            pl.col.wh_stock
+                            - pl.col.min_keep
+                            - (
+                                (1 - pl.col.jjweb_east_percent)
+                                * pl.col.reserved
+                            ),
+                            pl.col.wh_stock
+                            - pl.col.min_keep
+                            - (pl.col.reserved - pl.col.jjweb_inv_3pl),
+                        ),
+                    ).alias("wh_dispatchable")
+                )
+                .otherwise(
+                    pl.lit(0, dtype=pl.Int64()).alias("wh_dispatchable")
+                )
+            )
+            .with_columns(
+                (
+                    pl.col("wh_stock").is_null()
+                    | pl.col("wh_dispatchable").eq(0)
+                ).alias("zero_wh_dispatchable")
+            )
+        )
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
@@ -485,9 +861,32 @@ class Dispatcher:
         # attach demand predictions
         demand_predictions = self.predictor.predict_demand(
             self.dispatch_channels,
-            analysis_defn.dispatch_date,
-            analysis_defn.end_date,
+            self.analysis_defn.dispatch_date,
+            self.analysis_defn.end_date,
+        ).filter(
+            ~(
+                pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
+                & pl.col.sku.is_in(skus_with_reservation)
+            )
         )
+
+        if self.analysis_defn.jjweb_reserve_info is not None:
+            demand_predictions = concat_enum_extend_vstack_strict(
+                [
+                    demand_predictions,
+                    self.predictor.predict_demand(
+                        [
+                            x
+                            for x in self.dispatch_channels
+                            if x == jjweb_channel
+                        ],
+                        self.analysis_defn.dispatch_date,
+                        self.analysis_defn.jjweb_reserve_info.prediction_offset_3pl.apply_to(
+                            analysis_defn.dispatch_date
+                        ),
+                    ).filter(pl.col.sku.is_in(skus_with_reservation)),
+                ]
+            )
 
         self.all_sku_info = (
             override_sku_info(
@@ -544,63 +943,63 @@ class Dispatcher:
             .otherwise(pl.col.no_qty_box_info)
         )
 
-        if isinstance(db.analysis_defn, JJWebDefn):
-            jjweb_proportions = read_jjweb_proportions(db)
+        # if isinstance(db.analysis_defn, JJWebDefn):
+        #     jjweb_proportions = read_jjweb_proportions(db)
 
-            jjweb_demand, other_demand = binary_partition_weak(
-                self.all_sku_info,
-                pl.struct(*Channel.members()).eq(
-                    Channel.parse("janandjul.com").as_dict()
-                ),
-            )
+        #     jjweb_demand, other_demand = binary_partition_weak(
+        #         self.all_sku_info,
+        #         pl.struct(*Channel.members()).eq(
+        #             Channel.parse("janandjul.com").as_dict()
+        #         ),
+        #     )
 
-            jjweb_demand_with_fracs = jjweb_demand.join(
-                jjweb_proportions, on="category", how="left"
-            )
+        #     jjweb_demand_with_fracs = jjweb_demand.join(
+        #         jjweb_proportions, on="category", how="left"
+        #     )
 
-            categories_with_missing_jjweb_proportions = list(
-                jjweb_demand_with_fracs.filter(
-                    pl.col.ca_frac.is_null() & ~pl.col.is_master_paused
-                )["category"].unique()
-            )
+        #     categories_with_missing_jjweb_proportions = list(
+        #         jjweb_demand_with_fracs.filter(
+        #             pl.col.ca_frac.is_null() & ~pl.col.is_master_paused
+        #         )["category"].unique()
+        #     )
 
-            if len(categories_with_missing_jjweb_proportions) > 0:
-                sys.displayhook(categories_with_missing_jjweb_proportions)
-                raise ValueError(
-                    f"{categories_with_missing_jjweb_proportions=}"
-                )
+        #     if len(categories_with_missing_jjweb_proportions) > 0:
+        #         sys.displayhook(categories_with_missing_jjweb_proportions)
+        #         raise ValueError(
+        #             f"{categories_with_missing_jjweb_proportions=}"
+        #         )
 
-            jjweb_demand_after_split = jjweb_demand_with_fracs.with_columns(
-                country_flag=pl.lit(
-                    int(CountryFlags.CA),
-                    dtype=other_demand["country_flag"].dtype,
-                ),
-                expected_demand=pl.when(pl.col.ca_frac.is_not_null())
-                .then(
-                    (
-                        pl.col.ca_frac
-                        * pl.col.east_frac
-                        * pl.col.expected_demand
-                    ).round()
-                )
-                .otherwise(pl.lit(0))
-                .cast(pl.Int64()),
-            ).select(other_demand.columns)
+        #     jjweb_demand_after_split = jjweb_demand_with_fracs.with_columns(
+        #         country_flag=pl.lit(
+        #             int(CountryFlags.CA),
+        #             dtype=other_demand["country_flag"].dtype,
+        #         ),
+        #         expected_demand=pl.when(pl.col.ca_frac.is_not_null())
+        #         .then(
+        #             (
+        #                 pl.col.ca_frac
+        #                 * pl.col.east_frac
+        #                 * pl.col.expected_demand
+        #             ).round()
+        #         )
+        #         .otherwise(pl.lit(0))
+        #         .cast(pl.Int64()),
+        #     ).select(other_demand.columns)
 
-            # a_type = {x: other_demand[x].dtype for x in other_demand.columns}
-            # b_type = {
-            #     x: jjweb_demand_after_split[x].dtype
-            #     for x in jjweb_demand_after_split.columns
-            # }
+        #     # a_type = {x: other_demand[x].dtype for x in other_demand.columns}
+        #     # b_type = {
+        #     #     x: jjweb_demand_after_split[x].dtype
+        #     #     for x in jjweb_demand_after_split.columns
+        #     # }
 
-            # for key in a_type.keys():
-            #     if a_type[key] != b_type[key]:
-            #         print(f"found mismatch: {key=}")
-            #         print(f"{key=}, {a_type[key]=}, {b_type[key]=}")
+        #     # for key in a_type.keys():
+        #     #     if a_type[key] != b_type[key]:
+        #     #         print(f"found mismatch: {key=}")
+        #     #         print(f"{key=}, {a_type[key]=}, {b_type[key]=}")
 
-            self.all_sku_info = other_demand.vstack(
-                jjweb_demand_after_split.select(other_demand.columns)
-            )
+        #     self.all_sku_info = other_demand.vstack(
+        #         jjweb_demand_after_split.select(other_demand.columns)
+        #     )
 
     def calculate_dispatch(
         self,

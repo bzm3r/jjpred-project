@@ -272,17 +272,22 @@ class OutperformerSettings:
 
 
 @dataclass
-class ReservationInfo:
+class JJWebPredictionInfo:
     reservation_expr: pl.Expr | None
     force_po_prediction: bool = field(default=True)
+    prediction_offset_3pl: DateOffset = field(
+        default_factory=lambda: DateOffset(8, DateUnit.WEEK)
+    )
 
     def __init__(
         self,
-        polars_filter: pl.Expr | None,
-        force_po_prediction: bool = True,
+        reservation_expr: pl.Expr | None,
+        force_po_prediction_for_reservation: bool = True,
+        prediction_offset_3pl: DateOffset = DateOffset(8, DateUnit.WEEK),
     ):
-        self.reservation_expr = polars_filter
-        self.force_po_prediction = force_po_prediction
+        self.reservation_expr = reservation_expr
+        self.force_po_prediction = force_po_prediction_for_reservation
+        self.prediction_offset_3pl = prediction_offset_3pl
 
 
 @dataclass
@@ -313,7 +318,7 @@ class RefillDefn(AnalysisDefn):
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
 
-    jjweb_reserve_info: ReservationInfo | None = field(
+    jjweb_reserve_info: JJWebPredictionInfo | None = field(
         default=None, compare=False
     )
     """The date up to which we will calculate reserved quantities based on J&J
@@ -366,7 +371,7 @@ class RefillDefn(AnalysisDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_info: ReservationInfo | None = None,
+        jjweb_reserve_info: JJWebPredictionInfo | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -518,7 +523,7 @@ class FbaRevDefn(RefillDefn):
         refill_type: RefillType,
         check_dispatch_date: bool = True,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_info: ReservationInfo | None = None,
+        jjweb_reserve_info: JJWebPredictionInfo | None = None,
         qty_box_date: DateLike | None = None,
         mon_sale_r_date: DateLike | None = None,
         mainprogram_date: DateLike | None = None,
@@ -721,7 +726,7 @@ class JJWebDefn(RefillDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         proportion_split_date: DateLike,
-        jjweb_reserve_info: ReservationInfo | None = None,
+        jjweb_reserve_info: JJWebPredictionInfo | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,

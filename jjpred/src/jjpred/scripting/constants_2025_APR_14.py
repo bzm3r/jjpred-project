@@ -1,13 +1,20 @@
 """Information used  in order to set up and/or execute analyses."""
 
 from __future__ import annotations
+from dataclasses import dataclass
 
-from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, ReservationInfo
+from jjpred.analysisdefn import (
+    FbaRevDefn,
+    JJWebDefn,
+    JJWebPredictionInfo,
+    JJWebPredictionInfo,
+)
 from jjpred.inputstrategy import RefillType
 
 import polars as pl
 
 from jjpred.analysisconfig import RefillConfigInfo
+from jjpred.utils.datetime import DateOffset, DateUnit
 
 analysis_date = "2025-APR-14"
 dispatch_date = "2025-APR-14"
@@ -48,6 +55,7 @@ analysis_defn = FbaRevDefn(
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
 )
 
+
 analysis_defn_website_reserved = FbaRevDefn(
     analysis_date=analysis_date,
     dispatch_date=dispatch_date,
@@ -58,7 +66,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
-    jjweb_reserve_info=ReservationInfo(
+    jjweb_reserve_info=JJWebPredictionInfo(
         pl.when(pl.col.season.eq("FW"))
         .then([(8, 1)])
         .when(

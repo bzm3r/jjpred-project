@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, ReservationInfo
+from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, JJWebPredictionInfo
 from jjpred.inputstrategy import RefillType
 
 import polars as pl
@@ -52,7 +52,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
     jjweb_reserve_info=[
-        ReservationInfo(
+        JJWebPredictionInfo(
             (
                 pl.col.category.eq("SPW")
                 | pl.col.category.cast(pl.String()).str.starts_with("U")
@@ -60,7 +60,7 @@ analysis_defn_website_reserved = FbaRevDefn(
             & pl.col.season.is_in(["AS", "SS"]),
             "2025-JUL-01",
         ),
-        ReservationInfo(
+        JJWebPredictionInfo(
             ~(
                 pl.col.category.eq("SPW")
                 | pl.col.category.cast(pl.String()).str.starts_with("U")

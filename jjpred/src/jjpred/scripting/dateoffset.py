@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from calendar import monthrange
 from math import ceil
-from jjpred.inputstrategy import RefillType
 from jjpred.utils.datetime import (
     Date,
     DateLike,
