@@ -350,7 +350,7 @@ class InputStrategy(PrettyPrint):
         self,
         channel: str | Channel,
         referred_to_primary_map: dict[Category, Category],
-        current: ContiguousTimePeriod
+        current_period_defn: ContiguousTimePeriod
         | defaultdict[Category, ContiguousTimePeriod | UndeterminedTimePeriod],
         per_channel_aggregator_map: Mapping[
             Channel, Aggregator | Mapping[Category, Aggregator]
@@ -361,10 +361,10 @@ class InputStrategy(PrettyPrint):
             referred_to_primary_map, raise_error=False
         )
 
-        self.current_periods = normalize_default_dict(current)
+        self.current_periods = normalize_default_dict(current_period_defn)
 
-        if not isinstance(current, defaultdict):
-            self.current_periods = defaultdict(lambda: current, {})
+        if not isinstance(current_period_defn, defaultdict):
+            self.current_periods = defaultdict(lambda: current_period_defn, {})
         else:
             self.current_periods
 
