@@ -273,15 +273,16 @@ class OutperformerSettings:
 
 @dataclass
 class ReservationInfo:
-    polars_filter: pl.Expr | None
-    reserve_to_date: Date
+    reservation_expr: pl.Expr | None
     force_po_prediction: bool = field(default=True)
 
     def __init__(
-        self, polars_filter: pl.Expr | None, reserve_to_date: DateLike
+        self,
+        polars_filter: pl.Expr | None,
+        force_po_prediction: bool = True,
     ):
-        self.polars_filter = polars_filter
-        self.reserve_to_date = Date.from_datelike(reserve_to_date)
+        self.reservation_expr = polars_filter
+        self.force_po_prediction = force_po_prediction
 
 
 @dataclass
@@ -312,7 +313,7 @@ class RefillDefn(AnalysisDefn):
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
 
-    jjweb_reserve_to_date: list[ReservationInfo] | None = field(
+    jjweb_reserve_info: ReservationInfo | None = field(
         default=None, compare=False
     )
     """The date up to which we will calculate reserved quantities based on J&J
@@ -365,7 +366,7 @@ class RefillDefn(AnalysisDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
+        jjweb_reserve_info: ReservationInfo | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -429,7 +430,7 @@ class RefillDefn(AnalysisDefn):
             else None
         )
 
-        self.jjweb_reserve_to_date = jjweb_reserve_to_date
+        self.jjweb_reserve_info = jjweb_reserve_info
 
         self.extra_refill_config_info = extra_refill_config_info
 
@@ -517,7 +518,7 @@ class FbaRevDefn(RefillDefn):
         refill_type: RefillType,
         check_dispatch_date: bool = True,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
+        jjweb_reserve_info: ReservationInfo | None = None,
         qty_box_date: DateLike | None = None,
         mon_sale_r_date: DateLike | None = None,
         mainprogram_date: DateLike | None = None,
@@ -596,7 +597,7 @@ class FbaRevDefn(RefillDefn):
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
-            jjweb_reserve_to_date=jjweb_reserve_to_date,
+            jjweb_reserve_info=jjweb_reserve_info,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
@@ -720,7 +721,7 @@ class JJWebDefn(RefillDefn):
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         proportion_split_date: DateLike,
-        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
+        jjweb_reserve_info: ReservationInfo | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -751,7 +752,7 @@ class JJWebDefn(RefillDefn):
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
-            jjweb_reserve_to_date=jjweb_reserve_to_date,
+            jjweb_reserve_info=jjweb_reserve_info,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,

@@ -58,7 +58,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
-    jjweb_reserve_to_date=[
+    jjweb_reserve_info=[
         ReservationInfo(
             (
                 pl.col.category.eq("SPW")

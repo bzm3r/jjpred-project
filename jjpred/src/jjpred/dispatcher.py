@@ -8,7 +8,7 @@ import sys
 import polars as pl
 
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import JJWebDefn, RefillDefn, ReservationInfo
+from jjpred.analysisdefn import JJWebDefn, RefillDefn
 from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
@@ -25,7 +25,6 @@ from jjpred.predictor import Predictor
 from jjpred.readsupport.proportions import read_jjweb_proportions
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
-from jjpred.seasons import reserve_season_given_month
 from jjpred.sku import Sku
 from jjpred.skuinfo import (
     attach_inventory_info,
@@ -35,7 +34,7 @@ from jjpred.skuinfo import (
     get_all_sku_currentness_info,
 )
 from jjpred.structlike import MemberType, StructLike
-from jjpred.utils.datetime import Date
+from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.fileio import write_df, write_excel
 from jjpred.utils.polars import (
     FilterStructs,
@@ -140,143 +139,156 @@ def calculate_required(
     return df
 
 
+def determine_reserve_period_start_end_date(
+    db: DataBase,
+    dispatch_start_date: DateLike,
+    jjweb_reserve_defn: pl.Expr | None,
+) -> pl.DataFrame:
+    assert isinstance(db.analysis_defn, RefillDefn)
+
+    reserve_period_calculation_df = (
+        (
+            db.meta_info.active_sku.select("category", "season")
+            .unique()
+            .with_columns(
+                reserve_months=jjweb_reserve_defn.cast(
+                    pl.List(pl.Array(pl.UInt8(), 2))
+                )
+                if jjweb_reserve_defn is not None
+                else pl.lit([]).cast(pl.List(pl.Array(pl.UInt8(), 2))),
+            )
+        )
+        .explode("reserve_months")
+        .with_columns(
+            start=pl.col.reserve_months.arr.first(),
+            end=pl.col.reserve_months.arr.last(),
+        )
+        .select(
+            "category",
+            "season",
+            pl.struct("start", "end").alias("reserve_period"),
+        )
+        .group_by("category", "season")
+        .agg(pl.col.reserve_period.alias("reserve_periods"))
+    )
+
+    reserve_period_date_df = (
+        reserve_period_calculation_df.with_columns(
+            start_date=Date.from_datelike(dispatch_start_date).as_polars_date()
+        )
+        .explode("reserve_periods")
+        .rename({"reserve_periods": "reserve_period"})
+        .with_columns(
+            start_date_month_ge_period_start=pl.col.start_date.dt.month().ge(
+                pl.col.reserve_period.struct.field("start")
+            ),
+        )
+        .filter(pl.col.start_date_month_ge_period_start)
+        .with_columns(
+            end_date=pl.date(
+                pl.when(
+                    pl.col.reserve_period.struct.field("end").lt(
+                        pl.col.reserve_period.struct.field("start")
+                    )
+                )
+                .then(pl.col.start_date.dt.year() + 1)
+                .otherwise(pl.col.start_date.dt.year()),
+                pl.col.reserve_period.struct.field("end"),
+                1,
+            )
+        )
+        .filter(pl.col.start_date.lt(pl.col.end_date))
+    )
+
+    find_dupes(reserve_period_date_df, ["category"], raise_error=True)
+
+    return reserve_period_date_df
+
+
 def calculate_reserved_quantity(
-    db: DataBase, predictor: Predictor, reserve_info: ReservationInfo
-) -> pl.DataFrame | None:
+    db: DataBase,
+    predictor: Predictor,
+    jjweb_reserve_defn: pl.Expr | None,
+    fw_item_new_year_month: int = 7,
+    force_po_predictions: bool = True,
+) -> pl.DataFrame:
     assert isinstance(db.analysis_defn, RefillDefn)
     find_dupes(db.meta_info.active_sku, ["sku", "a_sku"], raise_error=True)
 
-    reserve_demand = predictor.predict_demand(
-        ["janandjul.com"],
-        db.analysis_defn.dispatch_date,
-        reserve_info.reserve_to_date,
-        force_po_prediction=reserve_info.force_po_prediction,
-        aggregate_final_result=False,
-    ).join(
-        db.meta_info.active_sku.select(
-            "a_sku",
-            "sku",
-            "category",
-            "season",
-            "sku_year_history",
-            "sku_latest_po_season",
-        ),
-        on=["a_sku", "sku"],
+    end_date_dicts = (
+        determine_reserve_period_start_end_date(
+            db, db.analysis_defn.dispatch_date, jjweb_reserve_defn
+        )
+        .group_by("start_date", "end_date")
+        .agg(pl.col.category)
+        .to_dicts()
     )
 
-    if reserve_info.polars_filter is not None:
-        reserve_demand = reserve_demand.filter(reserve_info.polars_filter)
+    reserve_demands = []
 
-    reserve_seasons = (
-        reserve_demand.select("date")
-        .unique()
-        .with_columns(
-            reserve_season=pl.col.date.dt.month()
-            .map_elements(
-                lambda x: reserve_season_given_month(x).name,
-                return_dtype=pl.String(),
+    for end_date_info in end_date_dicts:
+        reserve_demand = (
+            predictor.predict_demand(
+                ["janandjul.com"],
+                db.analysis_defn.dispatch_date,
+                end_date_info["end_date"],
+                force_po_prediction=force_po_predictions,
+                aggregate_final_result=True,
             )
-            .cast(db.meta_info.active_sku["season"].dtype)
-        )
-    )
-
-    assert len(reserve_seasons.filter(pl.col.reserve_season.is_null())) == 0, (
-        reserve_seasons.filter(pl.col.reserve_season.is_null())
-    )
-
-    reserve_demand = (
-        reserve_demand.join(
-            reserve_seasons,
-            on=["date"],
-            how="left",
-        )
-        .with_columns(
-            month_in_reserve_season=pl.col.reserve_season.eq("AS")
-            | (
-                pl.col.reserve_season.eq(pl.col.season)
-                | pl.col.season.eq("AS")
-            ),
-        )
-        .with_columns(
-            produced_for_this_year=pl.when(
-                pl.col.sku_latest_po_season.eq("FW")
-                & (pl.col.date.dt.month() < 7)
+            .join(
+                db.meta_info.active_sku.select(
+                    "a_sku",
+                    "sku",
+                    "category",
+                    "season",
+                    "sku_year_history",
+                    "sku_latest_po_season",
+                ),
+                on=["a_sku", "sku"],
             )
-            .then(
-                (pl.col.date.dt.year() - 2000 - 1).is_in(
-                    pl.col.sku_year_history
-                )
-                | (
-                    (pl.col.date.dt.year() - 2000).is_in(
-                        pl.col.sku_year_history
+            .filter(pl.col.category.is_in(end_date_info["category"]))
+        )
+
+        reserve_demand = (
+            reserve_demand.with_columns(
+                dispatch_date=Date.from_datelike(
+                    db.analysis_defn.dispatch_date
+                ).as_polars_date()
+            )
+            .with_columns(
+                produced_for_this_year=pl.when(
+                    pl.col.sku_latest_po_season.eq("FW")
+                    & (
+                        pl.col.dispatch_date.dt.month()
+                        < fw_item_new_year_month
                     )
                 )
+                .then(
+                    (pl.col.dispatch_date.dt.year() - 2000 - 1).is_in(
+                        pl.col.sku_year_history
+                    )
+                    | (
+                        (pl.col.dispatch_date.dt.year() - 2000).is_in(
+                            pl.col.sku_year_history
+                        )
+                    )
+                )
+                .otherwise(
+                    (pl.col.dispatch_date.dt.year() - 2000).is_in(
+                        pl.col.sku_year_history
+                    )
+                ),
             )
-            .otherwise(
-                (pl.col.date.dt.year() - 2000).is_in(pl.col.sku_year_history)
-            ),
-        )
-        .with_columns(
-            expected_demand=pl.when(
-                ~pl.col.month_in_reserve_season
-                | ~pl.col.produced_for_this_year
+            .with_columns(
+                reserved=pl.when(~pl.col.produced_for_this_year)
+                .then(0)
+                .otherwise(pl.col.expected_demand)
             )
-            .then(0)
-            .otherwise(pl.col.expected_demand)
         )
-    )
 
-    reserve_demand = (
-        reserve_demand.group_by(["sku", "a_sku"] + Channel.members())
-        .agg(
-            pl.col.date,
-            pl.col.date.len().alias("prediction_parts"),
-            pl.col.e_overrides_po.sum(),
-            pl.col.po_overrides_e.sum(),
-            pl.col.ce_uses_e.sum(),
-            pl.col.ce_uses_po.sum(),
-            pl.col.has_low_isr.sum(),
-            pl.col.demand_based_on_e.sum(),
-            pl.col.demand_based_on_po.sum(),
-            pl.col.mean_current_period_isr,
-            pl.col.expected_demand_from_history,
-            pl.col.expected_demand_from_po,
-            pl.col.expected_demand.sum(),
-            pl.col.performance_flag.first(),
-            pl.col.prediction_type,
-            pl.col.month_in_reserve_season,
-            pl.col.produced_for_this_year,
-            pl.col.season.unique().first(),
-            pl.col.sku_year_history.unique().first(),
-            pl.col.sku_latest_po_season.unique().first(),
-            # "season",
-            # "sku_year_history",
-            # "sku_latest_po_season",
-        )
-        .with_columns(
-            uses_overperformer_estimate=pl.lit(False, dtype=pl.Boolean())
-        )
-    )
+        reserve_demands.append(reserve_demand)
 
-    return reserve_demand
-
-
-def calculate_reserved_quantity_per_reservation_info(
-    db: DataBase,
-    predictor: Predictor,
-    reserve_info: list[ReservationInfo] | None,
-) -> pl.DataFrame | None:
-    if reserve_info is not None:
-        results = []
-        for ri in reserve_info:
-            results.append(calculate_reserved_quantity(db, predictor, ri))
-        result = concat_enum_extend_vstack_strict(results)
-        find_dupes(
-            result, ["a_sku", "sku"] + Channel.members(), raise_error=True
-        )
-        return result
-
-    return None
+    return concat_enum_extend_vstack_strict(reserve_demands)
 
 
 class Dispatcher:
@@ -396,10 +408,19 @@ class Dispatcher:
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
 
-        self.reserved_quantity = (
-            calculate_reserved_quantity_per_reservation_info(
-                db, self.predictor, analysis_defn.jjweb_reserve_to_date
-            )
+        self.reserved_quantity = calculate_reserved_quantity(
+            db,
+            self.predictor,
+            (
+                analysis_defn.jjweb_reserve_info.reservation_expr
+                if analysis_defn.jjweb_reserve_info is not None
+                else None
+            ),
+            force_po_predictions=(
+                analysis_defn.jjweb_reserve_info.force_po_prediction
+                if analysis_defn.jjweb_reserve_info is not None
+                else True
+            ),
         )
 
         if self.reserved_quantity is not None:
@@ -410,11 +431,11 @@ class Dispatcher:
                 # )
                 # .filter(pl.col.expected_demand_from_po.list.sum().gt(0))
                 .group_by("sku", "a_sku")
-                .agg(pl.col.expected_demand.sum().round().cast(pl.Int64()))
+                .agg(pl.col.reserved.sum().round().cast(pl.Int64()))
                 .select(
                     "sku",
                     "a_sku",
-                    pl.col.expected_demand.alias("reserved"),
+                    pl.col.reserved,
                 ),
                 on=["sku", "a_sku"],
                 how="left",

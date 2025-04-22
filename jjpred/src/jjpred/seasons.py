@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from calendar import Month
 from enum import auto
 from typing import Any, Self
 from jjpred.utils.polars import EnumLike
@@ -49,17 +48,3 @@ class POSeason(EnumLike):
                 return POSeason.SS.name
 
         raise ValueError(f"Cannot parse {x} as {cls}")
-
-
-def reserve_season_given_month(month: Month) -> Season:
-    if month in [
-        Month.OCTOBER,
-        Month.NOVEMBER,
-        Month.DECEMBER,
-        Month.JANUARY,
-    ]:
-        return Season.FW
-    elif month in [Month.APRIL, Month.MAY, Month.JUNE, Month.JULY]:
-        return Season.SS
-    else:
-        return Season.AS
