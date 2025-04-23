@@ -717,10 +717,6 @@ class Dispatcher:
         # (see attach_refill_info_from_config)
         # (see attach_inventory_info)
 
-        self.config_data = read_config(analysis_defn).extra_refill_info(
-            db.meta_info.active_sku, analysis_defn.extra_refill_config_info
-        )
-
         # read qty/box information
         self.qty_box_info = read_qty_box(
             analysis_defn, read_from_disk=read_from_disk, overwrite=overwrite
@@ -745,6 +741,15 @@ class Dispatcher:
             self.db.meta_info.channel.select(Channel.members()),
             set(self.dispatch_channels),
         ).unique()
+
+        self.config_data = (
+            read_config(analysis_defn)
+            .extra_refill_info(
+                db.meta_info.active_sku, analysis_defn.extra_refill_config_info
+            )
+            .filter_channels(self.channel_info)
+        )
+
         # initialize all sku information, which we will further build upon as
         # the dispatch calculations progress
         self.all_sku_info = get_all_sku_currentness_info(analysis_defn)
@@ -762,7 +767,9 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
 
         # select particular columns out of all_sku_info
         self.all_sku_info = self.all_sku_info.select(
@@ -777,7 +784,9 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
 
         if self.analysis_defn.jjweb_reserve_info is None:
             self.reserved_quantity = None
@@ -822,7 +831,9 @@ class Dispatcher:
             analysis_defn.warehouse_min_keep_qty,
             self.filters,
         )
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
         if "ch_stock" not in self.all_sku_info.columns:
             self.all_sku_info = self.all_sku_info.with_columns(
                 ch_stock=pl.when(pl.col.is_active).then(pl.lit(0))
@@ -895,7 +906,9 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
 
         input_data_info = self.predictor.get_input_data_info().join(
             self.channel_info, on=Channel.members()
@@ -915,7 +928,9 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
 
         # attach demand predictions
         demand_predictions = self.predictor.predict_demand(
@@ -930,22 +945,29 @@ class Dispatcher:
         )
 
         if self.analysis_defn.jjweb_reserve_info is not None:
-            demand_predictions = concat_enum_extend_vstack_strict(
-                [
-                    demand_predictions,
-                    self.predictor.predict_demand(
-                        [
-                            x
-                            for x in self.dispatch_channels
-                            if x == jjweb_channel
-                        ],
-                        self.analysis_defn.dispatch_date,
-                        self.analysis_defn.jjweb_reserve_info.prediction_offset_3pl.apply_to(
-                            analysis_defn.dispatch_date
-                        ),
-                    ).filter(pl.col.sku.is_in(skus_with_reservation)),
-                ]
-            )
+            if jjweb_channel in self.dispatch_channels:
+                demand_predictions = concat_enum_extend_vstack_strict(
+                    [
+                        demand_predictions,
+                        self.predictor.predict_demand(
+                            [
+                                x
+                                for x in self.dispatch_channels
+                                if x == jjweb_channel
+                            ],
+                            self.analysis_defn.dispatch_date,
+                            self.analysis_defn.jjweb_reserve_info.prediction_offset_3pl.apply_to(
+                                analysis_defn.dispatch_date
+                            ),
+                        ).filter(pl.col.sku.is_in(skus_with_reservation)),
+                    ]
+                )
+
+        find_dupes(
+            demand_predictions,
+            ["sku", "a_sku"] + Channel.members(),
+            raise_error=True,
+        )
 
         self.all_sku_info = (
             override_sku_info(
@@ -989,7 +1011,9 @@ class Dispatcher:
         find_dupes(
             self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
 
         # attach qty/box information
         self.all_sku_info = override_sku_info(
@@ -1003,7 +1027,9 @@ class Dispatcher:
             .otherwise(pl.col.no_qty_box_info)
         )
 
-        assert len(self.all_sku_info.select(Channel.members()).unique()) < 4
+        assert len(
+            self.all_sku_info.select(Channel.members()).unique()
+        ) == len(self.dispatch_channels)
 
         # if isinstance(db.analysis_defn, JJWebDefn):
         #     jjweb_proportions = read_jjweb_proportions(db)
@@ -1082,6 +1108,7 @@ class Dispatcher:
             [
                 calculate_full_box_and_auto_split(self.analysis_defn, x)
                 for x in [reserve_off, reserve_on_jjweb, reserve_on_others]
+                if len(x) > 0
             ]
         )
 
