@@ -125,10 +125,14 @@ INVENTORY_DATA_AVAILABILITY_FLAGS = ["no_wh_stock_info", "no_ch_stock_info"]
 INVENTORY_INFO = [
     "wh_dispatchable",
     "ch_stock",
-    "reserved",
     "jjweb_inv_3pl",
     "jjweb_east_frac",
     "has_reservation",
+    "reserved",
+    "wh_dispatchable_accounting_jjweb_west",
+    "wh_dispatchable_accounting_jjweb_east",
+    "reserved_west",
+    "reserved_including_3pl",
 ]
 DISPATCH_INFO = INVENTORY_INFO + [
     "requesting",

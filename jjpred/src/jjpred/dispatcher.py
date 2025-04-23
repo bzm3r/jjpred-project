@@ -26,6 +26,7 @@ from jjpred.predictor import Predictor
 from jjpred.readsheet import DataVariant
 from jjpred.readsupport.qtybox import read_qty_box
 from jjpred.readsupport.marketing import ConfigData, read_config
+from jjpred.readsupport.utils import cast_standard
 from jjpred.sku import Sku
 from jjpred.skuinfo import (
     override_sku_info,
@@ -82,24 +83,14 @@ def calculate_required(
                         Channel.parse("janandjul.com").as_dict()
                     )
                 )
-                .then(pl.col.jjweb_east_frac * pl.col.pre_part_requesting)
+                .then(
+                    (pl.col.jjweb_east_frac * pl.col.pre_part_requesting)
+                    .ceil()
+                    .cast(pl.Int64())
+                )
                 .otherwise(pl.col.pre_part_requesting)
             )
         )
-        .with_columns(channel_struct=pl.struct(Channel.members()))
-        .drop(*Channel.members())
-        .with_columns(
-            channel_struct=(
-                pl.when(
-                    pl.col.channel_struct.eq(
-                        Channel.parse("janandjul.com").as_dict()
-                    )
-                )
-                .then(pl.lit(Channel.parse("jjweb ca east").as_dict()))
-                .otherwise(pl.col.channel_struct)
-            )
-        )
-        .unnest("channel_struct")
         .with_columns(
             uses_refill_request=(
                 pl.col("requesting").eq(pl.col("refill_request"))
@@ -372,20 +363,23 @@ def attach_inventory_info(
         ],
     )
 
-    all_sku_info = (
-        override_sku_info(
-            all_sku_info,
-            config_data.min_keep,
-            create_info_columns=["min_keep"],
-        )
-        .with_columns(
-            min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
-        )
-        .with_columns(
-            min_keep=pl.max_horizontal("min_keep", "min_keep_default")
-        )
-        .drop("min_keep_default")
+    all_sku_info = all_sku_info.with_columns(
+        min_keep=pl.lit(warehouse_min_keep_qty, pl.Int64())
     )
+    # all_sku_info = (
+    #     override_sku_info(
+    #         all_sku_info,
+    #         config_data.min_keep,
+    #         create_info_columns=["min_keep"],
+    #     )
+    #     .with_columns(
+    #         min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
+    #     )
+    #     .with_columns(
+    #         min_keep=pl.max_horizontal("min_keep", "min_keep_default")
+    #     )
+    #     .drop("min_keep_default")
+    # )
 
     return all_sku_info
 
@@ -405,26 +399,44 @@ def calculate_full_box_and_auto_split(
         ),
         analysis_defn.enable_full_box_logic,
     )
-    all_sku_info = override_sku_info(
-        all_sku_info,
-        required_df,
-        fill_null_value=defaultdict(
-            lambda: PolarsLit(0),
-            {
-                "uses_refill_request": PolarsLit(False),
-                "enable_full_box_logic": PolarsLit(False),
-                "rounded_to_closest_box": PolarsLit(False),
-            },
-        ),
-        create_info_columns=[
-            (pl.col("required").is_null() | pl.col("required").eq(0)).alias(
-                "zero_required"
+
+    all_sku_info = cast_standard(
+        [all_sku_info],
+        override_sku_info(
+            all_sku_info,
+            required_df,
+            fill_null_value=defaultdict(
+                lambda: PolarsLit(0),
+                {
+                    "uses_refill_request": PolarsLit(False),
+                    "enable_full_box_logic": PolarsLit(False),
+                    "rounded_to_closest_box": PolarsLit(False),
+                },
             ),
-            (
-                pl.col("total_required").is_null()
-                | pl.col("total_required").eq(0)
-            ).alias("zero_total_required"),
-        ],
+            create_info_columns=[
+                (
+                    pl.col("required").is_null() | pl.col("required").eq(0)
+                ).alias("zero_required"),
+                (
+                    pl.col("total_required").is_null()
+                    | pl.col("total_required").eq(0)
+                ).alias("zero_total_required"),
+            ],
+        )
+        .with_columns(channel_struct=pl.struct(Channel.members()))
+        .drop(*Channel.members())
+        .with_columns(
+            channel_struct=(
+                pl.when(
+                    pl.col.channel_struct.eq(
+                        Channel.parse("janandjul.com").as_dict()
+                    )
+                )
+                .then(pl.lit(Channel.parse("jjweb ca east").as_dict()))
+                .otherwise(pl.col.channel_struct)
+            )
+        )
+        .unnest("channel_struct"),
     )
 
     # setup for partitioning information into stuff where the total
@@ -631,6 +643,8 @@ def calculate_full_box_and_auto_split(
         #         create_info_columns=None,
         #         create_missing_info_flags=False,
         #     ).with_columns(pl.col.auto_split.fill_null(False))
+    else:
+        all_sku_info = all_sku_info.with_columns(auto_split=pl.lit(False))
 
     all_sku_info = all_sku_info.with_columns(
         pl.col("dispatch").fill_null(0),
@@ -839,17 +853,31 @@ class Dispatcher:
                 .otherwise(pl.col.reserved)
             )
             .with_columns(
+                reserved_west=((1 - pl.col.jjweb_east_frac) * pl.col.reserved)
+                .ceil()
+                .cast(pl.Int64()),
+                reserved_including_3pl=pl.max_horizontal(
+                    0, pl.col.reserved - pl.col.jjweb_inv_3pl
+                ),
+            )
+            .with_columns(
+                wh_dispatchable_accounting_jjweb_west=(
+                    pl.col.wh_stock - pl.col.min_keep - pl.col.reserved_west
+                ),
+                wh_dispatchable_accounting_jjweb_east=(
+                    pl.col.wh_stock
+                    - pl.col.min_keep
+                    - pl.col.reserved_including_3pl
+                ),
+            )
+            .with_columns(
                 pl.when(pl.col("wh_stock").gt(0))
                 .then(
                     pl.max_horizontal(
                         pl.lit(0),
                         pl.min_horizontal(
-                            pl.col.wh_stock
-                            - pl.col.min_keep
-                            - ((1 - pl.col.jjweb_east_frac) * pl.col.reserved),
-                            pl.col.wh_stock
-                            - pl.col.min_keep
-                            - (pl.col.reserved - pl.col.jjweb_inv_3pl),
+                            pl.col.wh_dispatchable_accounting_jjweb_west,
+                            pl.col.wh_dispatchable_accounting_jjweb_east,
                         ),
                     ).alias("wh_dispatchable")
                 )
@@ -1055,6 +1083,10 @@ class Dispatcher:
                 calculate_full_box_and_auto_split(self.analysis_defn, x)
                 for x in [reserve_off, reserve_on_jjweb, reserve_on_others]
             ]
+        )
+
+        find_dupes(
+            self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
         )
 
         write_df(
