@@ -48,24 +48,29 @@ analysis_defn_website_reserved = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date="2025-FEB-08",
-    jjweb_reserve_info=[
-        JJWebPredictionInfo(
-            (
+    jjweb_reserve_info=JJWebPredictionInfo(
+        pl.when(pl.col.season.eq("FW"))
+        .then([(8, 1)])
+        .when(
+            pl.col.season.eq("SS")
+            & ~(
                 pl.col.category.eq("SPW")
                 | pl.col.category.cast(pl.String()).str.starts_with("U")
             )
-            & pl.col.season.is_in(["AS", "SS"]),
-            "2025-JUL-01",
-        ),
-        JJWebPredictionInfo(
-            ~(
+        )
+        .then([(2, 6)])
+        .when(
+            pl.col.season.eq("SS")
+            & (
                 pl.col.category.eq("SPW")
                 | pl.col.category.cast(pl.String()).str.starts_with("U")
             )
-            & pl.col.season.is_in(["AS", "SS"]),
-            "2025-JUN-01",
-        ),
-    ],
+        )
+        .then([(2, 7)])
+        .when(pl.col.season.eq("AS"))
+        .then([(2, 6), (8, 1)])
+        .cast(pl.List(pl.Array(pl.UInt8(), 2)))
+    ),
     refill_type=RefillType.WEEKLY,
     mainprogram_date=mainprogram_date,
     refill_draft_date=refill_draft_date,
