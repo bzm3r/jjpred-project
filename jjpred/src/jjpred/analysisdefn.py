@@ -4,6 +4,7 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
+from calendar import Month
 import polars as pl
 from dataclasses import dataclass, field
 import datetime
@@ -85,6 +86,8 @@ def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
         return None
 
 
+# when adding new optional fields, make sure to set 'init=False' otherwise we
+# will get a default field initialization issue
 @total_ordering
 @dataclass
 class AnalysisDefn:
@@ -121,6 +124,12 @@ class AnalysisDefn:
     """Latest dates for: default current period end dates and monthly ratio
     rolling update point."""
 
+    fw_year_start_month: Month = field(init=False)
+    """The "year start" month for FW items (when we change which PO we are
+    using we are using for FW items, or when we change considering
+    whether an item is continued/discontinued) is usually in the middle of the
+    year."""
+
     extra_descriptor: str | None = field(default=None, init=False)
     """Extra description string."""
 
@@ -138,6 +147,7 @@ class AnalysisDefn:
         in_stock_ratio_date: DateLike | None = None,
         po_date: DateLike | None = None,
         extra_descriptor: str | None = None,
+        fw_year_start_month: Month = Month.JULY,
     ):
         self.basic_descriptor = basic_descriptor
         self.date = Date.from_datelike(date)
@@ -161,6 +171,7 @@ class AnalysisDefn:
             self.latest_dates = latest_dates
 
         self.extra_descriptor = extra_descriptor
+        self.fw_year_start_month = fw_year_start_month
 
         self._hash = hash(
             (
@@ -174,6 +185,7 @@ class AnalysisDefn:
                 self.po_date,
                 self.latest_dates,
                 self.extra_descriptor,
+                self.fw_year_start_month,
             )
         )
 
@@ -388,6 +400,7 @@ class RefillDefn(AnalysisDefn):
         dispatch_cutoff_qty: int = 2,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        fw_year_start_month: Month = Month.JULY,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -456,6 +469,7 @@ class RefillDefn(AnalysisDefn):
                 self.dispatch_date, demand_ratio_rolling_update_to
             ),
             extra_descriptor=extra_descriptor,
+            fw_year_start_month=fw_year_start_month,
         )
 
     def tag(self) -> str:
@@ -545,6 +559,7 @@ class FbaRevDefn(RefillDefn):
         extra_descriptor: str | None = None,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        fw_year_start_month: Month = Month.JULY,
     ):
         self.refill_type = refill_type
 
@@ -617,6 +632,7 @@ class FbaRevDefn(RefillDefn):
             dispatch_cutoff_qty=dispatch_cutoff_qty,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+            fw_year_start_month=fw_year_start_month,
         )
 
     @classmethod
@@ -644,6 +660,7 @@ class FbaRevDefn(RefillDefn):
         match_main_program_month_fractions: bool = True,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        fw_year_start_month: Month = Month.JULY,
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
         compare against a real analysis.
@@ -687,6 +704,7 @@ class FbaRevDefn(RefillDefn):
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+            fw_year_start_month=fw_year_start_month,
         )
 
     def _get_date(self, date_name: str) -> Date:
@@ -741,6 +759,7 @@ class JJWebDefn(RefillDefn):
         extra_descriptor: str | None = None,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        fw_year_start_month: Month = Month.JULY,
     ):
         self.website_proportions_split_date = Date.from_datelike(
             proportion_split_date
@@ -772,4 +791,5 @@ class JJWebDefn(RefillDefn):
             dispatch_cutoff_qty=0,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+            fw_year_start_month=fw_year_start_month,
         )
