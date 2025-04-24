@@ -12,10 +12,13 @@ from jjpred.channel import Channel, DistributionMode
 from jjpred.datagroups import (
     ALL_IDS,
     ALL_SKU_AND_CHANNEL_IDS,
+    ALL_SKU_IDS,
     CHANNEL_IDS,
     MASTER_PAUSE_FLAGS,
     PAUSE_PLAN_IDS,
     NOVELTY_FLAGS,
+    SEASON_IDS,
+    STATUS_IDS,
     WHOLE_SKU_IDS,
 )
 from jjpred.countryflags import CountryFlags
@@ -32,7 +35,6 @@ from jjpred.skuinfo import (
     override_sku_info,
     attach_channel_info,
     attach_refill_info_from_config,
-    get_all_sku_currentness_info,
 )
 from jjpred.structlike import MemberType, StructLike
 from jjpred.utils.datetime import Date, DateLike
@@ -228,7 +230,6 @@ def calculate_reserved_quantity(
     db: DataBase,
     predictor: Predictor,
     jjweb_reserve_defn: pl.Expr | None,
-    fw_item_new_year_month: int = 7,
     force_po_predictions: bool = True,
 ) -> pl.DataFrame:
     assert isinstance(db.analysis_defn, RefillDefn)
@@ -256,12 +257,7 @@ def calculate_reserved_quantity(
             )
             .join(
                 db.meta_info.active_sku.select(
-                    "a_sku",
-                    "sku",
-                    "category",
-                    "season",
-                    "sku_year_history",
-                    "sku_latest_po_season",
+                    "a_sku", "sku", "category", "is_current_sku"
                 ),
                 on=["a_sku", "sku"],
             )
@@ -269,11 +265,7 @@ def calculate_reserved_quantity(
         )
 
         reserve_demand = reserve_demand.with_columns(
-            dispatch_date=Date.from_datelike(
-                db.analysis_defn.dispatch_date
-            ).as_polars_date()
-        ).with_columns(
-            reserved=pl.when(~pl.col.produced_for_this_year)
+            reserved=pl.when(~pl.col.is_current_sku)
             .then(0)
             .otherwise(pl.col.expected_demand)
         )
@@ -725,7 +717,18 @@ class Dispatcher:
 
         # initialize all sku information, which we will further build upon as
         # the dispatch calculations progress
-        self.all_sku_info = get_all_sku_currentness_info(analysis_defn)
+        self.all_sku_info = db.meta_info.all_sku.select(
+            "status",
+            *(
+                ALL_SKU_IDS
+                + SEASON_IDS
+                + [
+                    x
+                    for x in PAUSE_PLAN_IDS + STATUS_IDS + NOVELTY_FLAGS
+                    if x in db.meta_info.active_sku.columns
+                ]
+            ),
+        ).with_columns(is_active=pl.col.status.eq("active"))
 
         if "website_sku" not in self.all_sku_info:
             self.all_sku_info = self.all_sku_info.with_columns(

@@ -1263,11 +1263,30 @@ def read_master_sku_excel_file(
         raise ValueError("Some sizes are not mapped to a numeric size!")
 
     master_sku_df = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
+
     result = MasterSkuInfo()
-    result.active_sku = master_sku_df.filter(
-        pl.col("status").eq("active")
-    ).drop("status")
-    result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
+    result.active_sku = (
+        master_sku_df.filter(pl.col("status").eq("active"))
+        .drop("status")
+        .with_columns(
+            is_new_category=(pl.col.is_current_sku | pl.col.is_future_sku)
+            .all()
+            .over("category")
+        )
+    )
+    is_new_category_df = result.active_sku.select(
+        "category", "is_new_category"
+    ).unique()
+    find_dupes(is_new_category_df, id_cols=["category"])
+    result.all_sku = (
+        master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
+        .join(
+            is_new_category_df,
+            on=["category"],
+            how="left",
+        )
+        .with_columns(pl.col.is_new_category.fill_null(False))
+    )
     result.fba_sku = fba_sku
     result.ignored_sku = pl.DataFrame(schema=master_sku_df.schema)
     result.print_name_map = print_name_map
