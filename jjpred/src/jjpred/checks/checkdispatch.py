@@ -241,13 +241,10 @@ def check_dispatch_results(
         "AmazonInvCheck": amazon_inv_check,
         "Dispatchable Paused": active_results.filter(
             (
-                (pl.col("is_current_print") | pl.col("is_next_year_print"))
+                (pl.col("is_current_sku") | pl.col("is_future_sku"))
                 & (pl.col("is_master_paused") | pl.col("is_config_paused"))
                 | (
-                    ~(
-                        pl.col("is_current_print")
-                        | pl.col("is_next_year_print")
-                    )
+                    ~(pl.col("is_current_sku") | pl.col("is_future_sku"))
                     & (pl.col("is_master_paused") | pl.col("is_config_paused"))
                 )
             )
@@ -260,20 +257,20 @@ def check_dispatch_results(
             ALL_SKU_IDS + CHANNEL_IDS + ["wh_dispatchable", "expected_demand"]
         ),
         "NE data missing (sku)": active_results.filter(
-            pl.col("new_category_problem") & pl.col("is_current_print")
+            pl.col("new_category_problem") & pl.col("is_current_sku")
         )
         .select(ALL_IDS + DATA_AVAILABILITY_FLAGS)
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "NE data missing (cat)": active_results.filter(
-            pl.col("new_category_problem") & pl.col("is_current_print")
+            pl.col("new_category_problem") & pl.col("is_current_sku")
         )
         .select("category")
         .unique()
         .sort("category"),
         "PO data missing (sku)": active_results.filter(
             pl.col("po_problem")
-            & ~pl.col("is_next_year_print")
+            & ~pl.col("is_future_sku")
             & pl.col("wh_dispatchable").gt(0)
         )
         .select(
@@ -287,7 +284,7 @@ def check_dispatch_results(
         .sort(all_sku_ids),
         "PO data missing (cat)": active_results.filter(
             pl.col("po_problem")
-            & ~pl.col("is_next_year_print")
+            & ~pl.col("is_future_sku")
             & pl.col("wh_dispatchable").gt(0)
         )
         .select("category")
@@ -312,7 +309,7 @@ def check_dispatch_results(
         ),
         "E data missing": active_results.filter(
             pl.col("e_problem")
-            & (~pl.col("is_next_year_print") | pl.col("wh_dispatchable").gt(0))
+            & (~pl.col("is_future_sku") | pl.col("wh_dispatchable").gt(0))
         )
         .select(
             ALL_IDS
@@ -324,10 +321,10 @@ def check_dispatch_results(
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "Main program missing": active_results.filter(
-            ~pl.col("in_main_program") & pl.col("is_current_print")
+            ~pl.col("in_main_program") & pl.col("is_current_sku")
             | (
                 ~pl.col("in_main_program")
-                & ~(pl.col("is_current_print") | pl.col("is_next_year_print"))
+                & ~(pl.col("is_current_sku") | pl.col("is_future_sku"))
                 & pl.col("wh_dispatchable").gt(0)
             )
         )
@@ -344,7 +341,7 @@ def check_dispatch_results(
         if "in_main_program" in active_results
         else pl.DataFrame(),
         "Missing Current Period": unpaused_results.filter(
-            pl.col("missing_current_period_defn") & pl.col("is_current_print")
+            pl.col("missing_current_period_defn") & pl.col("is_current_sku")
         )
         .select(
             ["category"]
@@ -361,11 +358,8 @@ def check_dispatch_results(
         "AMZ INV missing": unpaused_results.filter(
             pl.col("no_ch_stock_info")
             & (
-                pl.col("is_current_print")
-                | (
-                    ~pl.col("is_next_year_print")
-                    & pl.col("wh_dispatchable").gt(0)
-                )
+                pl.col("is_current_sku")
+                | (~pl.col("is_future_sku") & pl.col("wh_dispatchable").gt(0))
             )
         )
         .select(
@@ -379,7 +373,7 @@ def check_dispatch_results(
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "WH INV missing": unpaused_results.filter(
-            pl.col("no_wh_stock_info") & pl.col("is_current_print")
+            pl.col("no_wh_stock_info") & pl.col("is_current_sku")
         )
         .select(
             ALL_SKU_IDS

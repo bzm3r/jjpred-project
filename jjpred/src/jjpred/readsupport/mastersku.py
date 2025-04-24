@@ -10,7 +10,7 @@ import polars as pl
 import polars.selectors as cs
 import re
 
-from jjpred.analysisdefn import AnalysisDefn
+from jjpred.analysisdefn import AnalysisDefn, CurrentSeasonDefn
 from jjpred.countryflags import CountryFlags
 from jjpred.globalpaths import (
     ANALYSIS_INPUT_FOLDER,
@@ -18,7 +18,7 @@ from jjpred.globalpaths import (
 )
 from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.sku import Sku
-from jjpred.seasons import POSeason, Season
+from jjpred.seasons import Season, POSeason
 from jjpred.structlike import MemberType
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.fileio import (
@@ -189,6 +189,7 @@ plotting."""
         master_sku_info = read_master_sku_excel_file(
             analysis_defn.master_sku_date,
             website_sku_fetch_info,
+            analysis_defn.current_seasons,
         )
 
         master_sku_info.write_to_disk(analysis_defn, overwrite=overwrite)
@@ -303,6 +304,7 @@ or 2) have not yet been given a mapping.."""
 
 def generate_filtered_season_history_map(
     master_sku_df: pl.DataFrame,
+    current_seasons: CurrentSeasonDefn | None,
 ) -> pl.DataFrame:
     """Filter out TAIWAN, CLEMENT, and other issues."""
     unique_season_histories = (
@@ -436,7 +438,25 @@ def generate_filtered_season_history_map(
             )
         )
         .group_by("season_history")
-        .agg(pl.col.sku_latest_po_season.sort().first())
+        .agg(pl.col.sku_latest_po_season)
+    )
+
+    assert (
+        len(
+            sku_latest_po_season.filter(
+                pl.col.sku_latest_po_season.list.len().gt(len(POSeason))
+            )
+        )
+        == 0
+    )
+
+    sku_latest_po_season = sku_latest_po_season.with_columns(
+        sku_latest_po_season=pl.when(
+            pl.col.sku_latest_po_season.list.contains(POSeason.FW.name)
+        )
+        .then(pl.lit(POSeason.FW.name))
+        .otherwise(pl.lit(POSeason.SS.name))
+        .cast(POSeason.polars_type())
     )
 
     season_history_map = season_history_map.join(
@@ -447,6 +467,149 @@ def generate_filtered_season_history_map(
         len(season_history_map.filter(pl.col.sku_latest_po_season.is_null()))
         == 0
     )
+
+    if current_seasons is not None:
+        current_seasons_df = pl.DataFrame().with_columns(
+            pl.lit(
+                [
+                    {
+                        "year": current_seasons.get_year(po_season),
+                        "po_season": po_season.name,
+                    }
+                    for po_season in POSeason
+                ],
+                dtype=season_history_map["season_history_info"].dtype,
+            ).alias("current_seasons")
+        )
+
+        problem_current_seasons = current_seasons_df.filter(
+            pl.col.current_seasons.list.eval(
+                pl.element().struct.field("po_season")
+            )
+            .list.unique()
+            .list.len()
+            .ne(len(POSeason))
+        )
+
+        assert len(problem_current_seasons) == 0, problem_current_seasons
+
+        sku_currentness_info = (
+            season_history_map.select("season_history", "season_history_info")
+            .join(current_seasons_df, how="cross")
+            .explode("season_history_info")
+            .explode("current_seasons")
+            .with_columns(
+                current_po_tags=pl.when(
+                    pl.col.season_history_info.eq(pl.col.current_seasons)
+                )
+                .then(pl.col.current_seasons)
+                .otherwise(None),
+                is_current=pl.col.season_history_info.eq(
+                    pl.col.current_seasons
+                ),
+                is_past=pl.col.season_history_info.struct.field("year").lt(
+                    pl.col.current_seasons.struct.field("year")
+                )
+                & pl.col.season_history_info.struct.field("po_season").eq(
+                    pl.col.current_seasons.struct.field("po_season")
+                ),
+            )
+            .group_by("season_history")
+            .agg(
+                pl.col.season_history_info.unique(),
+                pl.col.is_current,
+                pl.col.is_past,
+                pl.col.current_po_tags.drop_nulls(),
+            )
+            .with_columns(
+                is_current_sku=pl.col.is_current.list.any(),
+            )
+            .with_columns(
+                is_new_sku=~pl.col.is_past.list.any() & pl.col.is_current_sku,
+                is_future_sku=~pl.col.is_past.list.any()
+                & ~pl.col.is_current_sku,
+                current_po_tags_by_season=pl.struct(
+                    pl.col.current_po_tags.list.eval(
+                        pl.element()
+                        .filter(
+                            pl.element()
+                            .struct.field("po_season")
+                            .eq(po_season.name)
+                        )
+                        .struct.field("year")
+                    )
+                    .list.max()
+                    .alias(po_season.name)
+                    for po_season in POSeason
+                ),
+            )
+            .with_columns(
+                sku_current_year=pl.max_horizontal(
+                    pl.col.current_po_tags_by_season.struct.field(x.name)
+                    for x in POSeason
+                )
+            )
+            .with_columns(
+                sku_current_po_season=pl.concat_list(
+                    pl.when(
+                        pl.col.current_po_tags_by_season.struct.field(
+                            x.name
+                        ).eq(pl.col.sku_current_year)
+                    ).then(
+                        pl.struct(
+                            po_priority=pl.lit(x.po_priority()),
+                            po_season=pl.lit(x.name),
+                        )
+                    )
+                    for x in POSeason
+                )
+                .list.drop_nulls()
+                # structs are sorted by their first field,
+                # which in this case is the po_priority
+                .list.sort()
+                .list.first()
+                .struct.field("po_season")
+            )
+        )
+
+        season_history_map = season_history_map.join(
+            sku_currentness_info.select(
+                "season_history",
+                "is_current_sku",
+                "is_new_sku",
+                "is_future_sku",
+                "sku_current_year",
+                pl.col.sku_current_po_season.cast(POSeason.polars_type()),
+            ),
+            on=["season_history"],
+            how="left",
+        )
+
+        assert (
+            len(season_history_map.filter(pl.col.is_current_sku.is_null()))
+            == 0
+        )
+        assert len(season_history_map.filter(pl.col.is_new_sku.is_null())) == 0
+        assert (
+            len(season_history_map.filter(pl.col.is_future_sku.is_null())) == 0
+        )
+        assert (
+            len(
+                season_history_map.filter(
+                    pl.col.is_current_sku, pl.col.sku_current_year.is_null()
+                )
+            )
+            == 0
+        )
+        assert (
+            len(
+                season_history_map.filter(
+                    pl.col.is_current_sku,
+                    pl.col.sku_current_po_season.is_null(),
+                )
+            )
+            == 0
+        )
 
     return season_history_map
 
@@ -564,6 +727,7 @@ def get_relevant_website_sku(
 def read_master_sku_excel_file(
     master_sku_date: DateLike,
     website_sku_fetch_info: WebsiteSkuFetchInfo | None,
+    current_seasons: CurrentSeasonDefn | None,
 ) -> MasterSkuInfo:
     """Read the master information excel file."""
 
@@ -867,7 +1031,9 @@ def read_master_sku_excel_file(
     # expect it to not remain of a fixed format. Therefore, filter out all such
     # variants apart from the ones we want to explicitly recognize: F*, S*
 
-    season_history_map = generate_filtered_season_history_map(master_sku_df)
+    season_history_map = generate_filtered_season_history_map(
+        master_sku_df, current_seasons
+    )
 
     master_sku_df = master_sku_df.join(
         season_history_map, on=["season_history"]

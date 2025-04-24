@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import auto
-from typing import Any, Self
+from typing import Any, Self, TypedDict
 from jjpred.utils.polars import EnumLike
 
 
@@ -48,3 +48,17 @@ class POSeason(EnumLike):
                 return POSeason.SS.name
 
         raise ValueError(f"Cannot parse {x} as {cls}")
+
+    def po_priority(self) -> int:
+        match self:
+            case POSeason.FW:
+                return 1
+            case POSeason.SS:
+                return 0
+            case x:
+                raise ValueError(f"No PO priority assigned to season {x}")
+
+
+class PoTagDict(TypedDict):
+    year: int
+    po_season: str

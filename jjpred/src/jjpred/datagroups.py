@@ -41,8 +41,8 @@ DATA_AVAILABILITY_FLAGS = [
 ]
 NOVELTY_FLAGS = [
     "is_new_category",
-    "is_current_print",
-    "is_next_year_print",
+    "is_current_sku",
+    "is_future_sku",
     "is_new_sku",
 ]
 GENERAL_CHECK_FLAG_IDS = [

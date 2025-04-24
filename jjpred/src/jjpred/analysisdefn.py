@@ -4,7 +4,6 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
-from calendar import Month
 import polars as pl
 from dataclasses import dataclass, field
 import datetime
@@ -16,7 +15,7 @@ from jjpred.analysisconfig import RefillConfigInfo
 from jjpred.scripting.dateoffset import (
     determine_main_program_compatible_start_end_dates,
 )
-from jjpred.seasons import Season
+from jjpred.seasons import POSeason, Season
 from jjpred.utils.datetime import (
     Date,
     DateLike,
@@ -86,6 +85,42 @@ def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
         return None
 
 
+@dataclass
+class CurrentSeasonDefn:
+    FW: int
+    SS: int
+
+    @classmethod
+    def parse_year(cls, year: int) -> int:
+        assert year > 0
+
+        if year > 2000:
+            year = 2000 - year
+
+        assert 0 <= year <= 100
+
+        return year
+
+    def __init__(self, FW: int, SS: int):
+        self.FW = self.__class__.parse_year(FW)
+        self.SS = self.__class__.parse_year(SS)
+
+    def get_year(self, po_season: POSeason) -> int:
+        match po_season:
+            case POSeason.FW:
+                return self.FW
+            case POSeason.SS:
+                return self.SS
+            case other:
+                raise ValueError(f"Case {other} not implemented!")
+
+    def tag(self) -> str:
+        return "_".join(f"{self.get_year(x)}{x.name}" for x in POSeason)
+
+    def __hash__(self) -> int:
+        return hash((self.FW, self.SS))
+
+
 # when adding new optional fields, make sure to set 'init=False' otherwise we
 # will get a default field initialization issue
 @total_ordering
@@ -109,6 +144,12 @@ class AnalysisDefn:
     warehouse_inventory_date: Date = field(compare=False)
     """Date of associated warehouse inventory file."""
 
+    current_seasons: CurrentSeasonDefn = field(compare=False)
+    """The "year start" month for FW items (when we change which PO we are
+    using we are using for FW items, or when we change considering
+    whether an item is continued/discontinued) is usually in the middle of the
+    year."""
+
     config_date: Date | None = field(default=None, init=False, compare=False)
     """Date of associated marketed configuration file."""
 
@@ -124,12 +165,6 @@ class AnalysisDefn:
     """Latest dates for: default current period end dates and monthly ratio
     rolling update point."""
 
-    fw_year_start_month: Month = field(init=False)
-    """The "year start" month for FW items (when we change which PO we are
-    using we are using for FW items, or when we change considering
-    whether an item is continued/discontinued) is usually in the middle of the
-    year."""
-
     extra_descriptor: str | None = field(default=None, init=False)
     """Extra description string."""
 
@@ -142,12 +177,12 @@ class AnalysisDefn:
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         latest_dates: LatestDates | None = None,
         config_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
         po_date: DateLike | None = None,
         extra_descriptor: str | None = None,
-        fw_year_start_month: Month = Month.JULY,
     ):
         self.basic_descriptor = basic_descriptor
         self.date = Date.from_datelike(date)
@@ -171,7 +206,7 @@ class AnalysisDefn:
             self.latest_dates = latest_dates
 
         self.extra_descriptor = extra_descriptor
-        self.fw_year_start_month = fw_year_start_month
+        self.current_seasons = current_seasons
 
         self._hash = hash(
             (
@@ -185,7 +220,7 @@ class AnalysisDefn:
                 self.po_date,
                 self.latest_dates,
                 self.extra_descriptor,
-                self.fw_year_start_month,
+                self.current_seasons,
             )
         )
 
@@ -380,6 +415,7 @@ class RefillDefn(AnalysisDefn):
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         website_sku_date: DateLike | None = None,
@@ -400,7 +436,6 @@ class RefillDefn(AnalysisDefn):
         dispatch_cutoff_qty: int = 2,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        fw_year_start_month: Month = Month.JULY,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -469,7 +504,7 @@ class RefillDefn(AnalysisDefn):
                 self.dispatch_date, demand_ratio_rolling_update_to
             ),
             extra_descriptor=extra_descriptor,
-            fw_year_start_month=fw_year_start_month,
+            current_seasons=current_seasons,
         )
 
     def tag(self) -> str:
@@ -532,6 +567,7 @@ class FbaRevDefn(RefillDefn):
         sales_and_inventory_date: DateLike,
         dispatch_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         refill_type: RefillType,
@@ -559,7 +595,6 @@ class FbaRevDefn(RefillDefn):
         extra_descriptor: str | None = None,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        fw_year_start_month: Month = Month.JULY,
     ):
         self.refill_type = refill_type
 
@@ -632,7 +667,7 @@ class FbaRevDefn(RefillDefn):
             dispatch_cutoff_qty=dispatch_cutoff_qty,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-            fw_year_start_month=fw_year_start_month,
+            current_seasons=current_seasons,
         )
 
     @classmethod
@@ -641,6 +676,7 @@ class FbaRevDefn(RefillDefn):
         analysis_date: DateLike,
         dispatch_date: DateLike,
         config_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         prediction_type_meta_date: DateLike | None,
         real_analysis_date: DateLike,
         refill_type: RefillType,
@@ -660,7 +696,6 @@ class FbaRevDefn(RefillDefn):
         match_main_program_month_fractions: bool = True,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        fw_year_start_month: Month = Month.JULY,
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
         compare against a real analysis.
@@ -679,14 +714,15 @@ class FbaRevDefn(RefillDefn):
         warehouse_inventory_date = real_analysis_date
 
         return cls(
-            analysis_date,
-            master_sku_date,
-            sales_and_inventory_date,
-            dispatch_date,
-            warehouse_inventory_date,
-            config_date,
-            prediction_type_meta_date,
-            refill_type,
+            analysis_date=analysis_date,
+            master_sku_date=master_sku_date,
+            sales_and_inventory_date=sales_and_inventory_date,
+            dispatch_date=dispatch_date,
+            warehouse_inventory_date=warehouse_inventory_date,
+            current_seasons=current_seasons,
+            config_date=config_date,
+            prediction_type_meta_date=prediction_type_meta_date,
+            refill_type=refill_type,
             check_dispatch_date=check_dispatch_date,
             mon_sale_r_date=real_analysis_date,
             mainprogram_date=real_analysis_date,
@@ -704,7 +740,6 @@ class FbaRevDefn(RefillDefn):
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-            fw_year_start_month=fw_year_start_month,
         )
 
     def _get_date(self, date_name: str) -> Date:
@@ -741,6 +776,7 @@ class JJWebDefn(RefillDefn):
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         proportion_split_date: DateLike,
@@ -759,7 +795,6 @@ class JJWebDefn(RefillDefn):
         extra_descriptor: str | None = None,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        fw_year_start_month: Month = Month.JULY,
     ):
         self.website_proportions_split_date = Date.from_datelike(
             proportion_split_date
@@ -791,5 +826,5 @@ class JJWebDefn(RefillDefn):
             dispatch_cutoff_qty=0,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-            fw_year_start_month=fw_year_start_month,
+            current_seasons=current_seasons,
         )

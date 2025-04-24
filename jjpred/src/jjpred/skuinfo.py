@@ -16,14 +16,8 @@ import sys
 from typing import Literal
 import polars as pl
 
-from jjpred.analysisdefn import AnalysisDefn, RefillDefn
+from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel, Platform
-from jjpred.datagroups import (
-    ALL_SKU_IDS,
-    PAUSE_PLAN_IDS,
-    SEASON_IDS,
-    STATUS_IDS,
-)
 from jjpred.database import DataBase
 from jjpred.readsupport.marketing import ConfigData
 from jjpred.sku import Sku
@@ -35,72 +29,6 @@ from jjpred.utils.polars import (
     join_and_coalesce,
 )
 from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
-
-
-def get_all_sku_currentness_info(
-    analysis_defn_or_db: RefillDefn | DataBase,
-) -> pl.DataFrame:
-    if isinstance(analysis_defn_or_db, RefillDefn):
-        analysis_defn = analysis_defn_or_db
-        dispatch_date = analysis_defn.dispatch_date
-    elif isinstance(analysis_defn_or_db, DataBase):
-        database = analysis_defn_or_db
-        analysis_defn = database.analysis_defn
-        dispatch_date = database.dispatch_date()
-    else:
-        raise ValueError(f"No logic to handle {analysis_defn_or_db=}")
-
-    current_year = dispatch_date.year - 2000
-    next_year = (dispatch_date.year + 1) - 2000
-
-    master_all_sku = read_meta_info(analysis_defn, "all_sku")
-    all_sku_info = (
-        master_all_sku.select(
-            ALL_SKU_IDS
-            + SEASON_IDS
-            + [x for x in PAUSE_PLAN_IDS if x in master_all_sku]
-            + [x for x in STATUS_IDS if x in master_all_sku]
-        )
-        .with_columns(
-            pl.col("status").eq("active").alias("is_active").fill_null(False)
-        )
-        .drop("status")
-        .with_columns(
-            sku_latest_year=pl.col("sku_latest_year").fill_null(-1),
-        )
-        .with_columns(
-            is_current_print=pl.col("sku_year_history")
-            .list.eval(pl.element().eq(current_year))
-            .list.any()
-            .alias("is_current_print")
-            .fill_null(False)
-        )
-        .with_columns(
-            is_new_category=pl.col("category_year_history")
-            .list.eval(pl.element().is_in([current_year, next_year]))
-            .list.all()
-            .fill_null(False)
-        )
-        .with_columns(
-            is_new_sku=(
-                pl.col("is_current_print")
-                & pl.col("sku_year_history")
-                .list.eval(pl.element().is_in([current_year, next_year]))
-                .list.all()
-                .fill_null(False)
-            )
-        )
-        .with_columns(
-            is_next_year_print=(
-                pl.col("sku_latest_year").eq(next_year)
-                & ~pl.col("is_current_print")
-            ).fill_null(False)
-        )
-    )
-
-    find_dupes(all_sku_info, ALL_SKU_IDS, raise_error=True)
-
-    return all_sku_info
 
 
 def override_sku_info(

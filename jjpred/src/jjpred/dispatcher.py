@@ -268,41 +268,14 @@ def calculate_reserved_quantity(
             .filter(pl.col.category.is_in(end_date_info["category"]))
         )
 
-        reserve_demand = (
-            reserve_demand.with_columns(
-                dispatch_date=Date.from_datelike(
-                    db.analysis_defn.dispatch_date
-                ).as_polars_date()
-            )
-            .with_columns(
-                produced_for_this_year=pl.when(
-                    pl.col.sku_latest_po_season.eq("FW")
-                    & (
-                        pl.col.dispatch_date.dt.month()
-                        < fw_item_new_year_month
-                    )
-                )
-                .then(
-                    (pl.col.dispatch_date.dt.year() - 2000 - 1).is_in(
-                        pl.col.sku_year_history
-                    )
-                    | (
-                        (pl.col.dispatch_date.dt.year() - 2000).is_in(
-                            pl.col.sku_year_history
-                        )
-                    )
-                )
-                .otherwise(
-                    (pl.col.dispatch_date.dt.year() - 2000).is_in(
-                        pl.col.sku_year_history
-                    )
-                ),
-            )
-            .with_columns(
-                reserved=pl.when(~pl.col.produced_for_this_year)
-                .then(0)
-                .otherwise(pl.col.expected_demand)
-            )
+        reserve_demand = reserve_demand.with_columns(
+            dispatch_date=Date.from_datelike(
+                db.analysis_defn.dispatch_date
+            ).as_polars_date()
+        ).with_columns(
+            reserved=pl.when(~pl.col.produced_for_this_year)
+            .then(0)
+            .otherwise(pl.col.expected_demand)
         )
 
         reserve_demands.append(reserve_demand)

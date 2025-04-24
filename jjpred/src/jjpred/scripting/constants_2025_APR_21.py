@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from jjpred.analysisdefn import (
+    CurrentSeasonDefn,
     FbaRevDefn,
     JJWebDefn,
     JJWebPredictionInfo,
@@ -13,6 +14,7 @@ import polars as pl
 
 from jjpred.analysisconfig import RefillConfigInfo
 
+current_seasons = CurrentSeasonDefn(FW=24, SS=25)
 analysis_date = "2025-APR-23"
 dispatch_date = "2025-APR-21"
 master_sku_date = "2025-APR-23"
@@ -50,6 +52,7 @@ analysis_defn = FbaRevDefn(
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    current_seasons=current_seasons,
 )
 
 analysis_defn_website_reserved = FbaRevDefn(
@@ -96,6 +99,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     extra_descriptor="_website_reserved",
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    current_seasons=current_seasons,
 )
 
 # analysis_defn_main = copy.deepcopy(analysis_defn)
@@ -122,6 +126,7 @@ jjweb_analysis_defn = JJWebDefn(
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    current_seasons=current_seasons,
 )
 
 
