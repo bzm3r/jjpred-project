@@ -425,15 +425,49 @@ class Dispatcher:
             )
 
         # attach warehouse stock information and min_keep_qty information
-        self.all_sku_info = attach_inventory_info(
-            self.db,
-            self.config_data,
-            self.all_sku_info,
-            pl.col("platform")
-            .eq("Warehouse")
-            .and_(pl.col("mode").eq(DistributionMode.WAREHOUSE.name)),
-            analysis_defn.warehouse_min_keep_qty,
-            self.filters,
+        self.all_sku_info = (
+            attach_inventory_info(
+                self.db,
+                self.config_data,
+                self.all_sku_info,
+                pl.col("platform")
+                .eq("Warehouse")
+                .and_(pl.col("mode").eq(DistributionMode.WAREHOUSE.name)),
+                analysis_defn.warehouse_min_keep_qty,
+                self.filters,
+            )
+            .with_columns(
+                dispatch_date=analysis_defn.dispatch_date.as_polars_date()
+            )
+            .with_columns(
+                produced_for_this_year=pl.when(
+                    pl.col.sku_latest_po_season.eq("FW")
+                    & (pl.col.dispatch_date.dt.month() < 7)
+                )
+                .then(
+                    (pl.col.dispatch_date.dt.year() - 2000 - 1).is_in(
+                        pl.col.sku_year_history
+                    )
+                    | (
+                        (pl.col.dispatch_date.dt.year() - 2000).is_in(
+                            pl.col.sku_year_history
+                        )
+                    )
+                )
+                .otherwise(
+                    (pl.col.dispatch_date.dt.year() - 2000).is_in(
+                        pl.col.sku_year_history
+                    )
+                ),
+            )
+            .with_columns(
+                min_keep=pl.when(
+                    pl.col.min_keep.gt(analysis_defn.warehouse_min_keep_qty)
+                    & ~pl.col.produced_for_this_year
+                )
+                .then(pl.lit(analysis_defn.warehouse_min_keep_qty))
+                .otherwise(pl.col.min_keep)
+            )
         )
         if "ch_stock" not in self.all_sku_info.columns:
             self.all_sku_info = self.all_sku_info.with_columns(
