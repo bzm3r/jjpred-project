@@ -776,12 +776,7 @@ class Dispatcher:
 
         if self.reserved_quantity is not None:
             self.all_sku_info = self.all_sku_info.join(
-                self.reserved_quantity
-                # .filter(
-                #     pl.col.in_season & pl.col.produced_this_year
-                # )
-                # .filter(pl.col.expected_demand_from_po.list.sum().gt(0))
-                .group_by("sku", "a_sku")
+                self.reserved_quantity.group_by("sku", "a_sku")
                 .agg(pl.col.reserved.sum().round().cast(pl.Int64()))
                 .select(
                     "sku",
