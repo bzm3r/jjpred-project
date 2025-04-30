@@ -346,7 +346,6 @@ def read_po(
 
     if read_from_disk or delete_if_exists:
         po_per_sku = delete_or_read_df(delete_if_exists, po_per_sku_path)
-        # per_cat = delete_or_read_df(delete_if_exists, per_cat_path)
 
         if po_per_sku is not None:  # and per_cat is not None:
             return rename_25SS_gra_to_asg_for_hca0_hcb0(
@@ -369,11 +368,6 @@ def read_po(
             "is_current_sku",
             "sku_current_year",
             "sku_current_po_season",
-            # "pause_plan",
-            # "season",
-            # "sku_year_history",
-            # "category_year_history",
-            # "sku_latest_year",
         ]
     )
 
@@ -396,47 +390,6 @@ def read_po(
             & pl.col.sku_current_po_season.eq(pl.col.po_season)
         )
     )
-
-    # available_po_seasons = [
-    #     POSeason.from_str(x) for x in all_po_per_sku["po_season"].unique()
-    # ]
-    # assert len(available_po_seasons) == len(list(POSeason))
-
-    # relevant_po_parts = {}
-    # for season in available_po_seasons:
-    #     relevant_po_parts[season] = all_po_per_sku.filter(
-    #         pl.col.po_season.eq(season.name),
-    #         pl.col.po_year.eq(analysis_defn.current_seasons.get_year(season)),
-    #     )
-
-    # # relevant_po_per_sku = pl.concat(relevant_po_parts)
-
-    # focus_season_info = relevant_po_parts[po_focus_season].filter(
-    #     pl.col.po_season.eq(po_focus_season.name)
-    # )
-    # other_season_info = relevant_po_parts[other_season].filter(
-    #     pl.col.po_season.eq(other_season.name)
-    # )
-
-    # find_dupes(
-    #     focus_season_info,
-    #     ALL_SKU_AND_CHANNEL_IDS + ["month"],
-    #     raise_error=True,
-    # )
-    # find_dupes(
-    #     other_season_info,
-    #     ALL_SKU_AND_CHANNEL_IDS + ["month"],
-    #     raise_error=True,
-    # )
-
-    # in_dispatch_season_info = focus_season_info["sku"].unique()
-    # other_season_info = other_season_info.with_columns(
-    #     in_dispatch_season_info=pl.col.sku.is_in(in_dispatch_season_info)
-    # ).filter(~pl.col.in_dispatch_season_info)
-
-    # po_per_sku = focus_season_info.vstack(
-    #     other_season_info.select(focus_season_info.columns)
-    # )
 
     find_dupes(
         all_po_per_sku,
