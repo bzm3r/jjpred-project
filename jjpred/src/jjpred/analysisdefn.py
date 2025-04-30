@@ -308,13 +308,59 @@ class OutperformerSettings:
     Note that currently this setting assumes we are working in the Northern Hemisphere."""
 
 
+FW_RESERVATION_MONTHS = [(8, 1)]
+"""If the item is FW: then the reservation period is: Aug to Jan (not inclusive)."""
+SS_TYPICAL_RESERVATION_MONTHS = [(2, 6)]
+"""If the item is SS: then typically the reservation period is: Feb to Jun (not
+inclusive)."""
+SS_SPW_AND_U_CATS_RESERVATION_MONTHS = [(2, 7)]
+"""If the item is SS, and its category is SPW or one of the U* categories, then
+typically the reservation period is: Feb to Jun (not inclusive)."""
+
+DEFAULT_RESERVATION_EXPR = (
+    pl.when(pl.col.season.eq("FW"))
+    .then(FW_RESERVATION_MONTHS)
+    .when(
+        pl.col.season.eq("SS")
+        & ~(
+            pl.col.category.eq("SPW")
+            | pl.col.category.cast(pl.String()).str.starts_with("U")
+        )
+    )
+    .then(SS_TYPICAL_RESERVATION_MONTHS)
+    .when(
+        pl.col.season.eq("SS")
+        & (
+            pl.col.category.eq("SPW")
+            | pl.col.category.cast(pl.String()).str.starts_with("U")
+        )
+    )
+    .then(SS_SPW_AND_U_CATS_RESERVATION_MONTHS)
+    .when(pl.col.season.eq("AS"))
+    .then(SS_TYPICAL_RESERVATION_MONTHS + FW_RESERVATION_MONTHS)
+    # months should be a pair of UInt8
+    .cast(pl.List(pl.Array(pl.UInt8(), 2)))
+)
+"""The default reservation expression. Built using ``FW_RESERVATION_MONTHS``,
+``SS_TYPICAL_RESERVATION_MONTHS`` and ``SS_SPW_AND_U_CAT_RESERVATION_MONTHS``.
+"""
+
+
 @dataclass
 class JJWebPredictionInfo:
     reservation_expr: pl.Expr | None
-    force_po_prediction: bool = field(default=True)
-    prediction_offset_3pl: DateOffset = field(
+    """A Polars expression which generates a list of ``(START_MONTH, END_MONTH)``
+    tuples based on an item's season and perhaps other details (e.g. specific
+    categories might have different periods).
+
+    One typical expression is given by ``DEFAULT_RESERVATION_EXPR``."""
+    force_reserve_po_prediction: bool = field(default=True)
+    """Whether to force PO prediction for reservation."""
+    prediction_offset_3pl_when_reservation_on: DateOffset = field(
         default_factory=lambda: DateOffset(8, DateUnit.WEEK)
     )
+    """For SKUs that are being reserved, we need to come up with some
+    determination of how many weeks to make a prediction for JJWEB East."""
 
     def __init__(
         self,
@@ -323,8 +369,8 @@ class JJWebPredictionInfo:
         prediction_offset_3pl: DateOffset = DateOffset(8, DateUnit.WEEK),
     ):
         self.reservation_expr = reservation_expr
-        self.force_po_prediction = force_po_prediction_for_reservation
-        self.prediction_offset_3pl = prediction_offset_3pl
+        self.force_reserve_po_prediction = force_po_prediction_for_reservation
+        self.prediction_offset_3pl_when_reservation_on = prediction_offset_3pl
 
 
 @dataclass

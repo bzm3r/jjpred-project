@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from jjpred.analysisdefn import (
+    DEFAULT_RESERVATION_EXPR,
     CurrentSeasonDefn,
     FbaRevDefn,
     JJWebDefn,
     JJWebPredictionInfo,
 )
 from jjpred.inputstrategy import RefillType
-
-import polars as pl
 
 from jjpred.analysisconfig import RefillConfigInfo
 
@@ -66,27 +65,8 @@ analysis_defn_website_reserved = FbaRevDefn(
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
     jjweb_reserve_info=JJWebPredictionInfo(
-        pl.when(pl.col.season.eq("FW"))
-        .then([(8, 1)])
-        .when(
-            pl.col.season.eq("SS")
-            & ~(
-                pl.col.category.eq("SPW")
-                | pl.col.category.cast(pl.String()).str.starts_with("U")
-            )
-        )
-        .then([(2, 6)])
-        .when(
-            pl.col.season.eq("SS")
-            & (
-                pl.col.category.eq("SPW")
-                | pl.col.category.cast(pl.String()).str.starts_with("U")
-            )
-        )
-        .then([(2, 7)])
-        .when(pl.col.season.eq("AS"))
-        .then([(2, 6), (8, 1)])
-        .cast(pl.List(pl.Array(pl.UInt8(), 2)))
+        reservation_expr=DEFAULT_RESERVATION_EXPR,
+        force_po_prediction_for_reservation=True,
     ),
     refill_type=RefillType.WEEKLY,
     mainprogram_date=mainprogram_date,

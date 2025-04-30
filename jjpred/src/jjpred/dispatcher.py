@@ -756,7 +756,7 @@ class Dispatcher:
                 db,
                 self.predictor,
                 self.analysis_defn.jjweb_reserve_info.reservation_expr,
-                force_po_predictions=self.analysis_defn.jjweb_reserve_info.force_po_prediction,
+                force_po_predictions=self.analysis_defn.jjweb_reserve_info.force_reserve_po_prediction,
             )
 
         if self.reserved_quantity is not None:
@@ -800,9 +800,11 @@ class Dispatcher:
             pl.col.reserved.gt(0)
         )["sku"].unique()
 
+        # TODO: need to get the JJWEB EAST 3PL inventory from sales/channel data
         self.all_sku_info = self.all_sku_info.with_columns(
             jjweb_inv_3pl=pl.lit(0)
         )
+        # TODO: need to calculate the JJWEB EAST fractions based on sales data
         self.all_sku_info = self.all_sku_info.with_columns(
             jjweb_east_frac=pl.lit(0.0)
         )
@@ -911,7 +913,7 @@ class Dispatcher:
                                 if x == jjweb_channel
                             ],
                             self.analysis_defn.dispatch_date,
-                            self.analysis_defn.jjweb_reserve_info.prediction_offset_3pl.apply_to(
+                            self.analysis_defn.jjweb_reserve_info.prediction_offset_3pl_when_reservation_on.apply_to(
                                 analysis_defn.dispatch_date
                             ),
                         ).filter(pl.col.sku.is_in(skus_with_reservation)),
