@@ -277,7 +277,6 @@ def calculate_reserved_quantity(
 
 def attach_inventory_info(
     db: DataBase,
-    config_data: ConfigData,
     all_sku_info: pl.DataFrame,
     warehouse_filter: pl.Expr,
     warehouse_min_keep_qty: int,
@@ -331,20 +330,6 @@ def attach_inventory_info(
     all_sku_info = all_sku_info.with_columns(
         min_keep=pl.lit(warehouse_min_keep_qty, pl.Int64())
     )
-    # all_sku_info = (
-    #     override_sku_info(
-    #         all_sku_info,
-    #         config_data.min_keep,
-    #         create_info_columns=["min_keep"],
-    #     )
-    #     .with_columns(
-    #         min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
-    #     )
-    #     .with_columns(
-    #         min_keep=pl.max_horizontal("min_keep", "min_keep_default")
-    #     )
-    #     .drop("min_keep_default")
-    # )
 
     return all_sku_info
 
@@ -794,7 +779,6 @@ class Dispatcher:
         # attach warehouse stock information and min_keep_qty information
         self.all_sku_info = attach_inventory_info(
             self.db,
-            self.config_data,
             self.all_sku_info,
             pl.col("platform")
             .eq("Warehouse")
