@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import AnalysisDefn, RefillDefn
+from jjpred.analysisdefn import AnalysisDefn
 from jjpred.database import DataBase
 import polars as pl
 
