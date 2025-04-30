@@ -218,7 +218,7 @@ class StructLike(Hashable, Protocol):
     def as_dict(
         self,
         keys: set[str] | list[str] | None = None,
-        remove_defaults: bool = True,
+        remove_defaults: bool = False,
     ) -> dict[str, object]:
         keys = self.__class__.normalize_keys(keys)
 

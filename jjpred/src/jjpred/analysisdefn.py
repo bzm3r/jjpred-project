@@ -15,7 +15,7 @@ from jjpred.analysisconfig import RefillConfigInfo
 from jjpred.scripting.dateoffset import (
     determine_main_program_compatible_start_end_dates,
 )
-from jjpred.seasons import Season
+from jjpred.seasons import CurrentSeason, CurrentSeasonDict, POSeason, Season
 from jjpred.utils.datetime import (
     Date,
     DateLike,
@@ -85,6 +85,69 @@ def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
         return None
 
 
+@dataclass
+class CurrentSeasonDefn:
+    FW: int
+    SS: int
+    season_offsets_to_consider_current: list[int] = field(
+        default_factory=lambda: [0]
+    )
+
+    @classmethod
+    def parse_year(cls, year: int) -> int:
+        assert year > 0
+
+        if year > 2000:
+            year = 2000 - year
+
+        assert 0 <= year <= 100
+
+        return year
+
+    def __init__(
+        self,
+        FW: int,
+        SS: int,
+        season_offsets_to_consider_current: list[int] = [0],
+    ):
+        self.FW = self.__class__.parse_year(FW)
+        self.SS = self.__class__.parse_year(SS)
+
+        self.season_offsets_to_consider_current = (
+            season_offsets_to_consider_current
+        )
+
+    def get_possible_current_seasons(self) -> list[CurrentSeasonDict]:
+        possible_seasons = []
+        for po_season in POSeason:
+            current_season = self.get_current_season(po_season)
+            possible_seasons += [
+                current_season.offset_season(x).as_dict()
+                for x in self.season_offsets_to_consider_current
+            ]
+        return possible_seasons
+
+    def get_current_season(self, po_season: POSeason) -> CurrentSeason:
+        return CurrentSeason(self.get_year(po_season), po_season)
+
+    def get_year(self, po_season: POSeason) -> int:
+        match po_season:
+            case POSeason.FW:
+                return self.FW
+            case POSeason.SS:
+                return self.SS
+            case other:
+                raise ValueError(f"Case {other} not implemented!")
+
+    def tag(self) -> str:
+        return "_".join(f"{self.get_year(x)}{x.name}" for x in POSeason)
+
+    def __hash__(self) -> int:
+        return hash((self.FW, self.SS))
+
+
+# when adding new optional fields, make sure to set 'init=False' otherwise we
+# will get a default field initialization issue
 @total_ordering
 @dataclass
 class AnalysisDefn:
@@ -105,6 +168,12 @@ class AnalysisDefn:
 
     warehouse_inventory_date: Date = field(compare=False)
     """Date of associated warehouse inventory file."""
+
+    current_seasons: CurrentSeasonDefn = field(compare=False)
+    """The "year start" month for FW items (when we change which PO we are
+    using we are using for FW items, or when we change considering
+    whether an item is continued/discontinued) is usually in the middle of the
+    year."""
 
     config_date: Date | None = field(default=None, init=False, compare=False)
     """Date of associated marketed configuration file."""
@@ -133,6 +202,7 @@ class AnalysisDefn:
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         latest_dates: LatestDates | None = None,
         config_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -161,6 +231,7 @@ class AnalysisDefn:
             self.latest_dates = latest_dates
 
         self.extra_descriptor = extra_descriptor
+        self.current_seasons = current_seasons
 
         self._hash = hash(
             (
@@ -174,6 +245,7 @@ class AnalysisDefn:
                 self.po_date,
                 self.latest_dates,
                 self.extra_descriptor,
+                self.current_seasons,
             )
         )
 
@@ -272,16 +344,22 @@ class OutperformerSettings:
 
 
 @dataclass
-class ReservationInfo:
-    polars_filter: pl.Expr | None
-    reserve_to_date: Date
+class JJWebPredictionInfo:
+    reservation_expr: pl.Expr | None
     force_po_prediction: bool = field(default=True)
+    prediction_offset_3pl: DateOffset = field(
+        default_factory=lambda: DateOffset(8, DateUnit.WEEK)
+    )
 
     def __init__(
-        self, polars_filter: pl.Expr | None, reserve_to_date: DateLike
+        self,
+        reservation_expr: pl.Expr | None,
+        force_po_prediction_for_reservation: bool = True,
+        prediction_offset_3pl: DateOffset = DateOffset(8, DateUnit.WEEK),
     ):
-        self.polars_filter = polars_filter
-        self.reserve_to_date = Date.from_datelike(reserve_to_date)
+        self.reservation_expr = reservation_expr
+        self.force_po_prediction = force_po_prediction_for_reservation
+        self.prediction_offset_3pl = prediction_offset_3pl
 
 
 @dataclass
@@ -312,7 +390,7 @@ class RefillDefn(AnalysisDefn):
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
 
-    jjweb_reserve_to_date: list[ReservationInfo] | None = field(
+    jjweb_reserve_info: JJWebPredictionInfo | None = field(
         default=None, compare=False
     )
     """The date up to which we will calculate reserved quantities based on J&J
@@ -362,10 +440,11 @@ class RefillDefn(AnalysisDefn):
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
+        jjweb_reserve_info: JJWebPredictionInfo | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -429,7 +508,7 @@ class RefillDefn(AnalysisDefn):
             else None
         )
 
-        self.jjweb_reserve_to_date = jjweb_reserve_to_date
+        self.jjweb_reserve_info = jjweb_reserve_info
 
         self.extra_refill_config_info = extra_refill_config_info
 
@@ -450,6 +529,7 @@ class RefillDefn(AnalysisDefn):
                 self.dispatch_date, demand_ratio_rolling_update_to
             ),
             extra_descriptor=extra_descriptor,
+            current_seasons=current_seasons,
         )
 
     def tag(self) -> str:
@@ -512,12 +592,13 @@ class FbaRevDefn(RefillDefn):
         sales_and_inventory_date: DateLike,
         dispatch_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         refill_type: RefillType,
         check_dispatch_date: bool = True,
         website_sku_date: DateLike | None = None,
-        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
+        jjweb_reserve_info: JJWebPredictionInfo | None = None,
         qty_box_date: DateLike | None = None,
         mon_sale_r_date: DateLike | None = None,
         mainprogram_date: DateLike | None = None,
@@ -596,7 +677,7 @@ class FbaRevDefn(RefillDefn):
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
-            jjweb_reserve_to_date=jjweb_reserve_to_date,
+            jjweb_reserve_info=jjweb_reserve_info,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
@@ -611,6 +692,7 @@ class FbaRevDefn(RefillDefn):
             dispatch_cutoff_qty=dispatch_cutoff_qty,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+            current_seasons=current_seasons,
         )
 
     @classmethod
@@ -619,6 +701,7 @@ class FbaRevDefn(RefillDefn):
         analysis_date: DateLike,
         dispatch_date: DateLike,
         config_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         prediction_type_meta_date: DateLike | None,
         real_analysis_date: DateLike,
         refill_type: RefillType,
@@ -656,14 +739,15 @@ class FbaRevDefn(RefillDefn):
         warehouse_inventory_date = real_analysis_date
 
         return cls(
-            analysis_date,
-            master_sku_date,
-            sales_and_inventory_date,
-            dispatch_date,
-            warehouse_inventory_date,
-            config_date,
-            prediction_type_meta_date,
-            refill_type,
+            analysis_date=analysis_date,
+            master_sku_date=master_sku_date,
+            sales_and_inventory_date=sales_and_inventory_date,
+            dispatch_date=dispatch_date,
+            warehouse_inventory_date=warehouse_inventory_date,
+            current_seasons=current_seasons,
+            config_date=config_date,
+            prediction_type_meta_date=prediction_type_meta_date,
+            refill_type=refill_type,
             check_dispatch_date=check_dispatch_date,
             mon_sale_r_date=real_analysis_date,
             mainprogram_date=real_analysis_date,
@@ -717,10 +801,11 @@ class JJWebDefn(RefillDefn):
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
+        current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
         prediction_type_meta_date: DateLike | None,
         proportion_split_date: DateLike,
-        jjweb_reserve_to_date: list[ReservationInfo] | None = None,
+        jjweb_reserve_info: JJWebPredictionInfo | None = None,
         check_dispatch_date: bool = True,
         qty_box_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -751,7 +836,7 @@ class JJWebDefn(RefillDefn):
             config_date=config_date,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
-            jjweb_reserve_to_date=jjweb_reserve_to_date,
+            jjweb_reserve_info=jjweb_reserve_info,
             check_dispatch_date=check_dispatch_date,
             qty_box_date=qty_box_date,
             in_stock_ratio_date=in_stock_ratio_date,
@@ -766,4 +851,5 @@ class JJWebDefn(RefillDefn):
             dispatch_cutoff_qty=0,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+            current_seasons=current_seasons,
         )

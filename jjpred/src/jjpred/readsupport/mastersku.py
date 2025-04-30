@@ -10,7 +10,7 @@ import polars as pl
 import polars.selectors as cs
 import re
 
-from jjpred.analysisdefn import AnalysisDefn
+from jjpred.analysisdefn import AnalysisDefn, CurrentSeasonDefn
 from jjpred.countryflags import CountryFlags
 from jjpred.globalpaths import (
     ANALYSIS_INPUT_FOLDER,
@@ -18,7 +18,7 @@ from jjpred.globalpaths import (
 )
 from jjpred.readsupport.inventory import InventoryType, read_inventory
 from jjpred.sku import Sku
-from jjpred.seasons import POSeason, Season
+from jjpred.seasons import Season, POSeason
 from jjpred.structlike import MemberType
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.fileio import (
@@ -189,6 +189,7 @@ plotting."""
         master_sku_info = read_master_sku_excel_file(
             analysis_defn.master_sku_date,
             website_sku_fetch_info,
+            analysis_defn.current_seasons,
         )
 
         master_sku_info.write_to_disk(analysis_defn, overwrite=overwrite)
@@ -303,6 +304,7 @@ or 2) have not yet been given a mapping.."""
 
 def generate_filtered_season_history_map(
     master_sku_df: pl.DataFrame,
+    current_seasons_defn: CurrentSeasonDefn | None,
 ) -> pl.DataFrame:
     """Filter out TAIWAN, CLEMENT, and other issues."""
     unique_season_histories = (
@@ -436,7 +438,25 @@ def generate_filtered_season_history_map(
             )
         )
         .group_by("season_history")
-        .agg(pl.col.sku_latest_po_season.sort().first())
+        .agg(pl.col.sku_latest_po_season)
+    )
+
+    assert (
+        len(
+            sku_latest_po_season.filter(
+                pl.col.sku_latest_po_season.list.len().gt(len(POSeason))
+            )
+        )
+        == 0
+    )
+
+    sku_latest_po_season = sku_latest_po_season.with_columns(
+        sku_latest_po_season=pl.when(
+            pl.col.sku_latest_po_season.list.contains(POSeason.FW.name)
+        )
+        .then(pl.lit(POSeason.FW.name))
+        .otherwise(pl.lit(POSeason.SS.name))
+        .cast(POSeason.polars_type())
     )
 
     season_history_map = season_history_map.join(
@@ -447,6 +467,145 @@ def generate_filtered_season_history_map(
         len(season_history_map.filter(pl.col.sku_latest_po_season.is_null()))
         == 0
     )
+
+    if current_seasons_defn is not None:
+        current_seasons_df = pl.DataFrame().with_columns(
+            pl.lit(
+                current_seasons_defn.get_possible_current_seasons(),
+                dtype=season_history_map["season_history_info"].dtype,
+            )
+            .alias("current_seasons")
+            .list.unique()
+        )
+
+        problem_current_seasons = current_seasons_df.filter(
+            pl.col.current_seasons.list.eval(
+                pl.element().struct.field("po_season")
+            )
+            .list.unique()
+            .list.len()
+            .ne(len(POSeason))
+        )
+
+        assert len(problem_current_seasons) == 0, problem_current_seasons
+
+        sku_currentness_info = (
+            season_history_map.select("season_history", "season_history_info")
+            .join(current_seasons_df, how="cross")
+            .explode("season_history_info")
+            .explode("current_seasons")
+            .with_columns(
+                current_po_tags=pl.when(
+                    pl.col.season_history_info.eq(pl.col.current_seasons)
+                )
+                .then(pl.col.current_seasons)
+                .otherwise(None),
+                is_current=pl.col.season_history_info.eq(
+                    pl.col.current_seasons
+                ),
+                is_past=pl.col.season_history_info.struct.field("year").lt(
+                    pl.col.current_seasons.struct.field("year")
+                )
+                & pl.col.season_history_info.struct.field("po_season").eq(
+                    pl.col.current_seasons.struct.field("po_season")
+                ),
+            )
+            .group_by("season_history")
+            .agg(
+                pl.col.season_history_info.unique(),
+                pl.col.is_current,
+                pl.col.is_past,
+                pl.col.current_po_tags.drop_nulls(),
+            )
+            .with_columns(
+                is_current_sku=pl.col.is_current.list.any(),
+            )
+            .with_columns(
+                is_new_sku=~pl.col.is_past.list.any() & pl.col.is_current_sku,
+                is_future_sku=~pl.col.is_past.list.any()
+                & ~pl.col.is_current_sku,
+                current_po_tags_by_season=pl.struct(
+                    pl.col.current_po_tags.list.eval(
+                        pl.element()
+                        .filter(
+                            pl.element()
+                            .struct.field("po_season")
+                            .eq(po_season.name)
+                        )
+                        .struct.field("year")
+                    )
+                    .list.max()
+                    .alias(po_season.name)
+                    for po_season in POSeason
+                ),
+            )
+            .with_columns(
+                sku_current_year=pl.max_horizontal(
+                    pl.col.current_po_tags_by_season.struct.field(x.name)
+                    for x in POSeason
+                )
+            )
+            .with_columns(
+                sku_current_po_season=pl.concat_list(
+                    pl.when(
+                        pl.col.current_po_tags_by_season.struct.field(
+                            x.name
+                        ).eq(pl.col.sku_current_year)
+                    ).then(
+                        pl.struct(
+                            po_priority=pl.lit(x.po_priority()),
+                            po_season=pl.lit(x.name),
+                        )
+                    )
+                    for x in POSeason
+                )
+                .list.drop_nulls()
+                # structs are sorted by their first field,
+                # which in this case is the po_priority
+                .list.sort()
+                .list.first()
+                .struct.field("po_season")
+            )
+        )
+
+        season_history_map = season_history_map.join(
+            sku_currentness_info.select(
+                "season_history",
+                "is_current_sku",
+                "is_new_sku",
+                "is_future_sku",
+                "sku_current_year",
+                pl.col.sku_current_po_season.cast(POSeason.polars_type()),
+            ),
+            on=["season_history"],
+            how="left",
+        )
+
+        assert (
+            len(season_history_map.filter(pl.col.is_current_sku.is_null()))
+            == 0
+        )
+        assert len(season_history_map.filter(pl.col.is_new_sku.is_null())) == 0
+        assert (
+            len(season_history_map.filter(pl.col.is_future_sku.is_null())) == 0
+        )
+        assert (
+            len(
+                season_history_map.filter(
+                    pl.col.is_current_sku, pl.col.sku_current_year.is_null()
+                )
+            )
+            == 0
+        )
+        assert (
+            len(
+                season_history_map.filter(
+                    pl.col.is_current_sku,
+                    pl.col.sku_current_po_season.is_null(),
+                )
+            )
+            == 0
+        )
 
     return season_history_map
 
@@ -541,13 +700,7 @@ class WebsiteSkuFetchInfo:
 
 def get_relevant_website_sku(
     website_sku_fetch_info: WebsiteSkuFetchInfo,
-    # master_sku_date_or_df: DateLike | pl.DataFrame,
 ) -> pl.DataFrame:
-    # if isinstance(master_sku_date_or_df, pl.DataFrame):
-    #     master_sku_df = master_sku_date_or_df
-    # else:
-    #     master_sku_df = read_raw_master_sku(master_sku_date_or_df)
-
     all_website_skus = read_website_sku_list(
         website_sku_fetch_info.website_sku_date
     )
@@ -567,31 +720,10 @@ def get_relevant_website_sku(
     return relevant_website_skus
 
 
-# def get_relevant_website_sku(
-#     website_sku_list_date: DateLike,
-#     master_sku_date_or_df: DateLike | pl.DataFrame,
-# ) -> pl.DataFrame:
-#     if isinstance(master_sku_date_or_df, pl.DataFrame):
-#         master_sku_df = master_sku_date_or_df
-#     else:
-#         master_sku_df = read_raw_master_sku(master_sku_date_or_df)
-
-#     website_sku_list = read_website_sku_list(website_sku_list_date)
-
-#     relevant_sku = (
-#         website_sku_list.join(master_sku_df.rename({"m_sku": "sku"}), on="sku")
-#         .select("sku")
-#         .unique()
-#         .sort("sku")
-#     )
-
-#     return relevant_sku
-
-
 def read_master_sku_excel_file(
     master_sku_date: DateLike,
     website_sku_fetch_info: WebsiteSkuFetchInfo | None,
-    overwrite: bool = True,
+    current_seasons: CurrentSeasonDefn | None,
 ) -> MasterSkuInfo:
     """Read the master information excel file."""
 
@@ -895,7 +1027,9 @@ def read_master_sku_excel_file(
     # expect it to not remain of a fixed format. Therefore, filter out all such
     # variants apart from the ones we want to explicitly recognize: F*, S*
 
-    season_history_map = generate_filtered_season_history_map(master_sku_df)
+    season_history_map = generate_filtered_season_history_map(
+        master_sku_df, current_seasons
+    )
 
     master_sku_df = master_sku_df.join(
         season_history_map, on=["season_history"]
@@ -1125,953 +1259,33 @@ def read_master_sku_excel_file(
         raise ValueError("Some sizes are not mapped to a numeric size!")
 
     master_sku_df = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
+
     result = MasterSkuInfo()
-    result.active_sku = master_sku_df.filter(
-        pl.col("status").eq("active")
-    ).drop("status")
-    result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
+    result.active_sku = (
+        master_sku_df.filter(pl.col("status").eq("active"))
+        .drop("status")
+        .with_columns(
+            is_new_category=(pl.col.is_current_sku | pl.col.is_future_sku)
+            .all()
+            .over("category")
+        )
+    )
+    is_new_category_df = result.active_sku.select(
+        "category", "is_new_category"
+    ).unique()
+    find_dupes(is_new_category_df, id_cols=["category"])
+    result.all_sku = (
+        master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
+        .join(
+            is_new_category_df,
+            on=["category"],
+            how="left",
+        )
+        .with_columns(pl.col.is_new_category.fill_null(False))
+    )
     result.fba_sku = fba_sku
     result.ignored_sku = pl.DataFrame(schema=master_sku_df.schema)
     result.print_name_map = print_name_map
     result.numeric_size_map = numeric_size_map
 
     return result
-
-
-# def read_master_sku_excel_file_old(master_sku_date: DateLike) -> MasterSkuInfo:
-#     """Read the master information excel file."""
-
-#     master_sku_df = read_raw_master_sku(master_sku_date)
-
-#     master_sku_df = master_sku_df.with_columns(
-#         status=pl.col("status").str.to_lowercase().fill_null("NO_STATUS"),
-#         season_history=pl.col("season_history").fill_null(""),
-#     )
-#     # print(master_sku_df["status"].unique().sort())
-
-#     master_sku_df = master_sku_df.filter(
-#         pl.col("status").is_in(
-#             [
-#                 "active",
-#                 "inactive",
-#                 "retired",
-#                 "discontinued",
-#                 "cancelled",
-#                 "deleted",
-#             ]
-#         )
-#     )
-
-#     master_sku_df = (
-#         master_sku_df.with_columns(
-#             m_sku_parsed=pl.col("m_sku")
-#             .map_elements(
-#                 Sku.map_polars,
-#                 return_dtype=Sku.intermediate_polars_type_struct(),
-#             )
-#             .struct.rename_fields(["m_" + k for k in Sku.members()])
-#         )
-#         .unnest("m_sku_parsed")
-#         .with_columns(sku_remainder=pl.col.m_sku_remainder)
-#         # .drop("m_print", "m_size")
-#         # .rename({"m_sku_remainder": "sku_remainder"})
-#         .with_columns(
-#             a_sku_parsed=pl.col("a_sku")
-#             .map_elements(
-#                 Sku.map_polars,
-#                 return_dtype=Sku.intermediate_polars_type_struct(),
-#             )
-#             .struct.rename_fields(["a_" + k for k in Sku.members()])
-#         )
-#         .unnest("a_sku_parsed")
-#         # .drop("a_print", "a_size", "a_sku_remainder")
-#     )
-
-#     # === mark special categories ===
-#     unique_categories = reduce(
-#         lambda x, y: x.extend(y),
-#         [master_sku_df[f"{y}category"].unique() for y in ["", "a_", "m_"]],
-#     ).unique()
-#     is_special_filter = reduce(
-#         lambda x, y: x | y,
-#         [
-#             (
-#                 pl.col(v).str.starts_with("M")
-#                 & (
-#                     pl.col(v).str.slice(1).is_in(unique_categories)
-#                     | ~pl.col(v).is_in(STARTS_WITH_M_OK_LIST)
-#                 )
-#             )
-#             | (
-#                 pl.col(v).str.ends_with("U")
-#                 & (
-#                     pl.col(v)
-#                     .str.slice(0, length=pl.col(v).str.len_chars() - 1)
-#                     .is_in(unique_categories)
-#                     | ~pl.col(v).is_in(ENDS_WITH_U_OK_LIST)
-#                 )
-#             )
-#             | pl.col(v).is_in(IGNORE_CATEGORY_LIST)
-#             for v in ["category", "a_category", "m_category"]
-#         ],
-#     )
-#     print("Master SKU will ignore:")
-#     will_ignore = (
-#         master_sku_df.filter(is_special_filter)
-#         .select("m_sku", "a_sku", "m_category", "a_category", "category")
-#         .rename({"m_sku": "sku"})
-#         .unique()
-#         .sort("category")
-#     )
-#     pl.Config.set_tbl_rows(len(will_ignore))
-#     sys.displayhook(
-#         will_ignore.select(cs.exclude("sku", "a_sku"))
-#         .unique()
-#         .sort("category")
-#     )
-#     pl.Config.restore_defaults()
-#     master_sku_df = (
-#         master_sku_df.filter(~is_special_filter)
-#         # master_sku_df.filter(~is_special_filter).drop(
-#         #   "a_category", "m_category"
-#         # )
-#     )
-#     # === === ===
-
-#     # === casting columns as enum ===
-#     related_columns = {}
-#     for z in Sku.members(MemberType.META):
-#         related_columns[z] = [
-#             f"{y}{z}"
-#             for y in ["", "a_", "m_"]
-#             if f"{y}{z}" in master_sku_df.columns
-#         ]
-
-#     related_casting_columns = []
-#     for v in related_columns.values():
-#         related_casting_columns += v
-
-#     category_per_related_column = {}
-#     for c in related_casting_columns:
-#         for z in Sku.members(MemberType.META):
-#             if c in related_columns[z]:
-#                 category_per_related_column[c] = z
-
-#     other_casting_columns = ["status", "print_name"]
-
-#     default_values_for_related = {}
-#     for z in Sku.members(MemberType.META):
-#         default_values_for_related[z] = Sku.field_defaults.get(z, None)
-
-#     unique_values_for_related = {}
-#     # sometimes, for analysis purposes, we might aggregate data related to a
-#     # particular column (e.g. aggregate all "size" sales data into "_ALL_")
-#     may_be_combined = [
-#         c for c in Sku.members(MemberType.SECONDARY) if c != "category"
-#     ]
-#     for z in Sku.members(MemberType.META):
-#         unique_values = pl.Series(z, [], dtype=pl.String())
-#         for c in related_columns[z]:
-#             unique_values = unique_values.extend(
-#                 master_sku_df[c].unique()
-#             ).unique()
-
-#         if z in may_be_combined:
-#             unique_values_for_related[z] = (
-#                 unique_values.extend(
-#                     pl.Series(z, ["_ALL_"], dtype=pl.String())
-#                 )
-#                 .unique()
-#                 .sort()
-#             )
-#         else:
-#             unique_values_for_related[z] = unique_values
-
-#     unique_values = {
-#         k: v.sort() for k, v in unique_values_for_related.items()
-#     } | {k: master_sku_df[k].unique().sort() for k in other_casting_columns}
-
-#     dtypes: Mapping[str, pl.DataType] = {
-#         k: pl.Enum(unique_values[category_per_related_column[k]].sort())
-#         for k in related_casting_columns
-#         if k in master_sku_df.columns
-#     } | {
-#         k: pl.Enum(unique_values[k].sort())
-#         for k in other_casting_columns
-#         if k in master_sku_df.columns
-#     }
-#     master_sku_df = master_sku_df.cast(dtypes)  # type: ignore
-#     # === === ==
-
-#     # === parse pause plans ==
-#     unique_plans = pl.Enum(master_sku_df["pause_plan_str"].unique().sort())
-
-#     master_sku_df = (
-#         master_sku_df.cast({"pause_plan_str": unique_plans})
-#         .join(
-#             pl.DataFrame(
-#                 [
-#                     pl.Series(
-#                         "pause_plan_str",
-#                         unique_plans.categories,
-#                         dtype=unique_plans,
-#                     )
-#                 ]
-#             ).with_columns(
-#                 pause_plan=pl.col("pause_plan_str").map_elements(
-#                     parse_pause_plan, return_dtype=pl.Int64()
-#                 )
-#             ),
-#             on="pause_plan_str",
-#             # we are doing "map_elements" using a join, so we expect m:1
-#             validate="m:1",
-#             nulls_equal=True,
-#         )
-#         .drop("pause_plan_str")
-#     )
-#     # === === ==
-
-#     # Sometimes "season history" will contain
-#     # information such as `24F-Taiwan`, or `24-Taiwan`, and in general, one can
-#     # expect it to not remain of a fixed format. Therefore, filter out all such
-#     # variants apart from the ones we want to explicitly recognize: F*, S*
-
-#     season_history_map = generate_filtered_season_history_map(master_sku_df)
-
-#     master_sku_df = master_sku_df.join(
-#         season_history_map, on=["season_history"]
-#     )
-
-#     master_sku_df = (
-#         master_sku_df.with_columns(
-#             sku_year_history=pl.col.season_history_info.list.eval(
-#                 pl.element().struct.field("year")
-#             )
-#             .list.unique()
-#             .list.drop_nulls()
-#             .list.sort(descending=True)
-#         )
-#         .with_columns(
-#             sku_latest_year=pl.col("sku_year_history")
-#             .list.drop_nulls()
-#             .list.first()
-#         )
-#         .filter(pl.col("sku_latest_year").is_not_null())
-#     )
-
-#     master_sku_df = master_sku_df.join(
-#         master_sku_df.select("category", "sku_year_history")
-#         .unique()
-#         .group_by("category")
-#         .agg(
-#             pl.col("sku_year_history")
-#             .flatten()
-#             .alias("category_year_history"),
-#         )
-#         .with_columns(
-#             pl.col("category_year_history").list.unique().list.sort()
-#         ),
-#         on="category",
-#         how="left",
-#         validate="m:1",
-#     )
-#     # === === ==
-
-#     sku_columns = Sku.members(MemberType.SECONDARY) + ["a_sku", "m_sku"]
-
-#     latest_seasons_df = (
-#         (
-#             master_sku_df.filter(pl.col.status.eq("active"))
-#             .explode("season_history_info")
-#             .select("season_history_info", "sku_latest_year", *sku_columns)
-#             .filter(
-#                 pl.col("season_history_info")
-#                 .struct.field("year")
-#                 .eq(pl.col("sku_latest_year"))
-#                 .or_(
-#                     pl.col("season_history_info")
-#                     .struct.field("year")
-#                     .eq(pl.col("sku_latest_year") - 1)
-#                 )
-#             )
-#             .with_columns(
-#                 latest_season=pl.col("season_history_info").struct.field(
-#                     "season"
-#                 )
-#             )
-#         )
-#         .with_columns(
-#             is_fw=pl.col.latest_season.eq("F"),
-#             is_ss=pl.col.latest_season.eq("S"),
-#         )
-#         .group_by(pl.col.category)
-#         .agg(
-#             pl.col.is_fw.sum().alias("f_tally"),
-#             pl.col.is_ss.sum().alias("s_tally"),
-#             pl.col.latest_season.alias("latest_seasons"),
-#         )
-#         .with_columns(total_tally=pl.col.f_tally + pl.col.s_tally)
-#         .with_columns(
-#             tally_fraction=pl.col.f_tally / pl.col.total_tally,
-#             latest_seasons=pl.col.latest_seasons.list.unique()
-#             .list.sort()
-#             .list.join(","),
-#         )
-#     ).with_columns(
-#         # we manually inspected "tally_fraction", and then determined that the
-#         # following categories should be marked FW, even though they
-#         # have some PO that happened in SS
-#         #
-#         # later on, we just read from the CONFIG file to determine seasonality
-#         # of items
-#         latest_seasons=pl.when(pl.col.category.is_in(["WSF", "WJT", "IHT"]))
-#         .then(pl.lit("F"))
-#         .otherwise(pl.col.latest_seasons)
-#     )
-
-#     season_map = latest_seasons_df.join(
-#         latest_seasons_df.select("latest_seasons")
-#         .unique()
-#         .with_columns(
-#             season=pl.col("latest_seasons")
-#             .map_elements(Season.map_polars, return_dtype=pl.String())
-#             .cast(Season.polars_type())
-#         ),
-#         on="latest_seasons",
-#         how="left",
-#         # there are multiple SKU with the same cat in the LHS
-#         validate="m:1",
-#         nulls_equal=True,
-#     ).select("category", "season")
-
-#     master_sku_df = (
-#         master_sku_df.join(
-#             season_map,
-#             on="category",
-#             # there are many SKU with the same category in the LHS
-#             validate="m:1",
-#             nulls_equal=True,
-#         )
-#         # .drop("season_history_info")
-#         .cast(
-#             {
-#                 "season_history": pl.Enum(
-#                     master_sku_df["season_history"].unique().sort()
-#                 )
-#             }
-#         )
-#     )
-
-#     master_sku_df = master_sku_df.rename({"m_sku": "sku"})
-
-#     fba_sku = master_sku_df.select(
-#         ["a_sku", "sku"]
-#         + list(cs.expand_selector(master_sku_df, cs.contains("fba_sku")))
-#     )
-#     fba_sku = (
-#         fba_sku.unpivot(
-#             index=["a_sku", "sku"],
-#             on=cs.contains("fba_sku"),
-#             variable_name="country",
-#             value_name="fba_sku",
-#         )
-#         .drop_nulls()
-#         .with_columns(pl.col("country").str.split("fba_sku_").list.last())
-#     )
-#     fba_sku = fba_sku.cast(
-#         {"country": pl.Enum(fba_sku["country"].drop_nulls().unique().sort())}
-#     )
-#     country_flag = (
-#         fba_sku.select("country")
-#         .unique()
-#         .sort("country")
-#         .with_columns(
-#             country_flag=pl.col("country").map_elements(
-#                 lambda x: CountryFlags.from_str(x).value,
-#                 return_dtype=pl.Int64(),
-#             )
-#         )
-#     )
-#     fba_sku = fba_sku.join(
-#         country_flag, on="country", how="left", validate="m:1", nulls_equal=True
-#     ).drop("country")
-
-#     assert (
-#         len(
-#             master_sku_df.select("print", "print_name")
-#             .group_by("print")
-#             .agg(pl.col.print_name.unique())
-#             .filter(pl.col.print_name.list.len().gt(1))
-#         )
-#         == 0
-#     )
-
-#     print_name_map = (
-#         master_sku_df.select("print", "print_name")
-#         .unique()
-#         .join(
-#             convert_dict_to_polars_df(
-#                 ADJUSTED_PRINT_NAMES, "print_name", "adjusted_print_name"
-#             ).cast({"print_name": master_sku_df["print_name"].dtype}),
-#             how="left",
-#             on="print_name",
-#         )
-#         .with_columns(
-#             adjusted_print_name=pl.when(pl.col.adjusted_print_name.is_null())
-#             .then(pl.col.print_name.cast(pl.String()))
-#             .otherwise(pl.col.adjusted_print_name)
-#         )
-#     )
-#     print_name_map = (
-#         print_name_map.cast(
-#             {
-#                 "adjusted_print_name": pl.Enum(
-#                     print_name_map["adjusted_print_name"].unique().sort()
-#                 )
-#             }
-#         )
-#         .drop("print_name")
-#         .rename({"adjusted_print_name": "print_name"})
-#     )
-
-#     master_sku_df = extend_df_enum_type(
-#         master_sku_df, "size", list(NUMERIC_SIZE.keys())
-#     )
-
-#     numeric_size_map = (
-#         master_sku_df.select("size")
-#         .unique()
-#         .join(
-#             convert_dict_to_polars_df(
-#                 NUMERIC_SIZE, "size", "numeric_size"
-#             ).cast(
-#                 {
-#                     "size": master_sku_df["size"].dtype,
-#                     "numeric_size": pl.Float32(),
-#                 }
-#             ),
-#             on=["size"],
-#             how="left",
-#         )
-#         .with_columns(
-#             numeric_size=pl.when(pl.col.numeric_size.is_null())
-#             .then(pl.col.size.cast(pl.Float32(), strict=False))
-#             .otherwise(pl.col.numeric_size)
-#         )
-#     )
-
-#     problem_sizes = numeric_size_map.filter(pl.col.numeric_size.is_null())
-#     if len(problem_sizes) > 0:
-#         sys.displayhook(problem_sizes)
-#         raise ValueError("Some sizes are not mapped to a numeric size!")
-
-#     master_sku_df = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
-#     result = MasterSkuInfo()
-#     result.active_sku = master_sku_df.filter(
-#         pl.col("status").eq("active")
-#     ).drop("status")
-#     result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
-#     result.fba_sku = fba_sku
-#     result.ignored_sku = will_ignore
-#     result.print_name_map = print_name_map
-#     result.numeric_size_map = numeric_size_map
-
-#     return result
-
-
-# def read_master_sku_excel_file_old(master_sku_date: DateLike) -> MasterSkuInfo:
-#     """Read the master information excel file."""
-#     master_sku_path = ANALYSIS_INPUT_FOLDER.joinpath(
-#         Path(
-#             f"1-MasterSKU-All-Product-{Date.from_datelike(master_sku_date).strftime('%Y-%m-%d')}.xlsx"
-#         )
-#     )
-
-#     assert master_sku_path.is_file(), master_sku_path
-#     header_df = pl.read_excel(
-#         master_sku_path,
-#         sheet_name="MasterFile",
-#         read_options={"header_row": MASTER_SKU_DF_HEADER_ROW, "n_rows": 0},
-#     ).rename(lambda x: re.sub(r"\s+|_x000D_", " ", x))
-#     required_columns = [
-#         ix
-#         for ix, x in enumerate(header_df.columns)
-#         if (
-#             (
-#                 x.lower()
-#                 in [
-#                     "msku status",
-#                     "seasons sku",
-#                     "print sku",
-#                     "print name",
-#                     "category sku",
-#                     "size",
-#                     "msku",
-#                 ]
-#             )
-#             or any([y in x.lower() for y in ["fbasku", "adjust", "pause"]])
-#         )
-#     ]
-
-#     master_sku_df = sanitize_excel_extraction(
-#         pl.read_excel(
-#             master_sku_path,
-#             sheet_name="MasterFile",
-#             read_options={
-#                 "header_row": MASTER_SKU_DF_HEADER_ROW,
-#                 "use_columns": required_columns,
-#             },
-#         )
-#         .rename(lambda x: re.sub(r"\s+|_x000D_", " ", x))
-#         .rename(column_renamer)
-#         .with_columns(status=pl.col("status").str.to_lowercase())
-#     )
-
-#     # we assume that `sku` (aka `m_sku`) is unique
-#     assert len(master_sku_df) == len(master_sku_df["m_sku"].unique())
-
-#     master_sku_df = master_sku_df.with_columns(
-#         status=pl.col("status").str.to_lowercase().fill_null("NO_STATUS"),
-#         season_history=pl.col("season_history").fill_null(""),
-#     )
-#     # print(master_sku_df["status"].unique().sort())
-
-#     master_sku_df = master_sku_df.filter(
-#         pl.col("status").is_in(
-#             [
-#                 "active",
-#                 "inactive",
-#                 "retired",
-#                 "discontinued",
-#                 "cancelled",
-#                 "deleted",
-#             ]
-#         )
-#     )
-
-#     master_sku_df = (
-#         master_sku_df.with_columns(
-#             m_sku_parsed=pl.col("m_sku")
-#             .map_elements(
-#                 Sku.map_polars,
-#                 return_dtype=Sku.intermediate_polars_type_struct(),
-#             )
-#             .struct.rename_fields(["m_" + k for k in Sku.members()])
-#         )
-#         .unnest("m_sku_parsed")
-#         .with_columns(sku_remainder=pl.col.m_sku_remainder)
-#         # .drop("m_print", "m_size")
-#         # .rename({"m_sku_remainder": "sku_remainder"})
-#         .with_columns(
-#             a_sku_parsed=pl.col("a_sku")
-#             .map_elements(
-#                 Sku.map_polars,
-#                 return_dtype=Sku.intermediate_polars_type_struct(),
-#             )
-#             .struct.rename_fields(["a_" + k for k in Sku.members()])
-#         )
-#         .unnest("a_sku_parsed")
-#         # .drop("a_print", "a_size", "a_sku_remainder")
-#     )
-
-#     # === mark special categories ===
-#     unique_categories = reduce(
-#         lambda x, y: x.extend(y),
-#         [master_sku_df[f"{y}category"].unique() for y in ["", "a_", "m_"]],
-#     ).unique()
-#     is_special_filter = reduce(
-#         lambda x, y: x | y,
-#         [
-#             (
-#                 pl.col(v).str.starts_with("M")
-#                 & (
-#                     pl.col(v).str.slice(1).is_in(unique_categories)
-#                     | ~pl.col(v).is_in(STARTS_WITH_M_OK_LIST)
-#                 )
-#             )
-#             | (
-#                 pl.col(v).str.ends_with("U")
-#                 & (
-#                     pl.col(v)
-#                     .str.slice(0, length=pl.col(v).str.len_chars() - 1)
-#                     .is_in(unique_categories)
-#                     | ~pl.col(v).is_in(ENDS_WITH_U_OK_LIST)
-#                 )
-#             )
-#             | pl.col(v).is_in(IGNORE_CATEGORY_LIST)
-#             for v in ["category", "a_category", "m_category"]
-#         ],
-#     )
-#     print("Master SKU will ignore:")
-#     will_ignore = (
-#         master_sku_df.filter(is_special_filter)
-#         .select("m_sku", "a_sku", "m_category", "a_category", "category")
-#         .rename({"m_sku": "sku"})
-#         .unique()
-#         .sort("category")
-#     )
-#     pl.Config.set_tbl_rows(len(will_ignore))
-#     sys.displayhook(
-#         will_ignore.select(cs.exclude("sku", "a_sku"))
-#         .unique()
-#         .sort("category")
-#     )
-#     pl.Config.restore_defaults()
-#     master_sku_df = (
-#         master_sku_df.filter(~is_special_filter)
-#         # master_sku_df.filter(~is_special_filter).drop(
-#         #   "a_category", "m_category"
-#         # )
-#     )
-#     # === === ===
-
-#     # === casting columns as enum ===
-#     related_columns = {}
-#     for z in Sku.members(MemberType.META):
-#         related_columns[z] = [
-#             f"{y}{z}"
-#             for y in ["", "a_", "m_"]
-#             if f"{y}{z}" in master_sku_df.columns
-#         ]
-
-#     related_casting_columns = []
-#     for v in related_columns.values():
-#         related_casting_columns += v
-
-#     category_per_related_column = {}
-#     for c in related_casting_columns:
-#         for z in Sku.members(MemberType.META):
-#             if c in related_columns[z]:
-#                 category_per_related_column[c] = z
-
-#     other_casting_columns = ["status", "print_name"]
-
-#     default_values_for_related = {}
-#     for z in Sku.members(MemberType.META):
-#         default_values_for_related[z] = Sku.field_defaults.get(z, None)
-
-#     unique_values_for_related = {}
-#     # sometimes, for analysis purposes, we might aggregate data related to a
-#     # particular column (e.g. aggregate all "size" sales data into "_ALL_")
-#     may_be_combined = [
-#         c for c in Sku.members(MemberType.SECONDARY) if c != "category"
-#     ]
-#     for z in Sku.members(MemberType.META):
-#         unique_values = pl.Series(z, [], dtype=pl.String())
-#         for c in related_columns[z]:
-#             unique_values = unique_values.extend(
-#                 master_sku_df[c].unique()
-#             ).unique()
-
-#         if z in may_be_combined:
-#             unique_values_for_related[z] = (
-#                 unique_values.extend(
-#                     pl.Series(z, ["_ALL_"], dtype=pl.String())
-#                 )
-#                 .unique()
-#                 .sort()
-#             )
-#         else:
-#             unique_values_for_related[z] = unique_values
-
-#     unique_values = {
-#         k: v.sort() for k, v in unique_values_for_related.items()
-#     } | {k: master_sku_df[k].unique().sort() for k in other_casting_columns}
-
-#     dtypes: Mapping[str, pl.DataType] = {
-#         k: pl.Enum(unique_values[category_per_related_column[k]].sort())
-#         for k in related_casting_columns
-#         if k in master_sku_df.columns
-#     } | {
-#         k: pl.Enum(unique_values[k].sort())
-#         for k in other_casting_columns
-#         if k in master_sku_df.columns
-#     }
-#     master_sku_df = master_sku_df.cast(dtypes)  # type: ignore
-#     # === === ==
-
-#     # === parse pause plans ==
-#     unique_plans = pl.Enum(master_sku_df["pause_plan_str"].unique().sort())
-
-#     master_sku_df = (
-#         master_sku_df.cast({"pause_plan_str": unique_plans})
-#         .join(
-#             pl.DataFrame(
-#                 [
-#                     pl.Series(
-#                         "pause_plan_str",
-#                         unique_plans.categories,
-#                         dtype=unique_plans,
-#                     )
-#                 ]
-#             ).with_columns(
-#                 pause_plan=pl.col("pause_plan_str").map_elements(
-#                     parse_pause_plan, return_dtype=pl.Int64()
-#                 )
-#             ),
-#             on="pause_plan_str",
-#             # we are doing "map_elements" using a join, so we expect m:1
-#             validate="m:1",
-#             nulls_equal=True,
-#         )
-#         .drop("pause_plan_str")
-#     )
-#     # === === ==
-
-#     # Sometimes "season history" will contain
-#     # information such as `24F-Taiwan`, or `24-Taiwan`, and in general, one can
-#     # expect it to not remain of a fixed format. Therefore, filter out all such
-#     # variants apart from the ones we want to explicitly recognize: F*, S*
-
-#     master_sku_df = master_sku_df.with_columns(
-#         processed_season_history=pl.col("season_history")
-#         .str.split(",")
-#         .list.eval(pl.element().str.split(" "))
-#         .list.eval(pl.element().explode())
-#         .list.eval(pl.element().filter(pl.element().str.len_chars().gt(0)))
-#         .list.eval(
-#             pl.element()
-#             .str.extract_groups(r"(?P<year>\d+)(?P<season>F|S)$")
-#             .cast(pl.Struct({"year": pl.Int64(), "season": pl.String()}))
-#         )
-#         .list.eval(
-#             pl.element().filter(
-#                 pl.element().struct.field("year").is_not_null()
-#                 & pl.element().struct.field("season").is_not_null()
-#             )
-#         )
-#     )
-
-#     master_sku_df = (
-#         master_sku_df.with_columns(
-#             sku_year_history=pl.col.processed_season_history.list.eval(
-#                 pl.element().struct.field("year")
-#             )
-#             .list.unique()
-#             .list.drop_nulls()
-#             .list.sort(descending=True)
-#         )
-#         .with_columns(
-#             sku_latest_year=pl.col("sku_year_history")
-#             .list.drop_nulls()
-#             .list.first()
-#         )
-#         .filter(pl.col("sku_latest_year").is_not_null())
-#     )
-
-#     master_sku_df = master_sku_df.join(
-#         master_sku_df.select("category", "sku_year_history")
-#         .unique()
-#         .group_by("category")
-#         .agg(
-#             pl.col("sku_year_history")
-#             .flatten()
-#             .alias("category_year_history"),
-#         )
-#         .with_columns(
-#             pl.col("category_year_history").list.unique().list.sort()
-#         ),
-#         on="category",
-#         how="left",
-#         validate="m:1",
-#     )
-#     # === === ==
-
-#     sku_columns = Sku.members(MemberType.SECONDARY) + ["a_sku", "m_sku"]
-
-#     latest_seasons_df = (
-#         (
-#             master_sku_df.filter(pl.col.status.eq("active"))
-#             .explode("processed_season_history")
-#             .select(
-#                 "processed_season_history", "sku_latest_year", *sku_columns
-#             )
-#             .filter(
-#                 pl.col("processed_season_history")
-#                 .struct.field("year")
-#                 .eq(pl.col("sku_latest_year"))
-#                 .or_(
-#                     pl.col("processed_season_history")
-#                     .struct.field("year")
-#                     .eq(pl.col("sku_latest_year") - 1)
-#                 )
-#             )
-#             .with_columns(
-#                 latest_season=pl.col("processed_season_history").struct.field(
-#                     "season"
-#                 )
-#             )
-#         )
-#         .with_columns(
-#             is_fw=pl.col.latest_season.eq("F"),
-#             is_ss=pl.col.latest_season.eq("S"),
-#         )
-#         .group_by(pl.col.category)
-#         .agg(
-#             pl.col.is_fw.sum().alias("f_tally"),
-#             pl.col.is_ss.sum().alias("s_tally"),
-#             pl.col.latest_season.alias("latest_seasons"),
-#         )
-#         .with_columns(total_tally=pl.col.f_tally + pl.col.s_tally)
-#         .with_columns(
-#             tally_fraction=pl.col.f_tally / pl.col.total_tally,
-#             latest_seasons=pl.col.latest_seasons.list.unique()
-#             .list.sort()
-#             .list.join(","),
-#         )
-#     ).with_columns(
-#         # we manually inspected "tally_fraction", and then determined that the
-#         # following categories should be marked FW, even though they
-#         # have some PO that happened in SS
-#         #
-#         # later on, we just read from the CONFIG file to determine seasonality
-#         # of items
-#         latest_seasons=pl.when(pl.col.category.is_in(["WSF", "WJT", "IHT"]))
-#         .then(pl.lit("F"))
-#         .otherwise(pl.col.latest_seasons)
-#     )
-
-#     season_map = latest_seasons_df.join(
-#         latest_seasons_df.select("latest_seasons")
-#         .unique()
-#         .with_columns(
-#             season=pl.col("latest_seasons")
-#             .map_elements(Season.map_polars, return_dtype=pl.String())
-#             .cast(Season.polars_type())
-#         ),
-#         on="latest_seasons",
-#         how="left",
-#         # there are multiple SKU with the same cat in the LHS
-#         validate="m:1",
-#         nulls_equal=True,
-#     ).select("category", "season")
-
-#     master_sku_df = (
-#         master_sku_df.join(
-#             season_map,
-#             on="category",
-#             # there are many SKU with the same category in the LHS
-#             validate="m:1",
-#             nulls_equal=True,
-#         )
-#         .drop("processed_season_history")
-#         .cast(
-#             {
-#                 "season_history": pl.Enum(
-#                     master_sku_df["season_history"].unique().sort()
-#                 )
-#             }
-#         )
-#     )
-
-#     master_sku_df = master_sku_df.rename({"m_sku": "sku"})
-
-#     fba_sku = master_sku_df.select(
-#         ["a_sku", "sku"]
-#         + list(cs.expand_selector(master_sku_df, cs.contains("fba_sku")))
-#     )
-#     fba_sku = (
-#         fba_sku.unpivot(
-#             index=["a_sku", "sku"],
-#             on=cs.contains("fba_sku"),
-#             variable_name="country",
-#             value_name="fba_sku",
-#         )
-#         .drop_nulls()
-#         .with_columns(pl.col("country").str.split("fba_sku_").list.last())
-#     )
-#     fba_sku = fba_sku.cast(
-#         {"country": pl.Enum(fba_sku["country"].drop_nulls().unique().sort())}
-#     )
-#     country_flag = (
-#         fba_sku.select("country")
-#         .unique()
-#         .sort("country")
-#         .with_columns(
-#             country_flag=pl.col("country").map_elements(
-#                 lambda x: CountryFlags.from_str(x).value,
-#                 return_dtype=pl.Int64(),
-#             )
-#         )
-#     )
-#     fba_sku = fba_sku.join(
-#         country_flag, on="country", how="left", validate="m:1", nulls_equal=True
-#     ).drop("country")
-
-#     assert (
-#         len(
-#             master_sku_df.select("print", "print_name")
-#             .group_by("print")
-#             .agg(pl.col.print_name.unique())
-#             .filter(pl.col.print_name.list.len().gt(1))
-#         )
-#         == 0
-#     )
-
-#     print_name_map = (
-#         master_sku_df.select("print", "print_name")
-#         .unique()
-#         .join(
-#             convert_dict_to_polars_df(
-#                 ADJUSTED_PRINT_NAMES, "print_name", "adjusted_print_name"
-#             ).cast({"print_name": master_sku_df["print_name"].dtype}),
-#             how="left",
-#             on="print_name",
-#         )
-#         .with_columns(
-#             adjusted_print_name=pl.when(pl.col.adjusted_print_name.is_null())
-#             .then(pl.col.print_name.cast(pl.String()))
-#             .otherwise(pl.col.adjusted_print_name)
-#         )
-#     )
-#     print_name_map = (
-#         print_name_map.cast(
-#             {
-#                 "adjusted_print_name": pl.Enum(
-#                     print_name_map["adjusted_print_name"].unique().sort()
-#                 )
-#             }
-#         )
-#         .drop("print_name")
-#         .rename({"adjusted_print_name": "print_name"})
-#     )
-
-#     numeric_size_map = (
-#         master_sku_df.select("size")
-#         .unique()
-#         .join(
-#             convert_dict_to_polars_df(
-#                 NUMERIC_SIZE, "size", "numeric_size"
-#             ).cast(
-#                 {
-#                     "size": master_sku_df["size"].dtype,
-#                     "numeric_size": pl.Float32(),
-#                 }
-#             ),
-#             on=["size"],
-#             how="left",
-#         )
-#         .with_columns(
-#             numeric_size=pl.when(pl.col.numeric_size.is_null())
-#             .then(pl.col.size.cast(pl.Float32(), strict=False))
-#             .otherwise(pl.col.numeric_size)
-#         )
-#     )
-
-#     problem_sizes = numeric_size_map.filter(pl.col.numeric_size.is_null())
-#     if len(problem_sizes) > 0:
-#         sys.displayhook(problem_sizes)
-#         raise ValueError("Some sizes are not mapped to a numeric size!")
-
-#     master_sku_df = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
-#     result = MasterSkuInfo()
-#     result.active_sku = master_sku_df.filter(
-#         pl.col("status").eq("active")
-#     ).drop("status")
-#     result.all_sku = master_sku_df.select(cs.exclude(cs.contains("fba_sku")))
-#     result.fba_sku = fba_sku
-#     result.ignored_sku = will_ignore
-#     result.print_name_map = print_name_map
-#     result.numeric_size_map = numeric_size_map
-
-#     return result

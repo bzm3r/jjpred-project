@@ -218,6 +218,14 @@ class ConfigData:
 
     This can affect the prediction type (E vs. PO based) for items."""
 
+    def filter_channels(self, channel_df: pl.DataFrame) -> Self:
+        channel_df = channel_df.select(Channel.members())
+        self.refill = self.refill.join(channel_df, on=Channel.members())
+        self.no_refill = self.no_refill.join(channel_df, on=Channel.members())
+        self.min_keep = self.min_keep.join(channel_df, Channel.members())
+
+        return self
+
     def extra_refill_info(
         self,
         active_sku_info: pl.DataFrame,

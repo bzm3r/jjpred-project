@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, ReservationInfo
+from jjpred.analysisdefn import (
+    CurrentSeasonDefn,
+    FbaRevDefn,
+    JJWebDefn,
+    JJWebPredictionInfo,
+)
 from jjpred.inputstrategy import RefillType
 
 import polars as pl
 
 from jjpred.analysisconfig import RefillConfigInfo
 
+current_seasons = CurrentSeasonDefn(FW=24, SS=25)
 analysis_date = "2025-APR-23"
 dispatch_date = "2025-APR-21"
 master_sku_date = "2025-APR-23"
@@ -46,6 +52,7 @@ analysis_defn = FbaRevDefn(
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    current_seasons=current_seasons,
 )
 
 analysis_defn_website_reserved = FbaRevDefn(
@@ -58,24 +65,29 @@ analysis_defn_website_reserved = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
-    jjweb_reserve_to_date=[
-        ReservationInfo(
-            (
+    jjweb_reserve_info=JJWebPredictionInfo(
+        pl.when(pl.col.season.eq("FW"))
+        .then([(8, 1)])
+        .when(
+            pl.col.season.eq("SS")
+            & ~(
                 pl.col.category.eq("SPW")
                 | pl.col.category.cast(pl.String()).str.starts_with("U")
             )
-            & pl.col.season.is_in(["AS", "SS"]),
-            "2025-JUL-01",
-        ),
-        ReservationInfo(
-            ~(
+        )
+        .then([(2, 6)])
+        .when(
+            pl.col.season.eq("SS")
+            & (
                 pl.col.category.eq("SPW")
                 | pl.col.category.cast(pl.String()).str.starts_with("U")
             )
-            & pl.col.season.is_in(["AS", "SS"]),
-            "2025-JUN-01",
-        ),
-    ],
+        )
+        .then([(2, 7)])
+        .when(pl.col.season.eq("AS"))
+        .then([(2, 6), (8, 1)])
+        .cast(pl.List(pl.Array(pl.UInt8(), 2)))
+    ),
     refill_type=RefillType.WEEKLY,
     mainprogram_date=mainprogram_date,
     refill_draft_date=refill_draft_date,
@@ -87,6 +99,7 @@ analysis_defn_website_reserved = FbaRevDefn(
     extra_descriptor="_website_reserved",
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    current_seasons=current_seasons,
 )
 
 # analysis_defn_main = copy.deepcopy(analysis_defn)
@@ -113,6 +126,7 @@ jjweb_analysis_defn = JJWebDefn(
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    current_seasons=current_seasons,
 )
 
 

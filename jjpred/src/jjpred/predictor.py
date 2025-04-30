@@ -27,7 +27,6 @@ from jjpred.performanceflags import PerformanceFlag
 from jjpred.predictiontypes import PredictionType
 from jjpred.readsupport.utils import cast_standard
 from jjpred.readsupport.predictiontypes import read_prediction_types
-from jjpred.skuinfo import get_all_sku_currentness_info
 from jjpred.utils.datamanipulation import merge_wholesale
 from jjpred.utils.groupeddata import (
     CategoryGroupProtocol,
@@ -1148,8 +1147,8 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
 
         category_type_df = self.get_category_types(self.db)
 
-        sku_info_df = get_all_sku_currentness_info(self.db).filter(
-            pl.col.is_active
+        sku_info_df = self.db.meta_info.active_sku.select(
+            *ALL_SKU_IDS, *NOVELTY_FLAGS
         )
 
         latest_date = self.latest_dates.latest()

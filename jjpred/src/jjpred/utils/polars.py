@@ -129,9 +129,8 @@ def enum_extend_vstack(
     if df is None:
         return other_df
     else:
-        assert sorted(df.columns) == sorted(other_df.columns), (
-            sorted(df.columns),
-            sorted(other_df.columns),
+        assert sorted(df.columns) == sorted(other_df.columns), sorted(
+            set(df.columns).difference(other_df.columns)
         )
 
         for column in df.columns:

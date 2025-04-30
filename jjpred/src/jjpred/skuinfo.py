@@ -16,99 +16,19 @@ import sys
 from typing import Literal
 import polars as pl
 
-from jjpred.analysisdefn import AnalysisDefn, RefillDefn
+from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel, Platform
-from jjpred.datagroups import (
-    ALL_SKU_AND_CHANNEL_IDS,
-    ALL_SKU_IDS,
-    CHANNEL_IDS,
-    PAUSE_PLAN_IDS,
-    SEASON_IDS,
-    STATUS_IDS,
-    WHOLE_SKU_IDS,
-)
-from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
-from jjpred.readsheet import DataVariant
 from jjpred.readsupport.marketing import ConfigData
 from jjpred.sku import Sku
 from jjpred.structlike import MemberType
 from jjpred.utils.fileio import read_meta_info
 from jjpred.utils.polars import (
-    FilterStructs,
     OverrideLeft,
-    binary_partition_strict,
     find_dupes,
     join_and_coalesce,
-    struct_filter,
 )
 from jjpred.utils.typ import PolarsLit, ScalarOrList, normalize_as_list
-
-
-def get_all_sku_currentness_info(
-    analysis_defn_or_db: RefillDefn | DataBase,
-) -> pl.DataFrame:
-    if isinstance(analysis_defn_or_db, RefillDefn):
-        analysis_defn = analysis_defn_or_db
-        dispatch_date = analysis_defn.dispatch_date
-    elif isinstance(analysis_defn_or_db, DataBase):
-        database = analysis_defn_or_db
-        analysis_defn = database.analysis_defn
-        dispatch_date = database.dispatch_date()
-    else:
-        raise ValueError(f"No logic to handle {analysis_defn_or_db=}")
-
-    current_year = dispatch_date.year - 2000
-    next_year = (dispatch_date.year + 1) - 2000
-
-    master_all_sku = read_meta_info(analysis_defn, "all_sku")
-    all_sku_info = (
-        master_all_sku.select(
-            ALL_SKU_IDS
-            + SEASON_IDS
-            + [x for x in PAUSE_PLAN_IDS if x in master_all_sku]
-            + [x for x in STATUS_IDS if x in master_all_sku]
-        )
-        .with_columns(
-            pl.col("status").eq("active").alias("is_active").fill_null(False)
-        )
-        .drop("status")
-        .with_columns(
-            sku_latest_year=pl.col("sku_latest_year").fill_null(-1),
-        )
-        .with_columns(
-            is_current_print=pl.col("sku_year_history")
-            .list.eval(pl.element().eq(current_year))
-            .list.any()
-            .alias("is_current_print")
-            .fill_null(False)
-        )
-        .with_columns(
-            is_new_category=pl.col("category_year_history")
-            .list.eval(pl.element().is_in([current_year, next_year]))
-            .list.all()
-            .fill_null(False)
-        )
-        .with_columns(
-            is_new_sku=(
-                pl.col("is_current_print")
-                & pl.col("sku_year_history")
-                .list.eval(pl.element().is_in([current_year, next_year]))
-                .list.all()
-                .fill_null(False)
-            )
-        )
-        .with_columns(
-            is_next_year_print=(
-                pl.col("sku_latest_year").eq(next_year)
-                & ~pl.col("is_current_print")
-            ).fill_null(False)
-        )
-    )
-
-    find_dupes(all_sku_info, ALL_SKU_IDS, raise_error=True)
-
-    return all_sku_info
 
 
 def override_sku_info(
@@ -295,113 +215,6 @@ def calculate_wh_dispatchable(wh_stock: pl.DataFrame) -> pl.DataFrame:
         )
         .otherwise(pl.lit(0, dtype=pl.Int64()).alias("wh_dispatchable"))
     )
-
-
-def attach_inventory_info(
-    db: DataBase,
-    config_data: ConfigData,
-    all_sku_info: pl.DataFrame,
-    warehouse_filter: pl.Expr,
-    warehouse_min_keep_qty: int,
-    filters: FilterStructs | None = None,
-) -> pl.DataFrame:
-    inv_df = struct_filter(db.dfs[DataVariant.Inventory], filters)
-    wh_stock, ch_stock = binary_partition_strict(
-        inv_df.select(WHOLE_SKU_IDS + CHANNEL_IDS + ["stock"]),
-        warehouse_filter,
-    )
-    wh_stock = (
-        wh_stock.filter(
-            pl.col("country_flag").eq(int(CountryFlags.CA)),
-        )
-        .drop(Channel.members())
-        .rename({"stock": "wh_stock"})
-        .select(WHOLE_SKU_IDS + ["wh_stock"])
-    )
-    ch_stock = ch_stock.rename({"stock": "ch_stock"})
-
-    # wh_info = calculate_wh_dispatchable(wh_stock).select(
-    #     WHOLE_SKU_IDS + ["wh_stock", "min_keep", "wh_dispatchable"]
-    # )
-
-    # .join(
-    #     config_data.min_keep,
-    #     on=WHOLE_SKU_IDS + CHANNEL_IDS,
-    #     how="left",
-    #     validate="m:1",
-    #     nulls_equal=True,
-    # )
-    # .with_columns(
-    #     min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
-    # )
-    # .with_columns(
-    #     min_keep=pl.max_horizontal("min_keep", "min_keep_default")
-    # )
-    # .drop("min_keep_default")
-
-    all_sku_info = override_sku_info(
-        all_sku_info,
-        wh_stock,
-        fill_null_value=PolarsLit(0),
-        create_info_columns=[
-            "wh_stock",
-            (
-                pl.col("wh_stock").is_not_null() & pl.col("wh_stock").lt(0)
-            ).alias("negative_wh_stock"),
-        ],
-        dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
-    )
-
-    all_sku_info = override_sku_info(
-        all_sku_info,
-        ch_stock,
-        fill_null_value=PolarsLit(0),
-        create_info_columns=[
-            "ch_stock",
-            (
-                (
-                    ~(
-                        pl.col("ch_stock").is_not_null()
-                        & pl.col("ch_stock").gt(0)
-                    )
-                ).alias("zero_ch_stock")
-            ),
-        ],
-    )
-
-    all_sku_info = (
-        override_sku_info(
-            all_sku_info,
-            config_data.min_keep,
-            create_info_columns=["min_keep"],
-        )
-        .with_columns(
-            min_keep_default=pl.lit(warehouse_min_keep_qty, pl.Int64()),
-        )
-        .with_columns(
-            min_keep=pl.max_horizontal("min_keep", "min_keep_default")
-        )
-        .drop("min_keep_default")
-        .with_columns(
-            pl.when(pl.col("wh_stock").gt(0))
-            .then(
-                pl.max_horizontal(
-                    pl.lit(0),
-                    pl.col("wh_stock")
-                    .sub(pl.col("min_keep"))
-                    .sub(pl.col("reserved")),
-                ).alias("wh_dispatchable")
-            )
-            .otherwise(pl.lit(0, dtype=pl.Int64()).alias("wh_dispatchable"))
-        )
-        .with_columns(
-            (
-                pl.col("wh_stock").is_null() | pl.col("wh_dispatchable").eq(0)
-            ).alias("zero_wh_dispatchable")
-        )
-    )
-
-    return all_sku_info
 
 
 def fetch_master_sku_info(

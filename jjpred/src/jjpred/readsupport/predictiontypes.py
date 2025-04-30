@@ -24,7 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.datagroups import ALL_SKU_IDS
 from jjpred.database import DataBase
 from jjpred.predictiontypes import InputPredictionType, PredictionType
@@ -32,7 +32,6 @@ import polars as pl
 
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.seasons import Season
-from jjpred.skuinfo import get_all_sku_currentness_info
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.polars import find_dupes
 
@@ -64,7 +63,7 @@ def gen_prediction_types_path(
 
 
 def read_prediction_types(
-    analysis_defn_or_db: FbaRevDefn | DataBase,
+    analysis_defn_or_db: RefillDefn | DataBase,
     prediction_types_input_meta: str | DateLike | None,
 ) -> pl.DataFrame:
     """Read the prediction types CSV for a given analysis ID.
@@ -103,14 +102,13 @@ def read_prediction_types(
         )
         .cast({"prediction_type": PredictionType.polars_type()})
     )
-    all_sku_info = (
-        get_all_sku_currentness_info(db)
-        .filter(pl.col.is_active)
-        .join(prediction_types, on="season", how="left")
+    all_sku_info = db.meta_info.active_sku.select(*ALL_SKU_IDS, "season").join(
+        prediction_types, on="season", how="left"
     )
 
     if len(all_sku_info.filter(pl.col.prediction_type.is_null())) > 0:
         sys.displayhook(all_sku_info.filter(pl.col.prediction_type.is_null()))
+        raise ValueError("Some SKUs do not have a prediction type!")
 
     find_dupes(
         all_sku_info, ALL_SKU_IDS + ["dispatch_month"], raise_error=True

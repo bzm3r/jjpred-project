@@ -17,6 +17,8 @@ SEASON_IDS = [
     "category_year_history",
     "sku_latest_year",
     "sku_latest_po_season",
+    "sku_current_year",
+    "sku_current_po_season",
 ]
 ALL_SKU_AND_CHANNEL_IDS = ALL_SKU_IDS + CHANNEL_IDS
 ALL_IDS = ALL_SKU_IDS + CHANNEL_IDS + SEASON_IDS
@@ -41,8 +43,8 @@ DATA_AVAILABILITY_FLAGS = [
 ]
 NOVELTY_FLAGS = [
     "is_new_category",
-    "is_current_print",
-    "is_next_year_print",
+    "is_current_sku",
+    "is_future_sku",
     "is_new_sku",
 ]
 GENERAL_CHECK_FLAG_IDS = [
@@ -122,7 +124,18 @@ DEMAND_INFO = (
     ]
 )
 INVENTORY_DATA_AVAILABILITY_FLAGS = ["no_wh_stock_info", "no_ch_stock_info"]
-INVENTORY_INFO = ["wh_dispatchable", "ch_stock", "reserved"]
+INVENTORY_INFO = [
+    "wh_dispatchable",
+    "ch_stock",
+    "jjweb_inv_3pl",
+    "jjweb_east_frac",
+    "has_reservation",
+    "reserved",
+    "wh_dispatchable_accounting_jjweb_west",
+    "wh_dispatchable_accounting_jjweb_east",
+    "reserved_west",
+    "reserved_including_3pl",
+]
 DISPATCH_INFO = INVENTORY_INFO + [
     "requesting",
     "qty_box",
