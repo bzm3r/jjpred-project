@@ -1670,7 +1670,10 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                             (
                                 # ~pl.lit(force_po_prediction) &
                                 pl.col.uses_ne
-                                | (pl.col.uses_e & pl.col.has_low_isr)
+                                | (
+                                    (pl.col.uses_e | pl.col.uses_ce)
+                                    & pl.col.has_low_isr
+                                )
                             )
                         )
                         .then(
