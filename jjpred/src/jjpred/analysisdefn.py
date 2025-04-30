@@ -69,14 +69,6 @@ class LatestDates:
         else:
             return self.sales_history_latest_date
 
-    def __hash__(self) -> int:
-        return hash(
-            (
-                self.sales_history_latest_date,
-                self.demand_ratio_rolling_update_to,
-            )
-        )
-
 
 def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
     if date_like is not None:
@@ -142,9 +134,6 @@ class CurrentSeasonDefn:
     def tag(self) -> str:
         return "_".join(f"{self.get_year(x)}{x.name}" for x in POSeason)
 
-    def __hash__(self) -> int:
-        return hash((self.FW, self.SS))
-
 
 # when adding new optional fields, make sure to set 'init=False' otherwise we
 # will get a default field initialization issue
@@ -193,8 +182,6 @@ class AnalysisDefn:
     extra_descriptor: str | None = field(default=None, init=False)
     """Extra description string."""
 
-    _hash: int = field(init=False, compare=True)
-
     def __init__(
         self,
         basic_descriptor: str,
@@ -233,30 +220,8 @@ class AnalysisDefn:
         self.extra_descriptor = extra_descriptor
         self.current_seasons = current_seasons
 
-        self._hash = hash(
-            (
-                self.basic_descriptor,
-                self.date,
-                self.master_sku_date,
-                self.sales_and_inventory_date,
-                self.warehouse_inventory_date,
-                self.config_date,
-                self.in_stock_ratio_date,
-                self.po_date,
-                self.latest_dates,
-                self.extra_descriptor,
-                self.current_seasons,
-            )
-        )
-
-    def __post_init__(self):
-        self._hash = str(self).__hash__()
-
     def __str__(self) -> str:
         return f"{self.basic_descriptor}_analysis_date={str(self.date)}_{self.extra_descriptor}"
-
-    def __hash__(self) -> int:
-        return self._hash
 
     def __lt__(self, other: object) -> bool:
         if isinstance(other, self.__class__):
