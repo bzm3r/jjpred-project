@@ -15,7 +15,7 @@ from jjpred.analysisconfig import RefillConfigInfo
 from jjpred.scripting.dateoffset import (
     determine_main_program_compatible_start_end_dates,
 )
-from jjpred.seasons import POSeason, Season
+from jjpred.seasons import CurrentSeason, CurrentSeasonDict, POSeason, Season
 from jjpred.utils.datetime import (
     Date,
     DateLike,
@@ -89,6 +89,9 @@ def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
 class CurrentSeasonDefn:
     FW: int
     SS: int
+    season_offsets_to_consider_current: list[int] = field(
+        default_factory=lambda: [0]
+    )
 
     @classmethod
     def parse_year(cls, year: int) -> int:
@@ -101,9 +104,31 @@ class CurrentSeasonDefn:
 
         return year
 
-    def __init__(self, FW: int, SS: int):
+    def __init__(
+        self,
+        FW: int,
+        SS: int,
+        season_offsets_to_consider_current: list[int] = [0],
+    ):
         self.FW = self.__class__.parse_year(FW)
         self.SS = self.__class__.parse_year(SS)
+
+        self.season_offsets_to_consider_current = (
+            season_offsets_to_consider_current
+        )
+
+    def get_possible_current_seasons(self) -> list[CurrentSeasonDict]:
+        possible_seasons = []
+        for po_season in POSeason:
+            current_season = self.get_current_season(po_season)
+            possible_seasons += [
+                current_season.offset_season(x).as_dict()
+                for x in self.season_offsets_to_consider_current
+            ]
+        return possible_seasons
+
+    def get_current_season(self, po_season: POSeason) -> CurrentSeason:
+        return CurrentSeason(self.get_year(po_season), po_season)
 
     def get_year(self, po_season: POSeason) -> int:
         match po_season:

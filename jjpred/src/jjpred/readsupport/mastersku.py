@@ -304,7 +304,7 @@ or 2) have not yet been given a mapping.."""
 
 def generate_filtered_season_history_map(
     master_sku_df: pl.DataFrame,
-    current_seasons: CurrentSeasonDefn | None,
+    current_seasons_defn: CurrentSeasonDefn | None,
 ) -> pl.DataFrame:
     """Filter out TAIWAN, CLEMENT, and other issues."""
     unique_season_histories = (
@@ -468,18 +468,14 @@ def generate_filtered_season_history_map(
         == 0
     )
 
-    if current_seasons is not None:
+    if current_seasons_defn is not None:
         current_seasons_df = pl.DataFrame().with_columns(
             pl.lit(
-                [
-                    {
-                        "year": current_seasons.get_year(po_season),
-                        "po_season": po_season.name,
-                    }
-                    for po_season in POSeason
-                ],
+                current_seasons_defn.get_possible_current_seasons(),
                 dtype=season_history_map["season_history_info"].dtype,
-            ).alias("current_seasons")
+            )
+            .alias("current_seasons")
+            .list.unique()
         )
 
         problem_current_seasons = current_seasons_df.filter(
