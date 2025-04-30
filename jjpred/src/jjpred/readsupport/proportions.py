@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from analysis_tools.utils import get_analysis_defn_and_db
-from jjpred.analysisdefn import JJWebDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.database import DataBase
 import polars as pl
 
@@ -25,16 +25,15 @@ def gen_jjweb_proportions_path(
 
 
 def read_jjweb_proportions(
-    analysis_defn_or_db: JJWebDefn | DataBase,
+    analysis_defn_or_db: AnalysisDefn | DataBase,
+    website_proportions_split_date: DateLike,
 ) -> pl.DataFrame:
     """Read the CA/East sales proportions for the J&J website."""
 
-    analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
-
-    assert isinstance(analysis_defn, JJWebDefn)
+    _, db = get_analysis_defn_and_db(analysis_defn_or_db)
 
     proportions_path = gen_jjweb_proportions_path(
-        analysis_defn.website_proportions_split_date
+        website_proportions_split_date
     )
 
     raw_proportions = pl.read_csv(
