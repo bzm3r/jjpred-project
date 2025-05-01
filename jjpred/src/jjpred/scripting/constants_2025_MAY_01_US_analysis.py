@@ -13,14 +13,14 @@ from jjpred.inputstrategy import RefillType
 from jjpred.analysisconfig import RefillConfigInfo
 
 current_seasons = CurrentSeasonDefn(FW=24, SS=25)
-analysis_date = "2025-APR-29"
-dispatch_date = "2025-APR-28"
+analysis_date = "2025-MAY-01"
+dispatch_date = "2025-MAY-01"
 master_sku_date = "2025-APR-29"
 sales_and_inventory_date = "2025-APR-28"
 warehouse_inventory_date = "2025-APR-28"
 website_sku_date = "2025-MAR-18"
 config_date = "2025-APR-07"
-in_stock_ratio_date = "2025-APR-01"
+in_stock_ratio_date = "2025-APR-28"
 prediction_type_meta_date = None
 check_dispatch_date = False
 mainprogram_date = None  # "2025-FEB-25"
@@ -31,7 +31,7 @@ extra_refill_config_info: list[RefillConfigInfo] = [
 ]
 combine_hca0_hcb0_gra_asg_history: bool = True
 
-analysis_defn_no_reservation = FbaRevDefn(
+analysis_defn_no_reservation_us_analysis = FbaRevDefn(
     analysis_date=analysis_date,
     dispatch_date=dispatch_date,
     master_sku_date=master_sku_date,
@@ -41,7 +41,7 @@ analysis_defn_no_reservation = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
-    refill_type=RefillType.WEEKLY,
+    refill_type=RefillType.CUSTOM_2025_MAY_01_AMAZON_US,
     mainprogram_date=mainprogram_date,
     refill_draft_date=refill_draft_date,
     mon_sale_r_date=None,
@@ -68,7 +68,7 @@ analysis_defn_website_reserved_force_po = FbaRevDefn(
         reservation_expr=DEFAULT_RESERVATION_EXPR,
         force_po_prediction_for_reservation=True,
     ),
-    refill_type=RefillType.WEEKLY,
+    refill_type=RefillType.CUSTOM_2025_MAY_01_AMAZON_US,
     mainprogram_date=mainprogram_date,
     refill_draft_date=refill_draft_date,
     mon_sale_r_date=None,
@@ -77,34 +77,6 @@ analysis_defn_website_reserved_force_po = FbaRevDefn(
     match_main_program_month_fractions=True,
     check_dispatch_date=check_dispatch_date,
     extra_descriptor="web_res_force_po",
-    extra_refill_config_info=extra_refill_config_info,
-    combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-    current_seasons=current_seasons,
-)
-
-analysis_defn_website_reserved_free_method = FbaRevDefn(
-    analysis_date=analysis_date,
-    dispatch_date=dispatch_date,
-    master_sku_date=master_sku_date,
-    sales_and_inventory_date=sales_and_inventory_date,
-    warehouse_inventory_date=warehouse_inventory_date,
-    config_date=config_date,
-    in_stock_ratio_date=in_stock_ratio_date,
-    prediction_type_meta_date=prediction_type_meta_date,
-    website_sku_date=website_sku_date,
-    jjweb_reserve_info=JJWebPredictionInfo(
-        reservation_expr=DEFAULT_RESERVATION_EXPR,
-        force_po_prediction_for_reservation=True,
-    ),
-    refill_type=RefillType.WEEKLY,
-    mainprogram_date=mainprogram_date,
-    refill_draft_date=refill_draft_date,
-    mon_sale_r_date=None,
-    po_date=None,
-    new_overrides_e=True,
-    match_main_program_month_fractions=True,
-    check_dispatch_date=check_dispatch_date,
-    extra_descriptor="web_res",
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
     current_seasons=current_seasons,

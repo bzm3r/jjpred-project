@@ -57,6 +57,8 @@ class RefillType(EnumLike):
     CUSTOM_2025_FEB_18 = auto()
     CUSTOM_2025_FEB_24 = auto()
     CUSTOM_2025_APR_01 = auto()
+    CUSTOM_2025_APR_28_AMAZON_US = auto()
+    CUSTOM_2025_MAY_01_AMAZON_US = auto()
 
     @classmethod
     def match(cls, x: str) -> Self:
@@ -112,30 +114,17 @@ class RefillType(EnumLike):
                     start_date
                 )
                 return Date.from_datelike("2025-JUN-01")
+            case (
+                RefillType.CUSTOM_2025_APR_28_AMAZON_US
+                | RefillType.CUSTOM_2025_MAY_01_AMAZON_US
+            ):
+                start_date = Date.from_datelike(start_date)
+                assert start_date == Date.from_datelike("2025-MAY-01"), (
+                    start_date
+                )
+                return Date.from_datelike("2025-JUN-01")
             case value:
                 raise ValueError(f"No logic to handle case {value}.")
-
-    # def in_season(
-    #     self,
-    # ) -> Callable[[list[Season]], list[Season]]:
-    #     """Get seasons considered "in-season" for this refill type."""
-    #     match self:
-    #         case (
-    #             RefillType.MONTHLY
-    #             | RefillType.SEASON_START
-    #             | RefillType.CUSTOM_2024_SEP_10
-    #             | RefillType.CUSTOM_2024_NOV_04
-    #             | RefillType.CUSTOM_2025_JAN_06
-    #         ):
-    #             return lambda off_seasons: Season.all_seasons()
-    #         case RefillType.WEEKLY:
-    #             return lambda off_seasons: [
-    #                 season
-    #                 for season in Season
-    #                 if ((season not in off_seasons) or (len(off_seasons) == 0))
-    #             ]
-    #         case value:
-    #             raise ValueError(f"No logic to handle case {value}.")
 
     def __repr__(self) -> str:
         return f"{self.__class__.__qualname__}.{self.name}"
