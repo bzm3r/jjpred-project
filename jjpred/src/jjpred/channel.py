@@ -491,8 +491,21 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             CountryFlags.US,
             DistributionMode.RETAIL,
         ).as_dict(),
-        ("warehouse ca", "jj warehouse"): RawChannel(
+        (
+            "warehouse ca",
+            "jj warehouse",
+            "wh surrey",
+        ): RawChannel(
             Platform.Warehouse, CountryFlags.CA, DistributionMode.WAREHOUSE
+        ).as_dict(),
+        ("wh china",): RawChannel(
+            Platform.Warehouse, CountryFlags.CN, DistributionMode.WAREHOUSE
+        ).as_dict(),
+        (
+            "unknown warehouse",
+            "wh richmond",
+        ): RawChannel(
+            Platform.Warehouse, CountryFlags(0), DistributionMode.WAREHOUSE
         ).as_dict(),
         ("wholesale",): RawChannel(
             Platform.Wholesale,

@@ -414,8 +414,8 @@ class IntFlagLike(SumTypeLike, IntFlag):
 
 def find_dupes(
     df: pl.DataFrame,
-    id_cols: list[str],
-    ignore_columns: list[str] | None = None,
+    id_cols: Sequence[str],
+    ignore_columns: Sequence[str] | None = None,
     raise_error: bool = False,
 ) -> pl.DataFrame:
     """Find duplicates in a Polars dataframe."""

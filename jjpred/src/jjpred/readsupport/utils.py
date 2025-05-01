@@ -1,6 +1,7 @@
 """Utility functions used commonly in :py:mod:`readsupport`."""
 
 from __future__ import annotations
+from collections.abc import Sequence
 
 import polars as pl
 
@@ -48,15 +49,15 @@ the bulk of the information relevant to FBA review."""
 
 def unpivot_dates(
     df: pl.DataFrame,
-    id_cols: list[Column],
-    data_cols: list[Column],
+    id_cols: Sequence[Column | str],
+    data_cols: Sequence[Column | str],
     value_name: str,
 ) -> pl.DataFrame:
     """Dates for historical sales information are given in the column headers.
     We need to "unpivot" (rotate) them along with the sales information they are
     associated with."""
-    df = df.melt(
-        id_vars=[str(c) for c in id_cols],
+    df = df.unpivot(
+        index=[str(c) for c in id_cols],
         variable_name="date",
         value_name=value_name,
     )
@@ -106,17 +107,17 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
                     "ERROR: found incorrectly parsed channels: \n"
                     f"{unique_channels.filter(pl.col(c).is_null())}"
                 )
-            else:
-                print(
-                    f"WARNING: issue parsing channels ({c}), replacing with 0: \n"
-                    f"{unique_channels.filter(pl.col(c).is_null())}"
-                )
-                unique_channels = unique_channels.with_columns(
-                    pl.when(pl.col(c).is_null())
-                    .then(0)
-                    .otherwise(pl.col(c))
-                    .alias(c)
-                )
+            # else:
+            #     print(
+            #         f"WARNING: issue parsing channels ({c}), replacing with 0: \n"
+            #         f"{unique_channels.filter(pl.col(c).is_null())}"
+            #     )
+            #     unique_channels = unique_channels.with_columns(
+            #         pl.when(pl.col(c).is_null())
+            #         .then(0)
+            #         .otherwise(pl.col(c))
+            #         .alias(c)
+            #     )
 
     unique_channels = unique_channels.cast(Channel.polars_type_dict())  # type: ignore
     unique_channels = unique_channels.rename(
