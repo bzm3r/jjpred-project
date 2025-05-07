@@ -58,7 +58,8 @@ class RefillType(EnumLike):
     CUSTOM_2025_FEB_24 = auto()
     CUSTOM_2025_APR_01 = auto()
     CUSTOM_2025_APR_28_AMAZON_US = auto()
-    CUSTOM_2025_MAY_01_AMAZON_US = auto()
+    CUSTOM_2025_MAY_01_AMAZON_US_END_OF_MAY = auto()
+    CUSTOM_2025_MAY_01_AMAZON_US_END_OF_JUNE = auto()
 
     @classmethod
     def match(cls, x: str) -> Self:
@@ -116,13 +117,19 @@ class RefillType(EnumLike):
                 return Date.from_datelike("2025-JUN-01")
             case (
                 RefillType.CUSTOM_2025_APR_28_AMAZON_US
-                | RefillType.CUSTOM_2025_MAY_01_AMAZON_US
+                | RefillType.CUSTOM_2025_MAY_01_AMAZON_US_END_OF_MAY
             ):
                 start_date = Date.from_datelike(start_date)
                 assert start_date == Date.from_datelike("2025-MAY-01"), (
                     start_date
                 )
                 return Date.from_datelike("2025-JUN-01")
+            case RefillType.CUSTOM_2025_MAY_01_AMAZON_US_END_OF_JUNE:
+                start_date = Date.from_datelike(start_date)
+                assert start_date == Date.from_datelike("2025-MAY-01"), (
+                    start_date
+                )
+                return Date.from_datelike("2025-JUL-01")
             case value:
                 raise ValueError(f"No logic to handle case {value}.")
 

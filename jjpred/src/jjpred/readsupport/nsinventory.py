@@ -5,8 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import polars as pl
 
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
-from jjpred.channel import Channel
+from jjpred.analysisdefn import AnalysisDefn
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.readsupport.utils import parse_channels
 from jjpred.utils.datetime import Date, DateLike
@@ -35,7 +34,7 @@ def get_netsuite_inventory_path(
             print("...yes!")
         return inventory_path
 
-    path_shape = NETSUITE_INVENTORY_PATH.format(date=str(file_date))
+    path_shape = NETSUITE_INVENTORY_PATH.format(date=file_date_str)
     raise OSError(
         f"Could not find valid inventory file for {str(file_date)}. "
         f"Should have shape: {path_shape}"

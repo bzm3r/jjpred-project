@@ -14,13 +14,13 @@ from jjpred.analysisconfig import RefillConfigInfo
 
 current_seasons = CurrentSeasonDefn(FW=24, SS=25)
 analysis_date = "2025-MAY-01"
-dispatch_date = "2025-MAY-01"
-master_sku_date = "2025-APR-29"
-sales_and_inventory_date = "2025-APR-28"
-warehouse_inventory_date = "2025-APR-28"
+dispatch_date = "2025-MAY-05"
+master_sku_date = "2025-05-05"
+sales_and_inventory_date = "2025-05-05"
+warehouse_inventory_date = "2025-05-05"
 website_sku_date = "2025-MAR-18"
 config_date = "2025-APR-07"
-in_stock_ratio_date = "2025-APR-28"
+in_stock_ratio_date = "2025-MAY-05"
 prediction_type_meta_date = None
 check_dispatch_date = False
 mainprogram_date = None  # "2025-FEB-25"
@@ -30,6 +30,7 @@ extra_refill_config_info: list[RefillConfigInfo] = [
     RefillConfigInfo(["amazon.ca", "amazon.com"], 5, "HCA0-SND-S")
 ]
 combine_hca0_hcb0_gra_asg_history: bool = True
+match_main_program_month_fractions: bool = False
 
 analysis_defn_no_reservation = FbaRevDefn(
     analysis_date=analysis_date,
@@ -41,43 +42,44 @@ analysis_defn_no_reservation = FbaRevDefn(
     in_stock_ratio_date=in_stock_ratio_date,
     prediction_type_meta_date=prediction_type_meta_date,
     website_sku_date=website_sku_date,
-    refill_type=RefillType.CUSTOM_2025_MAY_01_AMAZON_US_END_OF_MAY,
+    refill_type=RefillType.WEEKLY,
     mainprogram_date=mainprogram_date,
     refill_draft_date=refill_draft_date,
     mon_sale_r_date=None,
     po_date=None,
     new_overrides_e=True,
-    match_main_program_month_fractions=True,
+    match_main_program_month_fractions=match_main_program_month_fractions,
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
     current_seasons=current_seasons,
+    extra_descriptor="special_US",
 )
 
-analysis_defn_website_reserved_force_po = FbaRevDefn(
-    analysis_date=analysis_date,
-    dispatch_date=dispatch_date,
-    master_sku_date=master_sku_date,
-    sales_and_inventory_date=sales_and_inventory_date,
-    warehouse_inventory_date=warehouse_inventory_date,
-    config_date=config_date,
-    in_stock_ratio_date=in_stock_ratio_date,
-    prediction_type_meta_date=prediction_type_meta_date,
-    website_sku_date=website_sku_date,
-    jjweb_reserve_info=JJWebPredictionInfo(
-        reservation_expr=DEFAULT_RESERVATION_EXPR,
-        force_po_prediction_for_reservation=True,
-    ),
-    refill_type=RefillType.CUSTOM_2025_MAY_01_AMAZON_US_END_OF_MAY,
-    mainprogram_date=mainprogram_date,
-    refill_draft_date=refill_draft_date,
-    mon_sale_r_date=None,
-    po_date=None,
-    new_overrides_e=True,
-    match_main_program_month_fractions=True,
-    check_dispatch_date=check_dispatch_date,
-    extra_descriptor="web_res_force_po",
-    extra_refill_config_info=extra_refill_config_info,
-    combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-    current_seasons=current_seasons,
-)
+# analysis_defn_website_reserved_force_po = FbaRevDefn(
+#     analysis_date=analysis_date,
+#     dispatch_date=dispatch_date,
+#     master_sku_date=master_sku_date,
+#     sales_and_inventory_date=sales_and_inventory_date,
+#     warehouse_inventory_date=warehouse_inventory_date,
+#     config_date=config_date,
+#     in_stock_ratio_date=in_stock_ratio_date,
+#     prediction_type_meta_date=prediction_type_meta_date,
+#     website_sku_date=website_sku_date,
+#     jjweb_reserve_info=JJWebPredictionInfo(
+#         reservation_expr=DEFAULT_RESERVATION_EXPR,
+#         force_po_prediction_for_reservation=True,
+#     ),
+#     refill_type=RefillType.WEEKLY,
+#     mainprogram_date=mainprogram_date,
+#     refill_draft_date=refill_draft_date,
+#     mon_sale_r_date=None,
+#     po_date=None,
+#     new_overrides_e=True,
+#     match_main_program_month_fractions=match_main_program_month_fractions,
+#     check_dispatch_date=check_dispatch_date,
+#     extra_descriptor="web_res_force_po",
+#     extra_refill_config_info=extra_refill_config_info,
+#     combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+#     current_seasons=current_seasons,
+# )

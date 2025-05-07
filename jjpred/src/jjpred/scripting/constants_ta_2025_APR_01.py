@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from jjpred.analysisdefn import AnalysisDefn
+from jjpred.analysisdefn import AnalysisDefn, CurrentSeasonDefn
+
+current_seasons = CurrentSeasonDefn(FW=24, SS=25)
 
 analysis_defn = AnalysisDefn(
     basic_descriptor="trend_analysis",
@@ -12,4 +14,5 @@ analysis_defn = AnalysisDefn(
     warehouse_inventory_date="2025-APR-01",
     config_date="2025-FEB-25",
     in_stock_ratio_date="2025-APR-01",
+    current_seasons=current_seasons,
 )

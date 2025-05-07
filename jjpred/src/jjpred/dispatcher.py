@@ -493,6 +493,7 @@ def calculate_full_box_and_auto_split(
                 Sku.members(MemberType.META)
                 + Channel.members()
                 + [
+                    "exact_boxes",
                     "prebox_required",
                     "dispatch",
                     "rounded_to_closest_box",
@@ -627,9 +628,9 @@ class Dispatcher:
     """Qty/box information."""
     predictor: Predictor
     """Used to predict the demand for the prediction period."""
-    start_date: Date
+    dispatch_start: Date
     """Start of the prediction period."""
-    end_date: Date
+    dispatch_end: Date
     """End of the prediction period."""
     channel_info: pl.DataFrame
     """Channel information dataframe."""
@@ -655,6 +656,8 @@ class Dispatcher:
         filters: list[StructLike] | None = [],
         read_from_disk: bool = False,
         overwrite: bool = True,
+        dispatch_start: DateLike | None = None,
+        dispatch_end: DateLike | None = None,
     ) -> None:
         analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
         assert isinstance(analysis_defn, RefillDefn)
@@ -889,11 +892,23 @@ class Dispatcher:
             self.all_sku_info.select(Channel.members()).unique()
         ) == len(self.dispatch_channels)
 
+        self.dispatch_start = Date.from_datelike(
+            dispatch_start if dispatch_start else analysis_defn.dispatch_date
+        )
+        self.dispatch_end = Date.from_datelike(
+            dispatch_end if dispatch_end else analysis_defn.end_date
+        )
+
+        self.all_sku_info = self.all_sku_info.with_columns(
+            dispatch_start=self.dispatch_start.as_polars_date(),
+            dispatch_end=self.dispatch_end.as_polars_date(),
+        )
+
         # attach demand predictions
         demand_predictions = self.predictor.predict_demand(
             self.dispatch_channels,
-            self.analysis_defn.dispatch_date,
-            self.analysis_defn.end_date,
+            self.dispatch_start,
+            self.dispatch_end,
         ).filter(
             ~(
                 pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
@@ -1084,6 +1099,42 @@ class Dispatcher:
         )
 
         return self.all_sku_info
+
+    def calculate_dispatch_special_case(
+        self, required_ca: pl.DataFrame
+    ) -> pl.DataFrame:
+        assert len(self.all_sku_info.filter(pl.col.reserved.ne(0))) == 0
+
+        us_stuff, other_stuff = binary_partition_strict(
+            self.all_sku_info,
+            pl.struct(Channel.members()).eq(
+                Channel.parse("Amazon US").as_dict()
+            ),
+        )
+
+        assert len(other_stuff) == 0
+
+        # assert len(us_stuff) + len(ca_stuff) == len(self.all_sku_info)
+
+        # assert (
+        #     us_stuff["sku"].unique().sort() == ca_stuff["sku"].unique().sort()
+        # ).all()
+
+        us_stuff = (
+            us_stuff.join(
+                required_ca,
+                on=["sku"],
+                how="left",
+            )
+            .with_columns(pl.col.required_CA.fill_null(0))
+            .with_columns(
+                wh_dispatchable=pl.max_horizontal(
+                    pl.col.wh_dispatchable - pl.col.required_CA, pl.lit(0)
+                )
+            )
+        )
+
+        return calculate_full_box_and_auto_split(self.analysis_defn, us_stuff)
 
     def produce_formatted_jjweb_dispatch(
         self,

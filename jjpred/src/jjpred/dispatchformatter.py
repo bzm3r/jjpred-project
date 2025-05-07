@@ -24,6 +24,7 @@ def format_dispatch_for_netsuite(
     analysis_date: DateLike,
     dispatch_results: pl.DataFrame,
     country_flag: CountryFlags,
+    extra_cols: list[str] = [],
 ) -> pl.DataFrame:
     """Format a dispatch result dataframe as a NetSuite-style output file."""
 
@@ -43,7 +44,7 @@ def format_dispatch_for_netsuite(
     assert dispatch_results["dispatch"].dtype == pl.Int64()
     formatted_results = (
         dispatch_results.filter(pl.col.country_flag == int(country_flag))
-        .select("sku", "fba_sku", "dispatch")
+        .select("sku", "fba_sku", "dispatch", *extra_cols)
         .with_columns(pl.col.dispatch.cast(pl.UInt64()))
         .rename({"sku": "ITEM", "dispatch": "Quantity", "fba_sku": "FBA SKUs"})
         .with_columns(
@@ -72,6 +73,7 @@ def format_dispatch_for_netsuite(
             "MEMO",
             "ORDER PLACED BY",
             "FBA SKUs",
+            *extra_cols,
         )
     )
 

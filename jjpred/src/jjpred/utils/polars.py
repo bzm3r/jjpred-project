@@ -625,6 +625,8 @@ class CompareResult:
         if filter_expr is not None:
             failed_df = failed_df.filter(filter_expr)
 
+        print(f"{len(failed_df)=}")
+
         return GT(failed_df.limit(n_rows)).tab_style(
             style.fill("yellow"),
             loc.body(mask=cs.ends_with("_same").eq(False)),
