@@ -31,5 +31,7 @@
   "quarto.render.renderOnSave": true,
   "python.analysis.supportDocstringTemplate": true,
   "python.analysis.supportRestructuredText": true,
-  "python.analysis.extraPaths": ["jjpred/src", "analysis_tools/src"]
+  "python.analysis.extraPaths": ["jjpred/src", "analysis_tools/src"],
+  "telemetry.feedback.enabled": false,
+  "dotnetAcquisitionExtension.enableTelemetry": false
 }

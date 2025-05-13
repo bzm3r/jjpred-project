@@ -80,6 +80,7 @@ def write_excel(
     sheet_dict: Mapping[str, pl.DataFrame | None],
     autofit: bool = False,
     column_formats: pltypes.ColumnFormatDict | None = None,
+    conditional_formats: dict | None = None,
 ) -> Path:
     print(f"Saving to: {save_path}")
 
@@ -94,6 +95,7 @@ def write_excel(
                     worksheet=key,
                     autofit=autofit,
                     column_formats=column_formats,
+                    conditional_formats=conditional_formats,
                 )
             # worksheet = workbook.get_worksheet_by_name(key)
             # assert worksheet is not None

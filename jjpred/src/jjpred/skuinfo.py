@@ -359,13 +359,51 @@ def get_checked_category_print_history(db: DataBase) -> pl.DataFrame:
                 pl.element().struct.field("year")
             )
             .list.unique()
-            .list.sort(),
-            print_history=pl.col.print_history.list.eval(
+            .list.sort(descending=True),
+            print_history=pl.col.print_history.list.sort(
+                descending=True
+            ).list.eval(
                 pl.concat_str(
-                    pl.element().struct.field(x).cast(pl.String())
-                    for x in ["year", "po_season"]
+                    pl.element().struct.field("year").cast(pl.String()),
+                    pl.element()
+                    .struct.field("po_season")
+                    .cast(pl.String())
+                    .str.slice(0, 1),
                 )
             ),
+            print_history_info=pl.col.print_history.list.sort(descending=True),
+        )
+    )
+
+
+def get_checked_category_size_history(db: DataBase) -> pl.DataFrame:
+    return (
+        get_checked_category_print_size_info(
+            db,
+            only_active_sku=False,
+            info_columns=["season_history_info"],
+        )
+        .explode("season_history_info")
+        .group_by("category", "size")
+        .agg(pl.col.season_history_info.unique().sort().alias("size_history"))
+        .with_columns(
+            size_years=pl.col.size_history.list.eval(
+                pl.element().struct.field("year")
+            )
+            .list.unique()
+            .list.sort(descending=True),
+            size_history=pl.col.size_history.list.sort(
+                descending=True
+            ).list.eval(
+                pl.concat_str(
+                    pl.element().struct.field("year").cast(pl.String()),
+                    pl.element()
+                    .struct.field("po_season")
+                    .cast(pl.String())
+                    .str.slice(0, 1),
+                )
+            ),
+            size_history_info=pl.col.size_history.list.sort(descending=True),
         )
     )
 

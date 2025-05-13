@@ -69,6 +69,26 @@ class POSheet:
         self.name = name
 
 
+def process_all_po_per_sku(
+    all_sku_info: pl.DataFrame,
+    all_po_per_sku: pl.DataFrame,
+    filter_out_SMF_25F: bool,
+) -> pl.DataFrame:
+    if filter_out_SMF_25F:
+        all_po_per_sku = (
+            all_po_per_sku.join(
+                all_sku_info.select("sku", "category"), on=["sku"], how="left"
+            )
+            .filter(
+                pl.col.category.is_null()
+                | ~(pl.col.po_season.eq("FW") & pl.col.category.eq("SMF"))
+            )
+            .drop("category")
+        )
+
+    return all_po_per_sku
+
+
 def read_all_po(
     analysis_defn: AnalysisDefn,
     read_from_disk: bool = True,
@@ -76,6 +96,7 @@ def read_all_po(
     treat_negative_po_as_zero: bool = True,
     treat_negative_po_as_error: bool = False,
     overwrite: bool = True,
+    filter_out_SMF_25F: bool = True,
 ) -> pl.DataFrame:
     """Read all PO data from static PO sheets."""
 
@@ -86,6 +107,8 @@ def read_all_po(
         source_name="static_po",
     )
 
+    all_sku_info = read_meta_info(analysis_defn, "all_sku")
+
     if read_from_disk or delete_if_exists:
         all_po_per_sku = delete_or_read_df(
             delete_if_exists, all_po_per_sku_path
@@ -93,9 +116,10 @@ def read_all_po(
         # per_cat = delete_or_read_df(delete_if_exists, per_cat_path)
 
         if all_po_per_sku is not None:  # and per_cat is not None:
-            return all_po_per_sku
+            return process_all_po_per_sku(
+                all_sku_info, all_po_per_sku, filter_out_SMF_25F
+            )
 
-    all_sku_info = read_meta_info(analysis_defn, "all_sku")
     channel_info = read_meta_info(analysis_defn, "channel")
 
     all_po_per_sku = pl.DataFrame()
@@ -264,6 +288,10 @@ def read_all_po(
             .otherwise(pl.col.sku)
         )
 
+    all_po_per_sku = process_all_po_per_sku(
+        all_sku_info, all_po_per_sku, filter_out_SMF_25F
+    )
+
     write_df(overwrite, all_po_per_sku_path, all_po_per_sku)
 
     return all_po_per_sku
@@ -357,6 +385,7 @@ def read_po(
         read_from_disk=read_from_disk,
         delete_if_exists=delete_if_exists,
         overwrite=overwrite,
+        filter_out_SMF_25F=True,
     )
 
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
