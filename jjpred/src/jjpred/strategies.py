@@ -14,6 +14,7 @@ from jjpred.aggregator import Aggregator
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel
 from jjpred.inputstrategy import (
+    HistoryTimePeriod,
     InputStrategy,
     ContiguousTimePeriod,
     UndeterminedTimePeriod,
@@ -43,8 +44,12 @@ class HistoricalDfs:
     working_df: pl.DataFrame
     """The working year whose sales data we use to adjust monthly ratios from
     the historical year."""
-    months_missing_from_working_year: list[int]
-    """Incomplete months from the working year."""
+    month_part_factor_df: pl.DataFrame
+    """Factors listing how much of the working period is complete for each
+    month. For example: if the working year ends on 2025-MAY-15, then ``14/31``
+    days will be completed of May, ``1.0`` days will be completed of any month
+    in 2025 before May, and ``0.0`` days will be completed of any month after
+    May."""
 
 
 @dataclass
@@ -211,21 +216,28 @@ class StrategyGroup(CategoryGroupProtocol):
         history_df: pl.DataFrame,
         dispatch_date: Date,
     ) -> HistoricalDfs:
-        history_time_period = ContiguousTimePeriod.make_history_period(
-            dispatch_date
-        )
+        history_time_period = HistoryTimePeriod.from_date(dispatch_date)
+
         historical = self.aggregator(
             history_df.filter(
                 pl.col("category").is_in(self.primary_cats),
-                pl.col("date").is_in(
-                    history_time_period.historical_year.tpoints
+                pl.col.date.ge(
+                    history_time_period.historical_year.start.as_polars_date()
+                )
+                & pl.col.date.lt(
+                    history_time_period.historical_year.end.as_polars_date()
                 ),
             ),
         ).rename({"sales": "category_historical_monthly_sales"})
         working = self.aggregator(
             history_df.filter(
                 pl.col("category").is_in(self.primary_cats),
-                pl.col("date").is_in(history_time_period.working_year.tpoints),
+                pl.col.date.ge(
+                    history_time_period.working_year.start.as_polars_date()
+                )
+                & pl.col.date.lt(
+                    history_time_period.working_year.end.as_polars_date()
+                ),
             ),
         ).rename({"sales": "category_working_monthly_sales"})
 
@@ -235,7 +247,7 @@ class StrategyGroup(CategoryGroupProtocol):
         return HistoricalDfs(
             historical,
             working,
-            history_time_period.months_missing_from_working_year,
+            history_time_period.month_part_factor_df,
         )
 
     def construct_po_prediction(
@@ -320,7 +332,7 @@ def collate_groups(
 ) -> pl.DataFrame:
     stacked_df = pl.DataFrame()
 
-    groups = category_groups.category_groups()
+    groups = category_groups.get_data()
     if len(groups) > 0:
         stacked_df = groups[0].data
 

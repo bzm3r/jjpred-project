@@ -162,31 +162,131 @@ class UndeterminedTimePeriod:
         return self.start <= other.start
 
 
+@total_ordering
+@dataclass
+class SimpleTimePeriod:
+    start: Date
+    end: Date
+
+    def __init__(self, start: DateLike, end: DateLike):
+        self.start = Date.from_datelike(start).with_day(1)
+        self.end = Date.from_datelike(end)
+
+        assert self.start.day == 1
+
+        # ensure that more than one year has not passed between end and start
+        assert 0 <= (self.end.year - self.start.year) <= 1
+        if (self.end.year - self.start.year) > 0:
+            assert (self.end.month - self.start.month) < 0 or (
+                (self.end.month == self.start.month) and self.end.day == 1
+            )
+
+    def with_end_date(self, end: DateLike):
+        if self.end == Date.from_datelike(end):
+            return self
+        else:
+            return SimpleTimePeriod(self.start, end)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.start == other.start and self.end == other.end
+        else:
+            return False
+
+    def __lt__(self, other: Self) -> bool:
+        return self.start <= other.start and self.end < other.end
+
+
+@total_ordering
+@dataclass
+class UndeterminedSimpleTimePeriod:
+    start: Date
+
+    def __init__(self, start: DateLike):
+        self.start = Date.from_datelike(start)
+
+    def with_end_date(self, end: DateLike):
+        return SimpleTimePeriod(self.start, end)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, self.__class__):
+            return self.start == other.start
+        else:
+            return False
+
+    def __lt__(self, other: Self) -> bool:
+        return self.start <= other.start
+
+
 @dataclass
 class HistoryTimePeriod:
-    historical_year: ContiguousTimePeriod
+    historical_year: SimpleTimePeriod
     """The historical year whose sales data we use to generate initial monthly
     ratios."""
-    working_year: ContiguousTimePeriod
+    working_year: SimpleTimePeriod
     """The working year whose sales data we use to adjust historical year
     monthly ratios."""
-    months_missing_from_working_year: list[int] = field(
-        default_factory=list, init=False
-    )
-    """Incomplete months from the working year."""
+    month_part_factor_df: pl.DataFrame = field(init=False)
+    """Factors listing how much of the working period is complete for each
+    month. For example: if the working year ends on 2025-MAY-15, then ``14/31``
+    days will be completed of May, ``1.0`` days will be completed of any month
+    in 2025 before May, and ``0.0`` days will be completed of any month after
+    May."""
 
     def __init__(
         self,
-        historical_year: ContiguousTimePeriod,
-        working_year: ContiguousTimePeriod,
+        historical_year: SimpleTimePeriod,
+        working_year: SimpleTimePeriod,
     ):
         self.historical_year = historical_year
         self.working_year = working_year
-        self.months_missing_from_working_year = [
-            n
-            for n in self.historical_year.tpoints.dt.month()
-            if n not in self.working_year.tpoints.dt.month()
-        ]
+        self.month_part_factor_df = (
+            pl.DataFrame()
+            .with_columns(
+                month=pl.arange(1, end=13, step=1, dtype=pl.Int8()),
+                date=pl.lit(working_year.end.date),
+            )
+            .with_columns(
+                pl.when(pl.col.month.lt(working_year.end.date.month))
+                .then(1.0)
+                .when(pl.col.month.eq(working_year.end.date.month))
+                .then(
+                    (
+                        (
+                            pl.col.date - pl.col.date.dt.month_start()
+                        ).dt.total_days()
+                    )
+                    / (pl.col.date.dt.month_end().dt.day())
+                )
+                .otherwise(0.0)
+                .alias("month_part_factor")
+            )
+        )
+
+    @classmethod
+    def from_date(cls, date: DateLike) -> HistoryTimePeriod:
+        """A history time period has two parts: the historical year (12 time
+        points) and the working year (most recent (completed) month in year of
+        dispatch date)."""
+
+        date = Date.from_datelike(date)
+
+        if date.month == 1:
+            working_year_start = YearMonthDay(date.year - 1, Month(1), 1)
+            working_year_end = YearMonthDay(date.year, Month(1), 1)
+        else:
+            working_year_start = YearMonthDay(date.year, Month(1), 1)
+            working_year_end = YearMonthDay(date.year, date.month, date.day)
+
+        historical_year = date.year - 1
+
+        return cls(
+            SimpleTimePeriod(
+                YearMonthDay(historical_year, Month(1), 1),
+                YearMonthDay(historical_year + 1, Month(1), 1),
+            ),
+            SimpleTimePeriod(working_year_start, working_year_end),
+        )
 
 
 @total_ordering
@@ -248,34 +348,32 @@ class ContiguousTimePeriod:
             end_date = first_day(today)
         return cls(start_date, end_date)
 
-    @classmethod
-    def make_history_period(cls, dispatch_date: Date) -> HistoryTimePeriod:
-        """A history time period has two parts: the historical year (12 time
-        points) and the working year (most recent (completed) month in year of
-        dispatch date)."""
+    # @classmethod
+    # def make_history_period(cls, dispatch_date: Date) -> HistoryTimePeriod:
+    #     """A history time period has two parts: the historical year (12 time
+    #     points) and the working year (most recent (completed) month in year of
+    #     dispatch date)."""
 
-        if dispatch_date.month == 1:
-            working_year_start = YearMonthDay(
-                dispatch_date.year - 1, Month(1), 1
-            )
-            working_year_end = YearMonthDay(dispatch_date.year, Month(1), 1)
-        else:
-            working_year_start = YearMonthDay(dispatch_date.year, Month(1), 1)
-            working_year_end = YearMonthDay(
-                dispatch_date.year, dispatch_date.month, 1
-            )
+    #     if dispatch_date.month == 1:
+    #         working_year_start = YearMonthDay(
+    #             dispatch_date.year - 1, Month(1), 1
+    #         )
+    #         working_year_end = YearMonthDay(dispatch_date.year, Month(1), 1)
+    #     else:
+    #         working_year_start = YearMonthDay(dispatch_date.year, Month(1), 1)
+    #         working_year_end = YearMonthDay(
+    #             dispatch_date.year, dispatch_date.month, dispatch_date.day
+    #         )
 
-        historical_year = dispatch_date.year - 1
+    #     historical_year = dispatch_date.year - 1
 
-        return HistoryTimePeriod(
-            cls(
-                Date.from_datelike(YearMonthDay(historical_year, Month(1), 1)),
-                Date.from_datelike(
-                    YearMonthDay(historical_year + 1, Month(1), 1)
-                ),
-            ),
-            cls(working_year_start, working_year_end),
-        )
+    #     return HistoryTimePeriod(
+    #         SimpleTimePeriod(
+    #             YearMonthDay(historical_year, Month(1), 1),
+    #             YearMonthDay(historical_year + 1, Month(1), 1),
+    #         ),
+    #         SimpleTimePeriod(working_year_start, working_year_end),
+    #     )
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, self.__class__):

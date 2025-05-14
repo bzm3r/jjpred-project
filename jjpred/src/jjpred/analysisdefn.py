@@ -21,7 +21,6 @@ from jjpred.utils.datetime import (
     DateLike,
     DateOffset,
     DateUnit,
-    first_day,
 )
 
 
@@ -37,10 +36,7 @@ class LatestDates:
 
     For example, if historical data is available until ``2024-AUG-01``, but this
     variable is set to ``2024-MAR-01``, then historical data including and after
-    ``2024-MAR-01`` will be ignored.
-
-    Note that if a date like ``2024-AUG-15`` is given, then ``2024-AUG-01`` will
-    be used as the value for this variable, because days are irrelevant."""
+    ``2024-MAR-01`` will be ignored."""
     demand_ratio_rolling_update_to: Date
     """The latest date to perform a rolling update to for demand (monthly)
     ratios."""
@@ -50,10 +46,12 @@ class LatestDates:
         sales_history_latest_date: DateLike,
         demand_ratio_rolling_update_to: DateLike | None = None,
     ) -> None:
-        self.sales_history_latest_date = first_day(sales_history_latest_date)
+        self.sales_history_latest_date = Date.from_datelike(
+            sales_history_latest_date
+        )
         if demand_ratio_rolling_update_to is not None:
-            self.demand_ratio_rolling_update_to = first_day(
-                Date.from_datelike(demand_ratio_rolling_update_to)
+            self.demand_ratio_rolling_update_to = Date.from_datelike(
+                demand_ratio_rolling_update_to
             )
         else:
             self.demand_ratio_rolling_update_to = (

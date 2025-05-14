@@ -53,7 +53,7 @@ class CategoryGroups[T: CategoryGroupProtocol]:
                 return ix
         raise ValueError(f"No groups ({len(self.data)=}) contain {category}.")
 
-    def category_groups(self) -> list[T]:
+    def get_data(self) -> list[T]:
         return self.data
 
     def get_category_group(self, category: Category) -> T:

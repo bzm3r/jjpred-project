@@ -440,20 +440,7 @@ class HistoricalPeriodSales:
                 .sum()
                 .over("category")
             )
-        )
-
-        self.category_working_year_sales_info = (
-            history_dfs.working_df.with_columns(
-                category_working_year_sales=pl.col(
-                    "category_working_monthly_sales"
-                )
-                .sum()
-                .over("category")
-            ).with_columns(month=pl.col.date.dt.month())
-        )
-
-        self.category_historical_year_sales_info = (
-            self.category_historical_year_sales_info.with_columns(
+            .with_columns(
                 historical_demand_ratio=pl.when(
                     pl.col("category_historical_year_sales") > 0
                 )
@@ -462,8 +449,15 @@ class HistoricalPeriodSales:
                     / pl.col("category_historical_year_sales")
                 )
                 .otherwise(pl.lit(-1.0))
-                .cast(polars_float(64))
-            ).with_columns(month=pl.col("date").dt.month())
+                .cast(pl.Float64())
+            )
+            .with_columns(month=pl.col("date").dt.month())
+        )
+
+        self.category_working_year_sales_info = history_dfs.working_df.select(
+            "category",
+            pl.col.date.dt.month().alias("month"),
+            "category_working_monthly_sales",
         )
 
         self.category_sales_info = (
@@ -474,32 +468,43 @@ class HistoricalPeriodSales:
                 "category_historical_monthly_sales",
                 "category_historical_year_sales",
             )
-        )
-
-        working_months_historical_ratio_df = (
-            self.category_sales_info.filter(
-                pl.col.month.is_in(
-                    self.category_working_year_sales_info["month"]
-                    .unique()
-                    .sort()
-                )
-            )
-            .group_by("category")
-            .agg(
-                pl.col.historical_demand_ratio.sum().alias(
-                    "working_months_historical_ratio"
-                )
-            )
-        )
-
-        self.category_working_year_sales_info = (
-            self.category_working_year_sales_info.join(
-                working_months_historical_ratio_df.select(
-                    "category", "working_months_historical_ratio"
-                ).unique(),
-                on=["category"],
+            .join(
+                history_dfs.month_part_factor_df.drop("date"),
+                on=["month"],
                 validate="m:1",
-            ).with_columns(
+            )
+            .join(
+                self.category_working_year_sales_info,
+                on=["category", "month"],
+                how="left",
+            )
+            .with_columns(pl.col.category_working_monthly_sales.fill_null(0))
+            .with_columns(
+                # this is technically pre-multiplied by "month_part_factor", since we only
+                # have sales data for part of the working months
+                category_working_year_sales=pl.col.category_working_monthly_sales.sum().over(
+                    "category"
+                )
+            )
+            .with_columns(
+                working_months_historical_ratio=pl.when(
+                    pl.col.category_working_year_sales.gt(0.0)
+                ).then(
+                    (pl.col.month_part_factor * pl.col.historical_demand_ratio)
+                    .sum()
+                    .over("category")
+                )
+            )
+            .with_columns(
+                # see new_rolling_update.ipynb for why this logic works
+                #
+                # both category_working_year_sales and
+                # category_working_months_historical_ratio have a
+                # month_part_factor multiplier, so these "cancel out"
+                # in a "units" sense
+                #
+                # category_working_monthly_sales has a built in
+                # month_part_factor multiplier
                 working_demand_ratio=pl.when(
                     pl.col.category_working_year_sales.gt(0)
                 )
@@ -512,31 +517,22 @@ class HistoricalPeriodSales:
                 )
                 .otherwise(pl.lit(-1.0))
             )
-        )
-
-        self.category_sales_info = self.category_sales_info.join(
-            self.category_working_year_sales_info.select(
-                "category",
-                "month",
-                "category_working_monthly_sales",
-                "category_working_year_sales",
-                "working_demand_ratio",
-                "working_months_historical_ratio",
-            ),
-            on=["category", "month"],
-            how="left",
-            validate="1:1",
-        ).with_columns(
-            demand_ratio=pl.when(~pl.col.historical_demand_ratio.lt(0.0))
-            .then(
-                pl.when(~pl.col.working_demand_ratio.lt(0.0))
-                .then(pl.col.working_demand_ratio)
-                .otherwise(pl.col.historical_demand_ratio)
+            .with_columns(
+                demand_ratio=pl.when(~pl.col.historical_demand_ratio.lt(0.0))
+                .then(
+                    pl.when(~pl.col.working_demand_ratio.lt(0.0))
+                    .then(
+                        pl.col.working_demand_ratio
+                        + (
+                            (1 - pl.col.month_part_factor)
+                            * (pl.col.historical_demand_ratio)
+                        )
+                    )
+                    .otherwise(pl.col.historical_demand_ratio)
+                )
+                .otherwise(pl.lit(-1.0))
             )
-            .otherwise(pl.lit(-1.0))
         )
-
-        self.category_sales_info = self.category_sales_info
 
     @property
     def demand_ratios(self) -> pl.DataFrame:
@@ -813,7 +809,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             strategy_groups,
         ) in self.strategy_groups_per_channel.items():
             prediction_inputs = []
-            for group in strategy_groups.category_groups():
+            for group in strategy_groups.get_data():
                 prediction_inputs.append(
                     PredictionInput(
                         group,
@@ -857,7 +853,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             historical_sales_per_group: list[CategoryGroup[pl.DataFrame]] = []
             for pd_inputs in self.get_category_groups_for_channel(
                 channel
-            ).category_groups():
+            ).get_data():
                 historical_sales_per_group.append(
                     CategoryGroup(
                         pd_inputs.strategy,
@@ -885,7 +881,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             ] = []
             for pd_inputs in self.get_category_groups_for_channel(
                 channel
-            ).category_groups():
+            ).get_data():
                 monthly_sales_df: None | pl.DataFrame = None
                 for (
                     _,
@@ -920,7 +916,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             ] = []
             for pd_inputs in self.get_category_groups_for_channel(
                 channel
-            ).category_groups():
+            ).get_data():
                 current_total_sales: None | pl.DataFrame = None
 
                 for _, current in pd_inputs.currents.data.items():
@@ -951,7 +947,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             po_data_per_group: list[CategoryGroup[pl.DataFrame]] = []
             for pd_inputs in self.get_category_groups_for_channel(
                 channel
-            ).category_groups():
+            ).get_data():
                 po_data_per_group.append(
                     CategoryGroup(
                         pd_inputs.strategy,
@@ -1073,7 +1069,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         category_type_df = pl.DataFrame()
 
         for ch, gs in self.data.items():
-            for g in gs.category_groups():
+            for g in gs.get_data():
                 category_types = g.strategy.category_types
                 for category_type, categories in [
                     (k, v)
@@ -1399,7 +1395,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             expected_demands_per_group: list[CategoryGroup[pl.DataFrame]] = []
             for pdi in self.get_category_groups_for_channel(
                 channel
-            ).category_groups():
+            ).get_data():
                 expected_demand_from_history = pdi.expected_demand_from_history(
                     self.db.meta_info.all_sku,
                     start_date,
