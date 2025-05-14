@@ -18,8 +18,8 @@ from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
 from jjpred.inputstrategy import (
     InputStrategy,
-    ContiguousTimePeriod,
-    UndeterminedTimePeriod,
+    SimpleTimePeriod,
+    UndeterminedSimpleTimePeriod,
 )
 from jjpred.sku import Category
 
@@ -67,7 +67,7 @@ AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
 
 # generated using mainprogram_current_period_defn.ipynb
 CURRENT_PERIODS: MultiDict[
-    Category, ContiguousTimePeriod | UndeterminedTimePeriod
+    Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
 ] = MultiDict(
     data={
         (
@@ -109,8 +109,8 @@ CURRENT_PERIODS: MultiDict[
             "UT1",
             "UV2",
             "UVT",
-        ): UndeterminedTimePeriod("2025-MAR-01"),
-        ("BSL",): UndeterminedTimePeriod("2024-JUL-01"),
+        ): UndeterminedSimpleTimePeriod("2025-MAR-01"),
+        ("BSL",): UndeterminedSimpleTimePeriod("2024-JUL-01"),
         (
             "WPS",
             "WSS",
@@ -156,9 +156,11 @@ CURRENT_PERIODS: MultiDict[
             "FAN",
             "FHA",
             "ISJ",
-        ): UndeterminedTimePeriod("2024-SEP-01"),
-        ("XBM", "XBK", "XLB", "XPC"): UndeterminedTimePeriod("2024-AUG-01"),
-        ("XWG",): UndeterminedTimePeriod("2024-NOV-01"),
+        ): UndeterminedSimpleTimePeriod("2024-SEP-01"),
+        ("XBM", "XBK", "XLB", "XPC"): UndeterminedSimpleTimePeriod(
+            "2024-AUG-01"
+        ),
+        ("XWG",): UndeterminedSimpleTimePeriod("2024-NOV-01"),
     }
 )
 """Current period definitions based on the main program file."""
@@ -423,8 +425,9 @@ their own channel's data."""
 def get_strategy_from_library(
     analysis_defn: RefillDefn, id: StrategyId
 ) -> list[InputStrategy]:
-    default_time_period = UndeterminedTimePeriod(
-        f"{analysis_defn.dispatch_date.year - 1}-{month_abbr[analysis_defn.dispatch_date.month].upper()}"
+    default_time_period = SimpleTimePeriod(
+        f"{analysis_defn.dispatch_date.year - 1}-{analysis_defn.dispatch_date.month}-01",
+        f"{analysis_defn.dispatch_date.year}-{analysis_defn.dispatch_date.month}-01",
     )
     print(f"{default_time_period}: {default_time_period.start}")
 

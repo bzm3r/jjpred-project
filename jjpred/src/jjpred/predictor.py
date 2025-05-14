@@ -22,7 +22,7 @@ from jjpred.globalvariables import (
     NEW_CATEGORIES,
     OUTPERFORM_FACTOR,
 )
-from jjpred.inputstrategy import ContiguousTimePeriod
+from jjpred.inputstrategy import SimpleTimePeriod
 from jjpred.performanceflags import PerformanceFlag
 from jjpred.predictiontypes import PredictionType
 from jjpred.readsupport.utils import cast_standard
@@ -322,14 +322,14 @@ class CurrentPeriodSales:
         result = MultiDict({})
         for categories, monthly_sales in all_monthly_sales.data.items():
             current_period = strategy.current_periods.data[categories]
-            assert isinstance(current_period, ContiguousTimePeriod)
+            assert isinstance(current_period, SimpleTimePeriod)
             result.data[categories] = cls(current_period, monthly_sales)
 
         return result
 
     def __init__(
         self,
-        current_period: ContiguousTimePeriod,
+        current_period: SimpleTimePeriod,
         monthly_sales: pl.DataFrame,
     ):
         self.monthly_sales = monthly_sales
@@ -469,7 +469,7 @@ class HistoricalPeriodSales:
                 "category_historical_year_sales",
             )
             .join(
-                history_dfs.month_part_factor_df.drop("date"),
+                history_dfs.month_part_factor_df.drop("end_date"),
                 on=["month"],
                 validate="m:1",
             )

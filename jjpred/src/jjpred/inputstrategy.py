@@ -11,7 +11,6 @@ from enum import auto
 from functools import total_ordering
 from typing import Any, Self, cast
 import polars as pl
-import datetime as dt
 
 from jjpred.aggregator import Aggregator, UsingChannels
 from jjpred.channel import Channel
@@ -28,7 +27,6 @@ from jjpred.utils.datetime import (
     DateOffset,
     DateUnit,
     YearMonthDay,
-    first_day,
     offset_date,
 )
 from jjpred.utils.polars import EnumLike
@@ -137,29 +135,29 @@ class RefillType(EnumLike):
         return f"{self.__class__.__qualname__}.{self.name}"
 
 
-@total_ordering
-class UndeterminedTimePeriod:
-    """Unknown end date. Usually determined later when a dispatch date is given."""
+# @total_ordering
+# class UndeterminedTimePeriod:
+#     """Unknown end date. Usually determined later when a dispatch date is given."""
 
-    start: Date
+#     start: Date
 
-    def __init__(
-        self,
-        start: DateLike,
-    ):
-        self.start = Date.from_datelike(start)
+#     def __init__(
+#         self,
+#         start: DateLike,
+#     ):
+#         self.start = Date.from_datelike(start)
 
-    def with_end_date(self, end: DateLike) -> ContiguousTimePeriod:
-        return ContiguousTimePeriod(self.start, end)
+#     def with_end_date(self, end: DateLike) -> ContiguousTimePeriod:
+#         return ContiguousTimePeriod(self.start, end)
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.start == other.start
-        else:
-            return False
+#     def __eq__(self, other: object) -> bool:
+#         if isinstance(other, self.__class__):
+#             return self.start == other.start
+#         else:
+#             return False
 
-    def __lt__(self, other: Self) -> bool:
-        return self.start <= other.start
+#     def __lt__(self, other: Self) -> bool:
+#         return self.start <= other.start
 
 
 @total_ordering
@@ -167,10 +165,13 @@ class UndeterminedTimePeriod:
 class SimpleTimePeriod:
     start: Date
     end: Date
+    tpoints: pl.Series
 
     def __init__(self, start: DateLike, end: DateLike):
         self.start = Date.from_datelike(start).with_day(1)
         self.end = Date.from_datelike(end)
+
+        assert self.start <= self.end
 
         assert self.start.day == 1
 
@@ -181,11 +182,37 @@ class SimpleTimePeriod:
                 (self.end.month == self.start.month) and self.end.day == 1
             )
 
-    def with_end_date(self, end: DateLike):
-        if self.end == Date.from_datelike(end):
-            return self
-        else:
-            return SimpleTimePeriod(self.start, end)
+        self.tpoints = pl.date_range(
+            self.start.date,
+            self.end.date,
+            closed="left",
+            eager=True,
+            interval=str(DateOffset(1, DateUnit.MONTH)),
+        ).alias("tpoint")
+
+    def month_factor_df(self) -> pl.DataFrame:
+        return (
+            pl.DataFrame()
+            .with_columns(
+                month=pl.arange(1, end=13, step=1, dtype=pl.Int8()),
+                end_date=pl.lit(self.end.date),
+            )
+            .with_columns(
+                pl.when(pl.col.month.lt(self.end.date.month))
+                .then(1.0)
+                .when(pl.col.month.eq(self.end.date.month))
+                .then(
+                    (
+                        (
+                            pl.col.end_date - pl.col.end_date.dt.month_start()
+                        ).dt.total_days()
+                    )
+                    / (pl.col.end_date.dt.month_end().dt.day())
+                )
+                .otherwise(0.0)
+                .alias("month_part_factor")
+            )
+        )
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, self.__class__):
@@ -240,28 +267,7 @@ class HistoryTimePeriod:
     ):
         self.historical_year = historical_year
         self.working_year = working_year
-        self.month_part_factor_df = (
-            pl.DataFrame()
-            .with_columns(
-                month=pl.arange(1, end=13, step=1, dtype=pl.Int8()),
-                date=pl.lit(working_year.end.date),
-            )
-            .with_columns(
-                pl.when(pl.col.month.lt(working_year.end.date.month))
-                .then(1.0)
-                .when(pl.col.month.eq(working_year.end.date.month))
-                .then(
-                    (
-                        (
-                            pl.col.date - pl.col.date.dt.month_start()
-                        ).dt.total_days()
-                    )
-                    / (pl.col.date.dt.month_end().dt.day())
-                )
-                .otherwise(0.0)
-                .alias("month_part_factor")
-            )
-        )
+        self.month_part_factor_df = working_year.month_factor_df()
 
     @classmethod
     def from_date(cls, date: DateLike) -> HistoryTimePeriod:
@@ -289,103 +295,103 @@ class HistoryTimePeriod:
         )
 
 
-@total_ordering
-class ContiguousTimePeriod:
-    start: Date
-    end: Date
-    tpoints: pl.Series
-    """Timepoints making up this contiguous time period."""
+# @total_ordering
+# class ContiguousTimePeriod:
+#     start: Date
+#     end: Date
+#     tpoints: pl.Series
+#     """Timepoints making up this contiguous time period."""
 
-    def __init__(
-        self,
-        start: DateLike,
-        end: DateLike,
-    ):
-        self.start = Date.from_datelike(start).with_day(1)
-        self.end = Date.from_datelike(end).with_day(1)
+#     def __init__(
+#         self,
+#         start: DateLike,
+#         end: DateLike,
+#     ):
+#         self.start = Date.from_datelike(start).with_day(1)
+#         self.end = Date.from_datelike(end).with_day(1)
 
-        # ensure that more than one year has not passed between end and start
-        assert self.start.day == 1
-        assert self.end.day == 1
+#         # ensure that more than one year has not passed between end and start
+#         assert self.start.day == 1
+#         assert self.end.day == 1
 
-        assert 0 <= (self.end.year - self.start.year) <= 1
-        if (self.end.year - self.start.year) > 0:
-            assert (self.end.month - self.start.month) <= 0
+#         assert 0 <= (self.end.year - self.start.year) <= 1
+#         if (self.end.year - self.start.year) > 0:
+#             assert (self.end.month - self.start.month) <= 0
 
-        self.tpoints = pl.date_range(
-            self.start.date,
-            self.end.date,
-            closed="left",
-            eager=True,
-            interval=str(DateOffset(1, DateUnit.MONTH)),
-        )
+#         self.tpoints = pl.date_range(
+#             self.start.date,
+#             self.end.date,
+#             closed="left",
+#             eager=True,
+#             interval=str(DateOffset(1, DateUnit.MONTH)),
+#         )
 
-    def with_end_date(self, end_date: DateLike) -> ContiguousTimePeriod:
-        end_date = Date.from_datelike(end_date)
-        if self.end == end_date:
-            return self
-        else:
-            return ContiguousTimePeriod(self.start, end_date)
+#     def with_end_date(self, end_date: DateLike) -> ContiguousTimePeriod:
+#         end_date = Date.from_datelike(end_date)
+#         if self.end == end_date:
+#             return self
+#         else:
+#             return ContiguousTimePeriod(self.start, end_date)
 
-    @classmethod
-    def make_current_period(
-        cls,
-        start_date: DateLike | None = None,
-        end_date: DateLike | None = None,
-    ) -> Self:
-        """A "current time period" is arbitrary in start/end date."""
-        today: DateLike | None = None
+#     @classmethod
+#     def make_current_period(
+#         cls,
+#         start_date: DateLike | None = None,
+#         end_date: DateLike | None = None,
+#     ) -> Self:
+#         """A "current time period" is arbitrary in start/end date."""
+#         today: DateLike | None = None
 
-        if start_date is None:
-            today = Date.from_date(dt.date.today())
-            start_date = Date.from_datelike(
-                YearMonthDay(today.year, Month(1), 1)
-            )
+#         if start_date is None:
+#             today = Date.from_date(dt.date.today())
+#             start_date = Date.from_datelike(
+#                 YearMonthDay(today.year, Month(1), 1)
+#             )
 
-        if end_date is None:
-            if today is None:
-                today = Date.from_date(dt.date.today())
-            end_date = first_day(today)
-        return cls(start_date, end_date)
+#         if end_date is None:
+#             if today is None:
+#                 today = Date.from_date(dt.date.today())
+#             end_date = first_day(today)
+#         return cls(start_date, end_date)
 
-    # @classmethod
-    # def make_history_period(cls, dispatch_date: Date) -> HistoryTimePeriod:
-    #     """A history time period has two parts: the historical year (12 time
-    #     points) and the working year (most recent (completed) month in year of
-    #     dispatch date)."""
+#     # @classmethod
+#     # def make_history_period(cls, dispatch_date: Date) -> HistoryTimePeriod:
+#     #     """A history time period has two parts: the historical year (12 time
+#     #     points) and the working year (most recent (completed) month in year of
+#     #     dispatch date)."""
 
-    #     if dispatch_date.month == 1:
-    #         working_year_start = YearMonthDay(
-    #             dispatch_date.year - 1, Month(1), 1
-    #         )
-    #         working_year_end = YearMonthDay(dispatch_date.year, Month(1), 1)
-    #     else:
-    #         working_year_start = YearMonthDay(dispatch_date.year, Month(1), 1)
-    #         working_year_end = YearMonthDay(
-    #             dispatch_date.year, dispatch_date.month, dispatch_date.day
-    #         )
+#     #     if dispatch_date.month == 1:
+#     #         working_year_start = YearMonthDay(
+#     #             dispatch_date.year - 1, Month(1), 1
+#     #         )
+#     #         working_year_end = YearMonthDay(dispatch_date.year, Month(1), 1)
+#     #     else:
+#     #         working_year_start = YearMonthDay(dispatch_date.year, Month(1), 1)
+#     #         working_year_end = YearMonthDay(
+#     #             dispatch_date.year, dispatch_date.month, dispatch_date.day
+#     #         )
 
-    #     historical_year = dispatch_date.year - 1
+#     #     historical_year = dispatch_date.year - 1
 
-    #     return HistoryTimePeriod(
-    #         SimpleTimePeriod(
-    #             YearMonthDay(historical_year, Month(1), 1),
-    #             YearMonthDay(historical_year + 1, Month(1), 1),
-    #         ),
-    #         SimpleTimePeriod(working_year_start, working_year_end),
-    #     )
+#     #     return HistoryTimePeriod(
+#     #         SimpleTimePeriod(
+#     #             YearMonthDay(historical_year, Month(1), 1),
+#     #             YearMonthDay(historical_year + 1, Month(1), 1),
+#     #         ),
+#     #         SimpleTimePeriod(working_year_start, working_year_end),
+#     #     )
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.start == other.start and self.end == other.end
-        else:
-            return False
+#     def __eq__(self, other: object) -> bool:
+#         if isinstance(other, self.__class__):
+#             return self.start == other.start and self.end == other.end
+#         else:
+#             return False
 
-    def __lt__(self, other: Self) -> bool:
-        return self.start <= other.start and self.end < other.end
+#     def __lt__(self, other: Self) -> bool:
+#         return self.start <= other.start and self.end < other.end
 
-    def __repr__(self) -> str:
-        return self.tpoints.__repr__()
+#     def __repr__(self) -> str:
+#         return self.tpoints.__repr__()
 
 
 def fix_reference_chains(
@@ -433,7 +439,7 @@ class InputStrategy(PrettyPrint):
     channels: list[Channel]
     referred_to_primary_map: dict[Category, Category]
     current_periods: defaultdict[
-        Category, ContiguousTimePeriod | UndeterminedTimePeriod
+        Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
     ]
     aggregators: defaultdict[Category, Aggregator]
 
@@ -444,8 +450,10 @@ class InputStrategy(PrettyPrint):
         self,
         channel: str | Channel,
         referred_to_primary_map: dict[Category, Category],
-        current_period_defn: ContiguousTimePeriod
-        | defaultdict[Category, ContiguousTimePeriod | UndeterminedTimePeriod],
+        current_period_defn: SimpleTimePeriod
+        | defaultdict[
+            Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
+        ],
         per_channel_aggregator_map: Mapping[
             Channel, Aggregator | Mapping[Category, Aggregator]
         ],
