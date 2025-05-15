@@ -1382,7 +1382,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 )
                 .filter(
                     pl.col.date.ge(pl.col.current_period.list.first())
-                    & pl.col.date.lt(pl.col.current_period.list.last())
+                    & pl.col.date.le(pl.col.current_period.list.last())
                 )
                 .group_by(["sku", "a_sku"] + Channel.members())
                 .agg(
