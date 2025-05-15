@@ -4,6 +4,7 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
+import dataclasses
 import polars as pl
 from dataclasses import dataclass, field
 import datetime
@@ -552,6 +553,56 @@ class RefillDefn(AnalysisDefn):
 
 
 @dataclass
+class FbaRevDefnArgs:
+    analysis_date: DateLike
+    master_sku_date: DateLike
+    sales_and_inventory_date: DateLike
+    dispatch_date: DateLike
+    warehouse_inventory_date: DateLike
+    current_seasons: CurrentSeasonDefn
+    config_date: DateLike
+    prediction_type_meta_date: DateLike | None
+    refill_type: RefillType
+    check_dispatch_date: bool = True
+    website_sku_date: DateLike | None = field(default=None)
+    jjweb_reserve_info: JJWebPredictionInfo | None = field(default=None)
+    qty_box_date: DateLike | None = field(default=None)
+    mon_sale_r_date: DateLike | None = field(default=None)
+    mainprogram_date: DateLike | None = field(default=None)
+    refill_draft_date: DateLike | None = field(default=None)
+    in_stock_ratio_date: DateLike | None = field(default=None)
+    po_date: DateLike | None = field(default=None)
+    outperformer_settings: OutperformerSettings = field(
+        default_factory=lambda: OutperformerSettings(False),
+    )
+    new_overrides_e: bool = field(default=True)
+    enable_full_box_logic: bool = field(default=True)
+    demand_ratio_rolling_update_to: DateLike | None = field(default=None)
+    prediction_start_date_required_month_parts: int | None = field(
+        default=None
+    )
+    prediction_end_date_required_month_parts: int | None = field(default=None)
+    match_main_program_month_fractions: bool = field(default=False)
+    enable_low_current_period_isr_logic: bool = field(default=True)
+    warehouse_min_keep_qty: int = field(default=12)
+    dispatch_cutoff_qty: int = field(default=2)
+    extra_descriptor: str | None = field(default=None)
+    extra_refill_config_info: list[RefillConfigInfo] = field(
+        default_factory=list
+    )
+    combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
+
+    def as_dict(self) -> dict:
+        return {
+            x: self.__getattribute__(x)
+            for x in self.__dataclass_fields__.keys()
+        }
+
+    def update(self, **kwargs) -> Self:
+        return self.__class__(**(self.as_dict() | kwargs))
+
+
+@dataclass
 class FbaRevDefn(RefillDefn):
     """An analysis defn for an FBA review/refill. It is defined by a dispatch
     date (same as the prediction start date), and the date on which the
@@ -703,6 +754,10 @@ class FbaRevDefn(RefillDefn):
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
             current_seasons=current_seasons,
         )
+
+    @classmethod
+    def from_args(cls, args: FbaRevDefnArgs) -> Self:
+        return cls(**args.as_dict())
 
     @classmethod
     def new_comparison_analysis(
