@@ -4,7 +4,6 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
-import dataclasses
 import polars as pl
 from dataclasses import dataclass, field
 import datetime
@@ -22,6 +21,7 @@ from jjpred.utils.datetime import (
     DateLike,
     DateOffset,
     DateUnit,
+    first_day,
 )
 
 
@@ -46,6 +46,7 @@ class LatestDates:
         self,
         sales_history_latest_date: DateLike,
         demand_ratio_rolling_update_to: DateLike | None = None,
+        use_old_current_period_method: bool = False,
     ) -> None:
         self.sales_history_latest_date = Date.from_datelike(
             sales_history_latest_date
@@ -57,6 +58,14 @@ class LatestDates:
         else:
             self.demand_ratio_rolling_update_to = (
                 self.sales_history_latest_date
+            )
+
+        if use_old_current_period_method:
+            self.sales_history_latest_date = first_day(
+                self.sales_history_latest_date
+            )
+            self.demand_ratio_rolling_update_to = first_day(
+                self.demand_ratio_rolling_update_to
             )
 
     def latest(self) -> Date:
@@ -441,6 +450,9 @@ class RefillDefn(AnalysisDefn):
     combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
     """Whether HCA0 GRA and HCA0 ASG should be combined in history."""
 
+    use_old_current_period_method: bool = field(default=True)
+    """Whether to use the old current period method, or the new one."""
+
     def __init__(
         self,
         refill_description: str,
@@ -471,6 +483,7 @@ class RefillDefn(AnalysisDefn):
         dispatch_cutoff_qty: int = 2,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        use_old_current_period_method: bool = True,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -526,6 +539,8 @@ class RefillDefn(AnalysisDefn):
             combine_hca0_hcb0_gra_asg_history
         )
 
+        self.use_old_current_period_method = use_old_current_period_method
+
         super().__init__(
             refill_description,
             analysis_date,
@@ -536,7 +551,9 @@ class RefillDefn(AnalysisDefn):
             in_stock_ratio_date=in_stock_ratio_date,
             po_date=po_date,
             latest_dates=LatestDates(
-                self.dispatch_date, demand_ratio_rolling_update_to
+                self.dispatch_date,
+                demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
+                use_old_current_period_method=use_old_current_period_method,
             ),
             extra_descriptor=extra_descriptor,
             current_seasons=current_seasons,
@@ -591,6 +608,7 @@ class FbaRevDefnArgs:
         default_factory=list
     )
     combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
+    use_old_current_period_method: bool = field(default=False)
 
     def as_dict(self) -> dict:
         return {
@@ -680,6 +698,7 @@ class FbaRevDefn(RefillDefn):
         extra_descriptor: str | None = None,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        use_old_current_period_method: bool = True,
     ):
         self.refill_type = refill_type
 
@@ -753,6 +772,7 @@ class FbaRevDefn(RefillDefn):
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
             current_seasons=current_seasons,
+            use_old_current_period_method=use_old_current_period_method,
         )
 
     @classmethod

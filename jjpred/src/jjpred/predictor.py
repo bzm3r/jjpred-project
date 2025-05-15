@@ -994,11 +994,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             .with_columns(pl.col("date").list.sort())
             .with_columns(
                 pl.col("date").list.first().alias("current_period_start"),
-                pl.col("date")
-                .list.last()
-                .alias("current_period_end")
-                .dt.month_start()
-                .dt.offset_by("1mo"),
+                pl.col("date").list.last().alias("current_period_end"),
             )
             .drop("date")
             .with_columns(
