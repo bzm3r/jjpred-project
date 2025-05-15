@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import polars as pl
+
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import total_ordering
 
+from analysis_tools.utils import get_analysis_defn_and_db
 from jjpred.aggregator import (
     Aggregator,
     UsingAllChannels,
@@ -15,6 +18,7 @@ from jjpred.aggregator import (
 )
 from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
+from jjpred.database import DataBase
 from jjpred.inputstrategy import (
     InputStrategy,
     SimpleTimePeriod,
@@ -422,23 +426,49 @@ their own channel's data."""
 
 
 def get_strategy_from_library(
-    analysis_defn: RefillDefn, id: StrategyId
+    analysis_defn_or_db: RefillDefn | DataBase, id: StrategyId
 ) -> list[InputStrategy]:
+    analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
+
+    assert isinstance(analysis_defn, RefillDefn)
+
     default_time_period = SimpleTimePeriod(
         f"{analysis_defn.dispatch_date.year - 1}-{analysis_defn.dispatch_date.month}-01",
         f"{analysis_defn.dispatch_date.year}-{analysis_defn.dispatch_date.month}-01",
     )
     print(f"{default_time_period}: {default_time_period.start}")
 
+    category_current_period_start_end = (
+        db.meta_info.active_sku.select("category", "season")
+        .unique()
+        .with_columns(
+            fw_start=pl.date(analysis_defn.current_seasons.FW + 2000, 9, 1),
+            ss_start=pl.date(analysis_defn.current_seasons.SS + 2000, 3, 1),
+        )
+        .with_columns(
+            start_date=pl.when(pl.col.season.eq("SS"))
+            .then(pl.col.ss_start)
+            .when(pl.col.season.eq("FW"))
+            .then(pl.col.fw_start)
+            .when(pl.col.season.eq("AS"))
+            .then(pl.max_horizontal(pl.col.ss_start, pl.col.fw_start))
+        )
+        .with_columns(
+            end_date=analysis_defn.dispatch_date.as_polars_date(),
+        )
+    )
+
+    current_period_dict = {
+        x["category"]: SimpleTimePeriod(x["start_date"], x["end_date"])
+        for x in category_current_period_start_end.to_dicts()
+    }
+
     STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
         LATEST: [
             InputStrategy(
                 Channel.from_str(channel),
                 REFERENCE_CATEGORIES.as_dict(),
-                defaultdict(
-                    lambda: default_time_period,
-                    CURRENT_PERIODS.as_dict(),
-                ),
+                current_period_dict,
                 PER_CHANNEL_REFERENCE_CHANNELS,
             )
             for channel in [

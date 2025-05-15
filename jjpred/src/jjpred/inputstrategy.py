@@ -473,9 +473,7 @@ class InputStrategy(PrettyPrint):
 
     channels: list[Channel]
     referred_to_primary_map: dict[Category, Category]
-    current_periods: defaultdict[
-        Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
-    ]
+    current_periods: Mapping[Category, SimpleTimePeriod]
     aggregators: defaultdict[Category, Aggregator]
 
     def __pprint_items__(self) -> dict[str, Any]:
@@ -485,10 +483,7 @@ class InputStrategy(PrettyPrint):
         self,
         channel: str | Channel,
         referred_to_primary_map: dict[Category, Category],
-        current_period_defn: SimpleTimePeriod
-        | defaultdict[
-            Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
-        ],
+        current_period_defn: Mapping[Category, SimpleTimePeriod],
         per_channel_aggregator_map: Mapping[
             Channel, Aggregator | Mapping[Category, Aggregator]
         ],
@@ -498,12 +493,14 @@ class InputStrategy(PrettyPrint):
             referred_to_primary_map, raise_error=False
         )
 
-        self.current_periods = normalize_default_dict(current_period_defn)
+        # self.current_periods = normalize_default_dict(current_period_defn)
 
-        if not isinstance(current_period_defn, defaultdict):
-            self.current_periods = defaultdict(lambda: current_period_defn, {})
-        else:
-            self.current_periods
+        # if not isinstance(current_period_defn, defaultdict):
+        #     self.current_periods = defaultdict(lambda: current_period_defn, {})
+        # else:
+        #     self.current_periods
+
+        self.current_periods = current_period_defn
 
         aggregators = per_channel_aggregator_map[Channel.parse(channel)]
         if not (
