@@ -21,9 +21,9 @@ args = FbaRevDefnArgs(
     master_sku_date="2025-MAY-12",
     sales_and_inventory_date="2025-MAY-12",
     warehouse_inventory_date="2025-MAY-12",
+    in_stock_ratio_date="2025-MAY-12",
     website_sku_date="2025-MAR-18",
     config_date="2025-APR-07",
-    in_stock_ratio_date="2025-MAY-05",
     prediction_type_meta_date=None,
     check_dispatch_date=False,
     mainprogram_date=None,  # "2025-FEB-25",
@@ -48,7 +48,7 @@ analysis_defn_website_reserved_force_po_new_method = FbaRevDefn.from_args(
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="web_res_force_po_new_rolling_update_new_type",
+        extra_descriptor="web_res_force_po_new_rolling_update_v2_new_type",
     )
 )
 
@@ -60,6 +60,6 @@ analysis_defn_website_reserved_force_po_old_method = FbaRevDefn.from_args(
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=True,
-        extra_descriptor="web_res_force_po_new_rolling_update_old_type",
+        extra_descriptor="web_res_force_po_new_rolling_update_v2_old_type",
     )
 )

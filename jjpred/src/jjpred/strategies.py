@@ -17,12 +17,11 @@ from jjpred.inputstrategy import (
     HistoryTimePeriod,
     InputStrategy,
     SimpleTimePeriod,
-    UndeterminedSimpleTimePeriod,
 )
 from jjpred.sku import Category
 
 from jjpred.strategy import CategoryType
-from jjpred.utils.datetime import Date, DateLike
+from jjpred.utils.datetime import Date
 from jjpred.utils.fileio import gen_meta_info_path
 from jjpred.utils.groupeddata import (
     CategoryGroupProtocol,
@@ -57,9 +56,9 @@ class StrategyGroup(CategoryGroupProtocol):
     parent: StrategyGroups
     channel: Channel  # strategy groups are specific to a channel we are making a prediction for
     primary_cats: list[Category] = field(compare=False, hash=False)
-    current_periods: MultiDict[
-        Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
-    ] = field(compare=False, hash=False)
+    current_periods: MultiDict[Category, SimpleTimePeriod] = field(
+        compare=False, hash=False
+    )
     aggregator: Aggregator = field(compare=True, hash=True)
     primary_to_referred: dict[Category, list[Category]] = field(
         default_factory=dict, compare=False, hash=False, init=False
@@ -276,7 +275,6 @@ class StrategyGroup(CategoryGroupProtocol):
 
     def construct_current(
         self,
-        default_current_period_end_date: DateLike,
         sales_history_df: pl.DataFrame,
     ) -> MultiDict[Category, pl.DataFrame]:
         history_df = struct_filter(sales_history_df, self.channel)
@@ -284,11 +282,6 @@ class StrategyGroup(CategoryGroupProtocol):
 
         result = MultiDict({})
         for categories, current_period in self.current_periods.data.items():
-            current_period = (
-                current_period.with_end_date(default_current_period_end_date)
-                if isinstance(current_period, UndeterminedSimpleTimePeriod)
-                else current_period
-            )
             self.current_periods.data[categories] = current_period
             result.data[categories] = history_df.filter(
                 pl.col("category").is_in(categories),
@@ -424,9 +417,7 @@ class StrategyGroups(CategoryGroups[StrategyGroup]):
     def file_primary_category(
         self,
         category: Category,
-        current_periods: MultiDict[
-            Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
-        ],
+        current_periods: MultiDict[Category, SimpleTimePeriod],
         aggregator: Aggregator,
     ):
         inserted = False

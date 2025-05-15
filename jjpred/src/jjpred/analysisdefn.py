@@ -38,44 +38,45 @@ class LatestDates:
     For example, if historical data is available until ``2024-AUG-01``, but this
     variable is set to ``2024-MAR-01``, then historical data including and after
     ``2024-MAR-01`` will be ignored."""
-    demand_ratio_rolling_update_to: Date
-    """The latest date to perform a rolling update to for demand (monthly)
-    ratios."""
+
+    # demand_ratio_rolling_update_to: Date
+    # """The latest date to perform a rolling update to for demand (monthly)
+    # ratios."""
 
     def __init__(
         self,
         sales_history_latest_date: DateLike,
-        demand_ratio_rolling_update_to: DateLike | None = None,
+        # demand_ratio_rolling_update_to: DateLike | None = None,
         use_old_current_period_method: bool = False,
     ) -> None:
         self.sales_history_latest_date = Date.from_datelike(
             sales_history_latest_date
         )
-        if demand_ratio_rolling_update_to is not None:
-            self.demand_ratio_rolling_update_to = Date.from_datelike(
-                demand_ratio_rolling_update_to
-            )
-        else:
-            self.demand_ratio_rolling_update_to = (
-                self.sales_history_latest_date
-            )
+        # if demand_ratio_rolling_update_to is not None:
+        #     self.demand_ratio_rolling_update_to = Date.from_datelike(
+        #         demand_ratio_rolling_update_to
+        #     )
+        # else:
+        #     self.demand_ratio_rolling_update_to = (
+        #         self.sales_history_latest_date
+        #     )
 
         if use_old_current_period_method:
             self.sales_history_latest_date = first_day(
                 self.sales_history_latest_date
             )
-            self.demand_ratio_rolling_update_to = first_day(
-                self.demand_ratio_rolling_update_to
-            )
+            # self.demand_ratio_rolling_update_to = first_day(
+            #     self.demand_ratio_rolling_update_to
+            # )
 
-    def latest(self) -> Date:
-        if (
-            self.demand_ratio_rolling_update_to
-            < self.sales_history_latest_date
-        ):
-            return self.demand_ratio_rolling_update_to
-        else:
-            return self.sales_history_latest_date
+    # def latest(self) -> Date:
+    #     if (
+    #         self.demand_ratio_rolling_update_to
+    #         < self.sales_history_latest_date
+    #     ):
+    #         return self.demand_ratio_rolling_update_to
+    #     else:
+    #         return self.sales_history_latest_date
 
 
 def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
@@ -552,7 +553,7 @@ class RefillDefn(AnalysisDefn):
             po_date=po_date,
             latest_dates=LatestDates(
                 self.dispatch_date,
-                demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
+                # demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
                 use_old_current_period_method=use_old_current_period_method,
             ),
             extra_descriptor=extra_descriptor,

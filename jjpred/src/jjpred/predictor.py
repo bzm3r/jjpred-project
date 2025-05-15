@@ -316,11 +316,8 @@ class CurrentPeriodSales:
         cls,
         strategy: StrategyGroup,
         history_df: pl.DataFrame,
-        default_current_period_end_date: DateLike,
     ) -> MultiDict[Category, Self]:
-        all_monthly_sales = strategy.construct_current(
-            default_current_period_end_date, history_df
-        )
+        all_monthly_sales = strategy.construct_current(history_df)
         result = MultiDict({})
         for categories, monthly_sales in all_monthly_sales.data.items():
             current_period = strategy.current_periods.data[categories]
@@ -644,11 +641,11 @@ class PredictionInput(CategoryGroupProtocol):
         self.historical = HistoricalPeriodSales(
             strategy,
             sales_history_df,
-            latest_dates.demand_ratio_rolling_update_to,
+            latest_dates.sales_history_latest_date,
         )
         self.po_prediction = POPrediction(strategy, po_data)
         self.currents = CurrentPeriodSales.from_strategy(
-            strategy, sales_history_df, latest_dates.sales_history_latest_date
+            strategy, sales_history_df
         )
         self.expected_year_sales = ExpectedYearSales.from_current_period_sales(
             self.historical, self.currents
@@ -1155,7 +1152,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             *ALL_SKU_IDS, *NOVELTY_FLAGS
         )
 
-        latest_date = self.latest_dates.latest()
+        latest_date = self.latest_dates.sales_history_latest_date
         print(f"{latest_date=}")
         joined_df = (
             sku_info_df.join(

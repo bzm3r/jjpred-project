@@ -1,10 +1,10 @@
 """Where different input strategies are defined for use in analyses."""
 
 from __future__ import annotations
+from calendar import Month
 
 import polars as pl
 
-from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import total_ordering
@@ -19,11 +19,7 @@ from jjpred.aggregator import (
 from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
 from jjpred.database import DataBase
-from jjpred.inputstrategy import (
-    InputStrategy,
-    SimpleTimePeriod,
-    UndeterminedSimpleTimePeriod,
-)
+from jjpred.inputstrategy import InputStrategy, SimpleTimePeriod
 from jjpred.sku import Category
 
 from jjpred.utils.multidict import MultiDict
@@ -68,105 +64,103 @@ ALL_CHANNEL_AGGREGATOR = UsingAllChannels()
 ALL_CAN_US_RETAIL_AGGREGATOR = UsingCanUSRetail()
 AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
 
-# generated using mainprogram_current_period_defn.ipynb
-CURRENT_PERIODS: MultiDict[
-    Category, SimpleTimePeriod | UndeterminedSimpleTimePeriod
-] = MultiDict(
-    data={
-        (
-            "AAA",
-            "ACA",
-            "ACB",
-            "AHJ",
-            "AJP",
-            "AJS",
-            "BSL",
-            "GBX",
-            "GHA",
-            "GUA",
-            "GUX",
-            "HAD0",
-            "HAV0",
-            "HBS",
-            "HBU",
-            "HCA0",
-            "HCB0",
-            "HCF0",
-            "HJP",
-            "HJS",
-            "HLC",
-            "HLH",
-            "HXC",
-            "HXP",
-            "HXU",
-            "SBS",
-            "SJD",
-            "SJF",
-            "SKB",
-            "SPW",
-            "SSS",
-            "UG1",
-            "UJ1",
-            "USA",
-            "UST",
-            "UT1",
-            "UV2",
-            "UVT",
-        ): UndeterminedSimpleTimePeriod("2025-MAR-01"),
-        ("BSL",): UndeterminedSimpleTimePeriod("2024-JUL-01"),
-        (
-            "WPS",
-            "WSS",
-            "WMT",
-            "WRM",
-            "WJA",
-            "WPF",
-            "BRC",
-            "BTB",
-            "BTL",
-            "BSW",
-            "BSA",
-            "IHT",
-            "KMT",
-            "SKT",
-            "WJT",
-            "WSF",
-            "WBF",
-            "WBS",
-            "WGS",
-            "BTT",
-            "BCV",
-            "FJM",
-            "FPM",
-            "FSM",
-            "FMR",
-            "LBS",
-            "LAN",
-            "KEH",
-            "AWWJ",
-            "LAB",
-            "SWS",
-            "ICP",
-            "IPC",
-            "IPS",
-            "ISS",
-            "ISB",
-            "AJA",
-            "SSW",
-            "LBP",
-            "LBT",
-            "BST",
-            "FAN",
-            "FHA",
-            "ISJ",
-        ): UndeterminedSimpleTimePeriod("2024-SEP-01"),
-        ("XBM", "XBK", "XLB", "XPC"): UndeterminedSimpleTimePeriod(
-            "2024-AUG-01"
-        ),
-        ("XWG",): UndeterminedSimpleTimePeriod("2024-NOV-01"),
-    }
-)
-"""Current period definitions based on the main program file."""
+# # generated using mainprogram_current_period_defn.ipynb
+# CURRENT_PERIODS: MultiDict[Category, SimpleTimePeriod] = MultiDict(
+#     data={
+#         (
+#             "AAA",
+#             "ACA",
+#             "ACB",
+#             "AHJ",
+#             "AJP",
+#             "AJS",
+#             "BSL",
+#             "GBX",
+#             "GHA",
+#             "GUA",
+#             "GUX",
+#             "HAD0",
+#             "HAV0",
+#             "HBS",
+#             "HBU",
+#             "HCA0",
+#             "HCB0",
+#             "HCF0",
+#             "HJP",
+#             "HJS",
+#             "HLC",
+#             "HLH",
+#             "HXC",
+#             "HXP",
+#             "HXU",
+#             "SBS",
+#             "SJD",
+#             "SJF",
+#             "SKB",
+#             "SPW",
+#             "SSS",
+#             "UG1",
+#             "UJ1",
+#             "USA",
+#             "UST",
+#             "UT1",
+#             "UV2",
+#             "UVT",
+#         ): UndeterminedSimpleTimePeriod("2025-MAR-01"),
+#         ("BSL",): UndeterminedSimpleTimePeriod("2024-JUL-01"),
+#         (
+#             "WPS",
+#             "WSS",
+#             "WMT",
+#             "WRM",
+#             "WJA",
+#             "WPF",
+#             "BRC",
+#             "BTB",
+#             "BTL",
+#             "BSW",
+#             "BSA",
+#             "IHT",
+#             "KMT",
+#             "SKT",
+#             "WJT",
+#             "WSF",
+#             "WBF",
+#             "WBS",
+#             "WGS",
+#             "BTT",
+#             "BCV",
+#             "FJM",
+#             "FPM",
+#             "FSM",
+#             "FMR",
+#             "LBS",
+#             "LAN",
+#             "KEH",
+#             "AWWJ",
+#             "LAB",
+#             "SWS",
+#             "ICP",
+#             "IPC",
+#             "IPS",
+#             "ISS",
+#             "ISB",
+#             "AJA",
+#             "SSW",
+#             "LBP",
+#             "LBT",
+#             "BST",
+#             "FAN",
+#             "FHA",
+#             "ISJ",
+#         ): UndeterminedSimpleTimePeriod("2024-SEP-01"),
+#         ("XBM", "XBK", "XLB", "XPC"): UndeterminedSimpleTimePeriod(
+#             "2024-AUG-01"
+#         ),
+#         ("XWG",): UndeterminedSimpleTimePeriod("2024-NOV-01"),
+#     }
+# )
+# """Current period definitions based on the main program file."""
 
 # from historic_extract.ipynb
 REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
@@ -432,18 +426,18 @@ def get_strategy_from_library(
 
     assert isinstance(analysis_defn, RefillDefn)
 
-    default_time_period = SimpleTimePeriod(
-        f"{analysis_defn.dispatch_date.year - 1}-{analysis_defn.dispatch_date.month}-01",
-        f"{analysis_defn.dispatch_date.year}-{analysis_defn.dispatch_date.month}-01",
-    )
-    print(f"{default_time_period}: {default_time_period.start}")
-
     category_current_period_start_end = (
         db.meta_info.active_sku.select("category", "season")
         .unique()
         .with_columns(
-            fw_start=pl.date(analysis_defn.current_seasons.FW + 2000, 9, 1),
-            ss_start=pl.date(analysis_defn.current_seasons.SS + 2000, 3, 1),
+            fw_start=pl.date(
+                analysis_defn.current_seasons.FW + 2000,
+                int(Month.SEPTEMBER),
+                1,
+            ),
+            ss_start=pl.date(
+                analysis_defn.current_seasons.SS + 2000, int(Month.MARCH), 1
+            ),
         )
         .with_columns(
             start_date=pl.when(pl.col.season.eq("SS"))
@@ -454,7 +448,9 @@ def get_strategy_from_library(
             .then(pl.max_horizontal(pl.col.ss_start, pl.col.fw_start))
         )
         .with_columns(
-            end_date=analysis_defn.dispatch_date.as_polars_date(),
+            end_date=(
+                analysis_defn.latest_dates.sales_history_latest_date
+            ).as_polars_date(),
         )
     )
 

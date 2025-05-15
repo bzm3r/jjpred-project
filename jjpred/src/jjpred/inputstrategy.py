@@ -259,25 +259,25 @@ class SimpleTimePeriod:
         return self.start <= other.start and self.end < other.end
 
 
-@total_ordering
-@dataclass
-class UndeterminedSimpleTimePeriod:
-    start: Date
+# @total_ordering
+# @dataclass
+# class UndeterminedSimpleTimePeriod:
+#     start: Date
 
-    def __init__(self, start: DateLike):
-        self.start = Date.from_datelike(start)
+#     def __init__(self, start: DateLike):
+#         self.start = Date.from_datelike(start)
 
-    def with_end_date(self, end: DateLike):
-        return SimpleTimePeriod(self.start, end)
+#     def with_end_date(self, end: DateLike):
+#         return SimpleTimePeriod(self.start, end)
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.start == other.start
-        else:
-            return False
+#     def __eq__(self, other: object) -> bool:
+#         if isinstance(other, self.__class__):
+#             return self.start == other.start
+#         else:
+#             return False
 
-    def __lt__(self, other: Self) -> bool:
-        return self.start <= other.start
+#     def __lt__(self, other: Self) -> bool:
+#         return self.start <= other.start
 
 
 @dataclass
