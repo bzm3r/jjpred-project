@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from calendar import month_abbr
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field

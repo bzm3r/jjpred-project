@@ -190,7 +190,7 @@ class SimpleTimePeriod:
             interval=str(DateOffset(1, DateUnit.MONTH)),
         ).alias("tpoint")
 
-    def month_factor_df(self) -> pl.DataFrame:
+    def this_year_month_factor_df(self) -> pl.DataFrame:
         return (
             pl.DataFrame()
             .with_columns(
@@ -210,6 +210,41 @@ class SimpleTimePeriod:
                     / (pl.col.end_date.dt.month_end().dt.day())
                 )
                 .otherwise(0.0)
+                .alias("month_part_factor")
+            )
+        )
+
+    def curent_period_month_factor_df(self) -> pl.DataFrame:
+        return (
+            pl.DataFrame()
+            .with_columns(
+                date=pl.date_range(
+                    self.start.date,
+                    self.end.date,
+                    closed="left",
+                    eager=True,
+                    interval=str(DateOffset(1, DateUnit.MONTH)),
+                ),
+                end_date=pl.lit(self.end.date),
+            )
+            .with_columns(next_date=pl.col.date.dt.offset_by("1mo"))
+            .with_columns(month=pl.col.date.dt.month())
+            .with_columns(
+                pl.when(
+                    ~(
+                        pl.col.date.lt(pl.col.end_date)
+                        & pl.col.end_date.lt(pl.col.next_date)
+                    )
+                )
+                .then(1.0)
+                .otherwise(
+                    (
+                        (
+                            pl.col.end_date - pl.col.end_date.dt.month_start()
+                        ).dt.total_days()
+                    )
+                    / (pl.col.end_date.dt.month_end().dt.day())
+                )
                 .alias("month_part_factor")
             )
         )
@@ -267,7 +302,7 @@ class HistoryTimePeriod:
     ):
         self.historical_year = historical_year
         self.working_year = working_year
-        self.month_part_factor_df = working_year.month_factor_df()
+        self.month_part_factor_df = working_year.this_year_month_factor_df()
 
     @classmethod
     def from_date(cls, date: DateLike) -> HistoryTimePeriod:

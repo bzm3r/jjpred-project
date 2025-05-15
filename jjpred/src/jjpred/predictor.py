@@ -306,8 +306,10 @@ class CurrentPeriodSales:
     """Monthly sales in the current period."""
     total_sales: pl.DataFrame
     """Total salesin the current period."""
-    tpoints: pl.Series
-    """Time points making up the current period."""
+    current_period: SimpleTimePeriod
+    """The current time period."""
+    # tpoints: pl.Series
+    # """Time points making up the current period."""
 
     @classmethod
     def from_strategy(
@@ -338,7 +340,7 @@ class CurrentPeriodSales:
         ).agg(
             pl.col("current_monthly_sales").sum().alias("current_period_sales")
         )
-        self.tpoints = current_period.tpoints
+        self.current_period = current_period
 
 
 class ExpectedYearSales:
@@ -362,11 +364,21 @@ class ExpectedYearSales:
         self, historical: HistoricalPeriodSales, current: CurrentPeriodSales
     ):
         current_demand_ratio = (
-            historical.demand_ratios.filter(
-                pl.col("month").is_in(current.tpoints.dt.month())
+            historical.demand_ratios.select(
+                "category", "month", "demand_ratio"
+            )
+            .join(
+                current.current_period.curent_period_month_factor_df().select(
+                    "month", "month_part_factor"
+                ),
+                on=["month"],
             )
             .group_by("category")
-            .agg(current_demand_ratio=pl.col("demand_ratio").sum())
+            .agg(
+                current_demand_ratio=(
+                    pl.col.demand_ratio * pl.col.month_part_factor
+                ).sum()
+            )
         )
 
         self.expected_year_sales_full = current.total_sales.join(
