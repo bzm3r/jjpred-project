@@ -419,13 +419,46 @@ def read_isr_from_excel_file_given_meta_info(
 
     date_info = (
         isr_df.select("date")
+        .with_columns(
+            data_date=Date.from_datelike(
+                pl.DataFrame()
+                .with_columns(
+                    date=analysis_defn.in_stock_ratio_date.as_polars_date()
+                )
+                .with_columns(day=pl.col.date.dt.weekday())
+                .with_columns(
+                    shifted_date=pl.col.date
+                    + (-1 * pl.duration(days=pl.col.day - 1))
+                )
+                .with_columns(shifted_day=pl.col.shifted_date.dt.weekday())[
+                    "shifted_date"
+                ]
+                .item()
+            ).as_polars_date()
+        )
         .unique()
         .with_columns(pl.col("date").dt.month_end().alias("month_end_date"))
         .with_columns(
-            (pl.col("month_end_date") - pl.col("date") + pl.duration(days=1))
-            .alias("days_in_month")
-            .dt.total_days()
-            .cast(pl.Int16())
+            pl.when(
+                pl.col.data_date.ge(pl.col.date)
+                & pl.col.data_date.le(pl.col.month_end_date)
+            )
+            .then(
+                (pl.col.data_date - pl.col("date"))
+                .alias("days_in_month")
+                .dt.total_days()
+                .cast(pl.Int16())
+            )
+            .otherwise(
+                (
+                    pl.col("month_end_date")
+                    - pl.col("date")
+                    + pl.duration(days=1)
+                )
+                .alias("days_in_month")
+                .dt.total_days()
+                .cast(pl.Int16())
+            )
         )
         .drop("month_end_date")
     )

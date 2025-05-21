@@ -15,12 +15,12 @@ from jjpred.analysisconfig import RefillConfigInfo
 
 
 args = FbaRevDefnArgs(
+    analysis_date="2025-MAY-21",
     current_seasons=CurrentSeasonDefn(FW=24, SS=25),
-    analysis_date="2025-MAY-12",
-    dispatch_date="2025-MAY-12",
-    master_sku_date="2025-MAY-12",
-    sales_and_inventory_date="2025-MAY-12",
-    warehouse_inventory_date="2025-MAY-12",
+    dispatch_date="2025-MAY-20",
+    master_sku_date="2025-MAY-20",
+    sales_and_inventory_date="2025-MAY-20",
+    warehouse_inventory_date="2025-MAY-20",
     in_stock_ratio_date="2025-MAY-12",
     website_sku_date="2025-MAR-18",
     config_date="2025-APR-07",

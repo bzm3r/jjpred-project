@@ -3,8 +3,13 @@ up and/or execute analyses."""
 
 from __future__ import annotations
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import CurrentSeasonDefn, FbaRevDefn
 from jjpred.inputstrategy import RefillType
+
+
+current_seasons = CurrentSeasonDefn(FW=24, SS=25)
+use_old_current_period_method = True
+
 
 analysis_defn = FbaRevDefn.new_comparison_analysis(
     analysis_date="2025-JAN-06",
@@ -17,6 +22,8 @@ analysis_defn = FbaRevDefn.new_comparison_analysis(
     check_dispatch_date=False,
     match_main_program_month_fractions=True,
     in_stock_ratio_date="2024-DEC-02",
+    current_seasons=current_seasons,
+    use_old_current_period_method=use_old_current_period_method,
 )
 
 # analysis_date: DateLike = "2024-OCT-15"

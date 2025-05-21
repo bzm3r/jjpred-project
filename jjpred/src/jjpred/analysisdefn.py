@@ -47,7 +47,7 @@ class LatestDates:
         self,
         sales_history_latest_date: DateLike,
         # demand_ratio_rolling_update_to: DateLike | None = None,
-        use_old_current_period_method: bool = False,
+        use_old_current_period_method: bool = True,
     ) -> None:
         self.sales_history_latest_date = Date.from_datelike(
             sales_history_latest_date
@@ -191,6 +191,9 @@ class AnalysisDefn:
     extra_descriptor: str | None = field(default=None, init=False)
     """Extra description string."""
 
+    combine_hca0_hcb0_gra_asg_history: bool = field(default=False, init=False)
+    """Whether HCA0 GRA and HCA0 ASG should be combined in history."""
+
     def __init__(
         self,
         basic_descriptor: str,
@@ -204,6 +207,7 @@ class AnalysisDefn:
         in_stock_ratio_date: DateLike | None = None,
         po_date: DateLike | None = None,
         extra_descriptor: str | None = None,
+        combine_hca0_hcb0_gra_asg_history: bool = False,
     ):
         self.basic_descriptor = basic_descriptor
         self.date = Date.from_datelike(date)
@@ -228,6 +232,10 @@ class AnalysisDefn:
 
         self.extra_descriptor = extra_descriptor
         self.current_seasons = current_seasons
+
+        self.combine_hca0_hcb0_gra_asg_history = (
+            combine_hca0_hcb0_gra_asg_history
+        )
 
     def __str__(self) -> str:
         return f"{self.basic_descriptor}_analysis_date={str(self.date)}_{self.extra_descriptor}"
@@ -448,9 +456,6 @@ class RefillDefn(AnalysisDefn):
     """Additional refill config info, apart from what might be given in the main
     marketing config file."""
 
-    combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
-    """Whether HCA0 GRA and HCA0 ASG should be combined in history."""
-
     use_old_current_period_method: bool = field(default=True)
     """Whether to use the old current period method, or the new one."""
 
@@ -536,10 +541,6 @@ class RefillDefn(AnalysisDefn):
 
         self.extra_refill_config_info = extra_refill_config_info
 
-        self.combine_hca0_hcb0_gra_asg_history = (
-            combine_hca0_hcb0_gra_asg_history
-        )
-
         self.use_old_current_period_method = use_old_current_period_method
 
         super().__init__(
@@ -558,6 +559,7 @@ class RefillDefn(AnalysisDefn):
             ),
             extra_descriptor=extra_descriptor,
             current_seasons=current_seasons,
+            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
         )
 
     def tag(self) -> str:
@@ -609,7 +611,7 @@ class FbaRevDefnArgs:
         default_factory=list
     )
     combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
-    use_old_current_period_method: bool = field(default=False)
+    use_old_current_period_method: bool = field(default=True)
 
     def as_dict(self) -> dict:
         return {
@@ -780,6 +782,27 @@ class FbaRevDefn(RefillDefn):
     def from_args(cls, args: FbaRevDefnArgs) -> Self:
         return cls(**args.as_dict())
 
+    def to_args(self, check_dispatch_date: bool = True) -> FbaRevDefnArgs:
+        assert self.config_date is not None
+
+        return FbaRevDefnArgs(
+            self.date,
+            self.master_sku_date,
+            self.sales_and_inventory_date,
+            self.dispatch_date,
+            self.warehouse_inventory_date,
+            self.current_seasons,
+            self.config_date,
+            self.prediction_type_meta_date,
+            self.refill_type,
+            check_dispatch_date,
+            self.website_sku_date,
+            self.jjweb_reserve_info,
+            self.qty_box_date,
+            self.mon_sale_r_date,
+            self.mainprogram_date,
+        )
+
     @classmethod
     def new_comparison_analysis(
         cls,
@@ -806,6 +829,7 @@ class FbaRevDefn(RefillDefn):
         match_main_program_month_fractions: bool = True,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
+        use_old_current_period_method: bool = True,
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
         compare against a real analysis.
@@ -850,6 +874,7 @@ class FbaRevDefn(RefillDefn):
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+            use_old_current_period_method=use_old_current_period_method,
         )
 
     def _get_date(self, date_name: str) -> Date:

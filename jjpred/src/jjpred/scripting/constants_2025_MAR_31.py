@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from jjpred.analysisdefn import FbaRevDefn, JJWebDefn, JJWebPredictionInfo
+from jjpred.analysisdefn import (
+    CurrentSeasonDefn,
+    FbaRevDefn,
+    JJWebPredictionInfo,
+)
 from jjpred.inputstrategy import RefillType
 
 import polars as pl
@@ -24,6 +28,8 @@ refill_draft_date = None  # "2025-FEB-25"
 extra_refill_config_info: list[RefillConfigInfo] = [
     RefillConfigInfo(["amazon.ca", "amazon.com"], 5, "HCA0-SND-S")
 ]
+current_seasons = CurrentSeasonDefn(FW=24, SS=25)
+use_old_current_period_method = True
 
 analysis_defn = FbaRevDefn(
     analysis_date=analysis_date,
@@ -43,6 +49,8 @@ analysis_defn = FbaRevDefn(
     match_main_program_month_fractions=True,
     check_dispatch_date=check_dispatch_date,
     extra_refill_config_info=extra_refill_config_info,
+    current_seasons=current_seasons,
+    use_old_current_period_method=use_old_current_period_method,
 )
 
 analysis_defn_website_reserved = FbaRevDefn(
@@ -88,6 +96,8 @@ analysis_defn_website_reserved = FbaRevDefn(
     check_dispatch_date=check_dispatch_date,
     extra_descriptor="_website_reserved",
     extra_refill_config_info=extra_refill_config_info,
+    current_seasons=current_seasons,
+    use_old_current_period_method=use_old_current_period_method,
 )
 
 # analysis_defn_main = copy.deepcopy(analysis_defn)
@@ -99,21 +109,21 @@ analysis_defn_website_reserved = FbaRevDefn(
 # analysis_defn_test = copy.deepcopy(analysis_defn)
 # analysis_defn_test.extra_descriptor = "test"
 
-jjweb_analysis_defn = JJWebDefn(
-    analysis_date=analysis_date,
-    dispatch_date=dispatch_date,
-    end_date="2025-MAY-01",
-    website_sku_date=website_sku_date,
-    master_sku_date=master_sku_date,
-    sales_and_inventory_date=sales_and_inventory_date,
-    warehouse_inventory_date=warehouse_inventory_date,
-    config_date=config_date,
-    in_stock_ratio_date=in_stock_ratio_date,
-    prediction_type_meta_date=prediction_type_meta_date,
-    proportion_split_date="2025-FEB-13",
-    check_dispatch_date=check_dispatch_date,
-    extra_refill_config_info=extra_refill_config_info,
-)
+# jjweb_analysis_defn = JJWebDefn(
+#     analysis_date=analysis_date,
+#     dispatch_date=dispatch_date,
+#     end_date="2025-MAY-01",
+#     website_sku_date=website_sku_date,
+#     master_sku_date=master_sku_date,
+#     sales_and_inventory_date=sales_and_inventory_date,
+#     warehouse_inventory_date=warehouse_inventory_date,
+#     config_date=config_date,
+#     in_stock_ratio_date=in_stock_ratio_date,
+#     prediction_type_meta_date=prediction_type_meta_date,
+#     proportion_split_date="2025-FEB-13",
+#     check_dispatch_date=check_dispatch_date,
+#     extra_refill_config_info=extra_refill_config_info,
+# )
 
 
 # analysis_defn = FbaRevDefn.new_comparison_analysis(
