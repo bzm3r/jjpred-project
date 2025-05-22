@@ -540,19 +540,6 @@ def check_dispatch_results(
 
     assert results_with_check_flags["expected_demand"].dtype == pl.Int64()
     dispatch_checks = {
-        "Low Demand Prints": results_with_check_flags.filter(
-            ~(pl.col("is_master_paused") | pl.col("is_config_paused"))
-            & pl.col("expected_demand").lt(2)
-            & pl.col("current_period_sales").lt(100)
-            & ~pl.col("new_category_problem")
-            & ~pl.col("po_problem")
-            & ~pl.col("e_problem")
-            & pl.col("wh_dispatchable").gt(0)
-            & pl.col("ch_stock").eq(0)
-        )
-        .drop(contained_check_flags)
-        .unique()
-        .sort(ALL_SKU_AND_CHANNEL_IDS),
         "(wh_lt_actual) MainProg|JJPRED": actual_dispatch_gt_wh_dispatchable.drop(
             contained_check_flags
         )
@@ -601,6 +588,35 @@ def check_dispatch_results(
         )
         .unique()
         .sort("season", "category"),
+        "Low Demand Prints": results_with_check_flags.filter(
+            ~(pl.col("is_master_paused") | pl.col("is_config_paused"))
+            & pl.col("expected_demand").lt(2)
+            # & pl.col("current_period_sales").lt(100)
+            # & ~pl.col("new_category_problem")
+            # & ~pl.col("po_problem")
+            # & ~pl.col("e_problem")
+            & pl.col("wh_dispatchable").gt(0)
+            & pl.col("ch_stock").eq(0)
+        )
+        .drop(contained_check_flags)
+        .unique()
+        .sort(ALL_SKU_AND_CHANNEL_IDS),
+        "PO vs E check": results_with_check_flags.filter(
+            ~(pl.col("is_master_paused") | pl.col("is_config_paused"))
+        )
+        .with_columns(
+            expected_demand_diff=pl.col("expected_demand_from_po").list.sum()
+            - pl.col("expected_demand_from_history").list.sum()
+        )
+        .drop(contained_check_flags)
+        .unique()
+        .sort(ALL_SKU_AND_CHANNEL_IDS),
+        "ASG-GRA check": results_with_check_flags.filter(
+            pl.col.print.eq("ASG")
+        )
+        .drop(contained_check_flags)
+        .unique()
+        .sort(ALL_SKU_AND_CHANNEL_IDS),
         "all": active_results,
         "reserved": dispatcher.reserved_quantity,
         "multi_a_sku": multi_a_sku_df,
