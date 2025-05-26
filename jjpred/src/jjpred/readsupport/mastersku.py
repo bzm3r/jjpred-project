@@ -88,6 +88,14 @@ class MasterSkuInfo(RuntimeCheckableDataclass):
     """Active SKUs."""
     fba_sku: pl.DataFrame = field(init=False)
     """FBA SKUs associated with active SKUs."""
+    upc_active: pl.DataFrame = field(init=False)
+    """UPCs associated with active SKUs."""
+    fba_upc: pl.DataFrame = field(init=False)
+    """FBA UPCs associated with active SKUs."""
+    fba_asin: pl.DataFrame = field(init=False)
+    """ASINs associated with active SKUs."""
+    fba_fnsku: pl.DataFrame = field(init=False)
+    """FNSKUs associated with active SKUs."""
     all_sku: pl.DataFrame = field(init=False)
     """Includes inactive SKUs ("inactive", "retired", etc.), but not ignored
     SKUs."""
@@ -642,7 +650,19 @@ def read_raw_master_sku(master_sku_date: DateLike) -> pl.DataFrame:
                     "msku",
                 ]
             )
-            or any([y in x.lower() for y in ["fbasku", "adjust", "pause"]])
+            or any(
+                [
+                    y in x.lower()
+                    for y in [
+                        "fbasku",
+                        "adjust",
+                        "pause",
+                        "fnsku",
+                        "upc",
+                        "asin",
+                    ]
+                ]
+            )
         )
     ]
 
@@ -1157,25 +1177,54 @@ def read_master_sku_excel_file(
 
     master_sku_df = master_sku_df.rename({"m_sku": "sku"})
 
-    fba_sku = master_sku_df.select(
+    alternate_sku_ids = master_sku_df.select(
         ["a_sku", "sku"]
-        + list(cs.expand_selector(master_sku_df, cs.contains("fba_sku")))
+        + list(
+            cs.expand_selector(
+                master_sku_df, cs.contains("fba_sku", "fnsku", "asin", "upc")
+            )
+        )
     )
-    fba_sku = (
-        fba_sku.unpivot(
+    alternate_sku_ids = (
+        alternate_sku_ids.unpivot(
             index=["a_sku", "sku"],
-            on=cs.contains("fba_sku"),
-            variable_name="country",
-            value_name="fba_sku",
+            on=cs.contains("fba_sku", "fnsku", "asin", "upc"),
+            variable_name="data_info",
+            value_name="data_value",
         )
         .drop_nulls()
-        .with_columns(pl.col("country").str.split("fba_sku_").list.last())
+        .with_columns(pl.col.data_info.str.split("_"))
+        .with_columns(pl.col.data_info.list.last().alias("country"))
+        .with_columns(
+            pl.col.data_info.list.slice(0, pl.col.data_info.list.len() - 1)
+            .list.join("_")
+            .alias("data_type")
+        )
+        .with_columns(
+            country=pl.when(
+                ~(pl.col.country.eq("active") & pl.col.data_type.eq("upc"))
+            ).then(pl.col.country)
+        )
+        .with_columns(
+            data_type=pl.when(
+                ~pl.col.country.is_null() & pl.col.data_type.eq("upc")
+            )
+            .then(pl.lit("fba_upc"))
+            .when(pl.col.country.is_null() & pl.col.data_type.eq("upc"))
+            .then(pl.lit("upc_active"))
+            .otherwise(pl.col.data_type)
+        )
     )
-    fba_sku = fba_sku.cast(
-        {"country": pl.Enum(fba_sku["country"].drop_nulls().unique().sort())}
+    alternate_sku_ids = alternate_sku_ids.cast(
+        {
+            "country": pl.Enum(
+                alternate_sku_ids["country"].drop_nulls().unique().sort()
+            )
+        }
     )
     country_flag = (
-        fba_sku.select("country")
+        alternate_sku_ids.select("country")
+        .drop_nulls()
         .unique()
         .sort("country")
         .with_columns(
@@ -1185,7 +1234,10 @@ def read_master_sku_excel_file(
             )
         )
     )
-    fba_sku = fba_sku.join(
+    assert len(country_flag.filter(pl.col.country_flag.is_null())) == 0, (
+        country_flag.filter(pl.col.country_flag.is_null())
+    )
+    alternate_sku_ids = alternate_sku_ids.join(
         country_flag,
         on="country",
         how="left",
@@ -1283,7 +1335,25 @@ def read_master_sku_excel_file(
         )
         .with_columns(pl.col.is_new_category.fill_null(False))
     )
-    result.fba_sku = fba_sku
+    result.fba_sku = alternate_sku_ids.filter(
+        pl.col.data_type.eq("fba_sku")
+    ).select(
+        "a_sku", "sku", pl.col.data_value.alias("fba_sku"), "country_flag"
+    )
+    result.fba_upc = alternate_sku_ids.filter(
+        pl.col.data_type.eq("fba_upc")
+    ).select(
+        "a_sku", "sku", pl.col.data_value.alias("fba_upc"), "country_flag"
+    )
+    result.fba_asin = alternate_sku_ids.filter(
+        pl.col.data_type.eq("asin")
+    ).select("a_sku", "sku", pl.col.data_value.alias("asin"), "country_flag")
+    result.fba_fnsku = alternate_sku_ids.filter(
+        pl.col.data_type.eq("fnsku")
+    ).select("a_sku", "sku", pl.col.data_value.alias("fnsku"), "country_flag")
+    result.upc_active = alternate_sku_ids.filter(
+        pl.col.data_type.eq("upc_active")
+    ).select("a_sku", "sku", pl.col.data_value.alias("upc_active"))
     result.ignored_sku = pl.DataFrame(schema=master_sku_df.schema)
     result.print_name_map = print_name_map
     result.numeric_size_map = numeric_size_map
