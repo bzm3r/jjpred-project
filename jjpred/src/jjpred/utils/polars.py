@@ -435,6 +435,17 @@ def find_dupes(
     return dupes
 
 
+def assert_no_dupes(
+    df: pl.DataFrame,
+    id_cols: Sequence[str],
+    ignore_columns: Sequence[str] | None = None,
+) -> pl.DataFrame:
+    """Find duplicates in a Polars dataframe. If there are no duplicates, return
+    the dataframe."""
+    find_dupes(df, id_cols, ignore_columns=ignore_columns, raise_error=True)
+    return df
+
+
 def sanitize_excel_extraction(df: pl.DataFrame) -> pl.DataFrame:
     """Sanitize a dataframe extracted from an Excel file by removing all rows
     which are completely :py:class:`pl.Null` and removing all leading and

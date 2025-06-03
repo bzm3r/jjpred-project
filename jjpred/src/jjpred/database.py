@@ -192,12 +192,15 @@ def concatenate_older_df(
     )
 
     if len(relevant_older_df) > 0:
-        return newer_df.vstack(
-            recast_older_df_types_based_on_newer_df(
-                newer_df,
-                relevant_older_df,
-            )
+        return concat_enum_extend_vstack_strict(
+            [newer_df, relevant_older_df], coerce_dtypes=True
         )
+        # return newer_df.vstack(
+        #     recast_older_df_types_based_on_newer_df(
+        #         newer_df,
+        #         relevant_older_df,
+        #     )
+        # )
     else:
         return newer_df
 
@@ -476,6 +479,8 @@ class DataBase:
             .unique()
             .cast(pl.String())
             .append(pl.Series(IGNORE_SKU_LIST))
+            if len(self.meta_info.ignored_sku) > 0
+            else pl.Series(IGNORE_SKU_LIST)
         )
         # ignore_skus = self.meta_info.ignored_sku["sku"].unique()
         self.dfs[DataVariant.Inventory] = parse_channels(

@@ -11,7 +11,7 @@ from functools import total_ordering
 from typing import Self
 
 from jjpred.inputstrategy import RefillType
-from jjpred.analysisconfig import RefillConfigInfo
+from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
 from jjpred.scripting.dateoffset import (
     determine_main_program_compatible_start_end_dates,
 )
@@ -607,9 +607,9 @@ class FbaRevDefnArgs:
     warehouse_min_keep_qty: int = field(default=12)
     dispatch_cutoff_qty: int = field(default=2)
     extra_descriptor: str | None = field(default=None)
-    extra_refill_config_info: list[RefillConfigInfo] = field(
-        default_factory=list
-    )
+    extra_refill_config_info: list[
+        RefillConfigInfo | GeneralRefillConfigInfo
+    ] = field(default_factory=list)
     combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
     use_old_current_period_method: bool = field(default=True)
 

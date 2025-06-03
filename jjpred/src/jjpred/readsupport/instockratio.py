@@ -448,6 +448,7 @@ def read_isr_from_excel_file_given_meta_info(
                 .alias("days_in_month")
                 .dt.total_days()
                 .cast(pl.Int16())
+                + 1
             )
             .otherwise(
                 (
@@ -464,8 +465,25 @@ def read_isr_from_excel_file_given_meta_info(
     )
 
     isr_df = isr_df.join(date_info, on="date").with_columns(
-        in_stock_ratio=pl.col.in_stock_days / pl.col.days_in_month
+        in_stock_ratio=pl.min_horizontal(
+            pl.col.in_stock_days / pl.col.days_in_month, pl.lit(1.0)
+        )
     )
+
+    assert (
+        len(
+            isr_df.with_columns(
+                delta_days=pl.max_horizontal(
+                    (pl.col.in_stock_days - pl.col.days_in_month), pl.lit(0)
+                )
+            ).filter(pl.col.delta_days.gt(0))
+        )
+        == 0
+    ), isr_df.with_columns(
+        delta_days=pl.max_horizontal(
+            (pl.col.in_stock_days - pl.col.days_in_month), pl.lit(0)
+        )
+    ).filter(pl.col.delta_days.gt(1))
 
     isr_df = cast_standard(
         [active_sku_info],

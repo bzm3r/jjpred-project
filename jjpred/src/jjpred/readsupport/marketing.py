@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NamedTuple, Self
+from typing import NamedTuple, Self, Sequence
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import ALL_SKU_AND_CHANNEL_IDS, ALL_SKU_IDS
@@ -15,7 +15,7 @@ from jjpred.parse.patternmatch import (
     PatternMatcher,
 )
 from jjpred.readsupport.utils import cast_standard, parse_channels
-from jjpred.analysisconfig import RefillConfigInfo
+from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
 from jjpred.sku import SKU_CATEGORY_PRINT_SIZE_REMAINDER, Sku
 from jjpred.structlike import FieldMeta, MemberType, StructLike
 from jjpred.utils.datetime import Date, DateLike
@@ -229,16 +229,29 @@ class ConfigData:
     def extra_refill_info(
         self,
         active_sku_info: pl.DataFrame,
-        extra_refill_info: list[RefillConfigInfo],
+        extra_refill_info: Sequence[
+            RefillConfigInfo | GeneralRefillConfigInfo
+        ],
     ) -> Self:
         if len(extra_refill_info) > 0:
+            normalized_extra_refill_info: list[RefillConfigInfo] = []
+            for x in extra_refill_info:
+                if isinstance(x, GeneralRefillConfigInfo):
+                    normalized_extra_refill_info.append(
+                        x.into_refill_config_info(active_sku_info)
+                    )
+                else:
+                    normalized_extra_refill_info.append(x)
+
             result = copy.deepcopy(self)
             extra_refill_df = cast_standard(
                 [active_sku_info],
                 parse_channels(
                     pl.from_dicts(
-                        [x.as_dict() for x in extra_refill_info]
-                    ).explode("channel")
+                        x.as_dict() for x in normalized_extra_refill_info
+                    )
+                    .explode("channel")
+                    .explode("sku")
                 ).drop("raw_channel", "channel"),
             ).join(
                 active_sku_info.select(

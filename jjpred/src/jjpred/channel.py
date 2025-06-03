@@ -412,6 +412,11 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             "amazon.de",
             "inv_amz eu",
         ): create_amazon(CountryFlags.DE),
+        (
+            "amazon jp",
+            "amazon.co.jp",
+            "inv_amz jp",
+        ): create_amazon(CountryFlags.JP),
         ("amazon global us",): create_amazon(CountryFlags.GlobalUS),
         ("thebay.ca",): RawChannel(
             Platform.Bay, CountryFlags.CA, DistributionMode.RETAIL
@@ -431,7 +436,7 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             CountryFlags.US,
             DistributionMode.RETAIL,
         ).as_dict(),
-        ("janandjul.com", "jjweb"): RawChannel(
+        ("janandjul.com", "jjweb", "janandjul.com (all)"): RawChannel(
             Platform.JJWeb,
             CountryFlags.CA | CountryFlags.US,
             DistributionMode.RETAIL,

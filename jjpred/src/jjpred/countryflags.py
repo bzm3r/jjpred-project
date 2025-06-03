@@ -48,6 +48,8 @@ class CountryFlags(IntFlagLike):
     """United Kingdom"""
     US = auto()
     """United States"""
+    JP = auto()
+    """Japan"""
 
     def try_to_string(self) -> str | None:
         if self == CountryFlags.all_regions():

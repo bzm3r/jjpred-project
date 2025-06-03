@@ -27,6 +27,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
+    assert_no_dupes,
     binary_partition_strict,
     binary_partition_weak,
     convert_dict_to_polars_df,
@@ -1335,25 +1336,36 @@ def read_master_sku_excel_file(
         )
         .with_columns(pl.col.is_new_category.fill_null(False))
     )
-    result.fba_sku = alternate_sku_ids.filter(
-        pl.col.data_type.eq("fba_sku")
-    ).select(
-        "a_sku", "sku", pl.col.data_value.alias("fba_sku"), "country_flag"
+    result.fba_sku = assert_no_dupes(
+        alternate_sku_ids.filter(pl.col.data_type.eq("fba_sku")).select(
+            "a_sku", "sku", pl.col.data_value.alias("fba_sku"), "country_flag"
+        ),
+        ["a_sku", "sku", "country_flag"],
     )
-    result.fba_upc = alternate_sku_ids.filter(
-        pl.col.data_type.eq("fba_upc")
-    ).select(
-        "a_sku", "sku", pl.col.data_value.alias("fba_upc"), "country_flag"
+    result.fba_upc = assert_no_dupes(
+        alternate_sku_ids.filter(pl.col.data_type.eq("fba_upc")).select(
+            "a_sku", "sku", pl.col.data_value.alias("fba_upc"), "country_flag"
+        ),
+        ["a_sku", "sku", "country_flag"],
     )
-    result.fba_asin = alternate_sku_ids.filter(
-        pl.col.data_type.eq("asin")
-    ).select("a_sku", "sku", pl.col.data_value.alias("asin"), "country_flag")
-    result.fba_fnsku = alternate_sku_ids.filter(
-        pl.col.data_type.eq("fnsku")
-    ).select("a_sku", "sku", pl.col.data_value.alias("fnsku"), "country_flag")
-    result.upc_active = alternate_sku_ids.filter(
-        pl.col.data_type.eq("upc_active")
-    ).select("a_sku", "sku", pl.col.data_value.alias("upc_active"))
+    result.fba_asin = assert_no_dupes(
+        alternate_sku_ids.filter(pl.col.data_type.eq("asin")).select(
+            "a_sku", "sku", pl.col.data_value.alias("asin"), "country_flag"
+        ),
+        ["a_sku", "sku", "country_flag"],
+    )
+    result.fba_fnsku = assert_no_dupes(
+        alternate_sku_ids.filter(pl.col.data_type.eq("fnsku")).select(
+            "a_sku", "sku", pl.col.data_value.alias("fnsku"), "country_flag"
+        ),
+        ["a_sku", "sku", "country_flag"],
+    )
+    result.upc_active = assert_no_dupes(
+        alternate_sku_ids.filter(pl.col.data_type.eq("upc_active")).select(
+            "a_sku", "sku", pl.col.data_value.alias("upc_active")
+        ),
+        ["a_sku", "sku"],
+    )
     result.ignored_sku = pl.DataFrame(schema=master_sku_df.schema)
     result.print_name_map = print_name_map
     result.numeric_size_map = numeric_size_map
