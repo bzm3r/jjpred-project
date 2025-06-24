@@ -1210,6 +1210,7 @@ class Dispatcher:
         dispatch_filter: pl.Expr | None = None,
         descriptor: str | None = None,
         save_csv: bool = True,
+        extra_cols: list[str] = [],
     ) -> pl.DataFrame:
         """Prepare an Excel file in the expected dispatch output format based on
         calculated dispatch.
@@ -1242,11 +1243,13 @@ class Dispatcher:
                 self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.US,
+                extra_cols=extra_cols,
             ),
             "CA": format_dispatch_for_netsuite(
                 self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.CA,
+                extra_cols=extra_cols,
             ),
         }
 

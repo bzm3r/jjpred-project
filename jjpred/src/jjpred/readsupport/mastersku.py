@@ -304,6 +304,10 @@ NUMERIC_SIZE: dict[str, float] = {
     "JR2": 15,
     "JR3": 16,
     "JR4": 17,
+    # "J1": 15,
+    # "J2": 15,
+    # "J3": 16,
+    # "J4": 17,
 }
 """Sizes mapped to numeric values. Useful for sorting by size especially when
 plotting. Sizes that do not appear here are either: 1) easily parsed into a

@@ -452,6 +452,11 @@ def get_strategy_from_library(
                 analysis_defn.latest_dates.sales_history_latest_date
             ).as_polars_date(),
         )
+        .with_columns(
+            start_date=pl.when(pl.col.end_date.lt(pl.col.start_date))
+            .then(pl.col.start_date.dt.offset_by("-1y"))
+            .otherwise(pl.col.start_date)
+        )
     )
 
     current_period_dict = {
