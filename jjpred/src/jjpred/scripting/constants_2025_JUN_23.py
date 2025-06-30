@@ -35,6 +35,11 @@ args = FbaRevDefnArgs(
             GeneralRefillConfigInfo(
                 ["amazon.ca", "amazon.com"], 10, pl.col.category.eq("BSL")
             ),
+            GeneralRefillConfigInfo(
+                ["amazon.ca", "amazon.com"],
+                10,
+                pl.col.category.eq("SMF") & pl.col.print.is_in(["DPK", "SBR"]),
+            ),
         ]
     ),
     combine_hca0_hcb0_gra_asg_history=True,
