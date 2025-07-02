@@ -16,7 +16,10 @@ from jjpred.globalpaths import (
     ANALYSIS_INPUT_FOLDER,
     ANALYSIS_OUTPUT_FOLDER,
 )
-from jjpred.readsupport.inventory import InventoryType, read_inventory
+from jjpred.readsupport.inventory import (
+    InventoryType,
+    read_warehouse_inventory,
+)
 from jjpred.sku import Sku
 from jjpred.seasons import Season, POSeason
 from jjpred.structlike import MemberType
@@ -184,7 +187,7 @@ plotting."""
         if website_sku_date is not None:
             website_sku_fetch_info = WebsiteSkuFetchInfo(
                 website_sku_date,
-                read_inventory(
+                read_warehouse_inventory(
                     analysis_defn,
                     InventoryType.AUTO,
                     read_from_disk=read_from_disk,

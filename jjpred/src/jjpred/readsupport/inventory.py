@@ -22,7 +22,7 @@ class InventoryType(Enum):
     AUTO = auto()
 
 
-def read_inventory(
+def read_warehouse_inventory(
     analysis_defn: AnalysisDefn,
     inventory_type: InventoryType,
     read_from_disk: bool = True,

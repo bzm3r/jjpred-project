@@ -24,7 +24,10 @@ from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 from jjpred.readsupport.instockratio import (
     read_isr_from_excel_file_given_meta_info,
 )
-from jjpred.readsupport.inventory import InventoryType, read_inventory
+from jjpred.readsupport.inventory import (
+    InventoryType,
+    read_warehouse_inventory,
+)
 from jjpred.readsupport.marketing import read_config
 from jjpred.readsupport.mastersku import (
     MasterSkuInfo,
@@ -491,12 +494,13 @@ class DataBase:
                 ),
             )
         ).join(self.meta_info.all_sku.select("sku", "a_sku"), on="a_sku")
+
         self.dfs[DataVariant.Inventory] = self.dfs[
             DataVariant.Inventory
         ].vstack(
             cast_standard(
                 [self.meta_info.all_sku],
-                read_inventory(
+                read_warehouse_inventory(
                     self.analysis_defn,
                     InventoryType.AUTO,
                     read_from_disk=False,

@@ -505,7 +505,7 @@ class DictionaryMatcher(PatternMatcher):
         result = self.match_dict.get(target_string)
 
         if result is None:
-            print(f"{self.name} asked to match: {target_string}")
+            print(f"failed match: {self.name} asked to match: {target_string}")
 
         return result
 

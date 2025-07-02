@@ -95,6 +95,5 @@ analysis_defn_test_jj_expanded = FbaRevDefn.from_args(
         ),
         use_old_current_period_method=True,
         extra_descriptor="test_jj_expanded",
-        sales_and_inventory_date="2025-JUN-24",
     )
 )
