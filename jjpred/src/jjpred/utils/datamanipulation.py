@@ -15,7 +15,12 @@ def merge_wholesale(
         pl.col.channel.is_in(
             [
                 Channel.parse(x).pretty_string_repr()
-                for x in ["Faire.com", "Wholesale"]
+                for x in [
+                    "Faire.com",
+                    "Wholesale",
+                    "Wholesale-CA",
+                    "Wholesale-US",
+                ]
             ],
         ),
     )

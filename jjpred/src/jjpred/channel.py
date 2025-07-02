@@ -393,12 +393,18 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
         ("amazon us", "amazon.com", "inv_amz usa"): create_amazon(
             CountryFlags.US
         ),
-        ("amazon mx", "amazon.com.mx", "inv_amz mx"): create_amazon(
-            CountryFlags.MX
-        ),
-        ("amazon au", "amazon.com.au", "inv_amz au"): create_amazon(
-            CountryFlags.AU
-        ),
+        (
+            "amazon mx",
+            "amazon.com.mx",
+            "amazon.mx",
+            "inv_amz mx",
+        ): create_amazon(CountryFlags.MX),
+        (
+            "amazon au",
+            "amazon.com.au",
+            "amazon.au",
+            "inv_amz au",
+        ): create_amazon(CountryFlags.AU),
         (
             "amazon uk",
             "amazon.co.uk",
@@ -415,13 +421,14 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
         (
             "amazon jp",
             "amazon.co.jp",
+            "amazon.jp",
             "inv_amz jp",
         ): create_amazon(CountryFlags.JP),
         ("amazon global us",): create_amazon(CountryFlags.GlobalUS),
         ("thebay.ca",): RawChannel(
             Platform.Bay, CountryFlags.CA, DistributionMode.RETAIL
         ).as_dict(),
-        ("faire.com",): RawChannel(
+        ("faire.com", "wholesale-faire.com"): RawChannel(
             Platform.Faire,
             CountryFlags.US,
             DistributionMode.WHOLESALE,
@@ -442,13 +449,21 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             DistributionMode.RETAIL,
             sub_country=SubCountry.ALL,
         ).as_dict(),
-        ("usa.janandjul.com", "jjweb usa", "jjweb us"): RawChannel(
+        (
+            "usa.janandjul.com",
+            "jjweb usa",
+            "jjweb us",
+            "janandjul.com (us)",
+        ): RawChannel(
             Platform.JJWeb,
             CountryFlags.US,
             DistributionMode.RETAIL,
             sub_country=SubCountry.ALL,
         ).as_dict(),
-        ("ca.janandjul.com", "jjweb ca"): RawChannel(
+        (
+            "ca.janandjul.com",
+            "janandjul.com (ca)",
+        ): RawChannel(
             Platform.JJWeb,
             CountryFlags.CA,
             DistributionMode.RETAIL,

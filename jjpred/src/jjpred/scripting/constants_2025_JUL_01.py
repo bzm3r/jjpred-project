@@ -16,15 +16,15 @@ from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
 import polars as pl
 
 args = FbaRevDefnArgs(
-    analysis_date="2025-JUN-23",
+    analysis_date="2025-JUL-01",
     current_seasons=CurrentSeasonDefn(FW=25, SS=25),
-    dispatch_date="2025-JUN-23",
-    master_sku_date="2025-JUN-23",
-    sales_and_inventory_date="2025-JUN-23",
-    warehouse_inventory_date="2025-JUN-23",
+    dispatch_date="2025-JUL-01",
+    master_sku_date="2025-JUN-30",
+    sales_and_inventory_date="2025-JUN-30",
+    warehouse_inventory_date="2025-JUL-02",
     in_stock_ratio_date="2025-JUN-02",
     website_sku_date="2025-MAR-18",
-    config_date="2025-APR-07",
+    config_date="2025-JUN-24",
     prediction_type_meta_date=None,
     check_dispatch_date=False,
     mainprogram_date=None,  # "2025-FEB-25",
@@ -43,7 +43,7 @@ args = FbaRevDefnArgs(
         ]
     ),
     combine_hca0_hcb0_gra_asg_history=True,
-    refill_type=RefillType.WEEKLY,
+    refill_type=RefillType.CUSTOM_2025_JUL_01,
     match_main_program_month_fractions=False,
     mon_sale_r_date=None,
     po_date=None,
@@ -72,6 +72,18 @@ analysis_defn_website_reserved_force_po_old_method = FbaRevDefn.from_args(
         ),
         use_old_current_period_method=True,
         extra_descriptor="web_res_force_po_new_rolling_update_v2_old_type",
+    )
+)
+
+analysis_defn_incorrect_nsinv = FbaRevDefn.from_args(
+    args.update(
+        jjweb_reserve_info=JJWebPredictionInfo(
+            reservation_expr=DEFAULT_RESERVATION_EXPR,
+            force_po_prediction_for_reservation=True,
+        ),
+        use_old_current_period_method=True,
+        extra_descriptor="incorrect_nsinv",
+        warehouse_inventory_date="2025-JUN-30",
     )
 )
 

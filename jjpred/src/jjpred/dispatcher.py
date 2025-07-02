@@ -272,7 +272,10 @@ def calculate_reserved_quantity(
 
         reserve_demands.append(reserve_demand)
 
-    return concat_enum_extend_vstack_strict(reserve_demands)
+    if len(reserve_demands) > 0:
+        return concat_enum_extend_vstack_strict(reserve_demands)
+    else:
+        return pl.DataFrame()
 
 
 def attach_inventory_info(

@@ -268,7 +268,7 @@ ADJUSTED_PRINT_NAMES: dict[str, str] = {
 """Print names taken from the Master SKU file, mapped in some cases to adjusted
 names because they are otherwise unnecessarily long."""
 
-NUMERIC_SIZE: dict[str, float] = {
+NUMERIC_SIZE_MAP: dict[str, float] = {
     "6m": 0.5,
     "12m": 1,
     "18m": 1.5,
@@ -293,6 +293,7 @@ NUMERIC_SIZE: dict[str, float] = {
     "S": 2,
     "S & M": 2.5,
     "M": 3,
+    "M/L": 3.5,
     "L": 4,
     "XL": 5,
     "XXL": 6,
@@ -304,10 +305,6 @@ NUMERIC_SIZE: dict[str, float] = {
     "JR2": 15,
     "JR3": 16,
     "JR4": 17,
-    # "J1": 15,
-    # "J2": 15,
-    # "J3": 16,
-    # "J4": 17,
 }
 """Sizes mapped to numeric values. Useful for sorting by size especially when
 plotting. Sizes that do not appear here are either: 1) easily parsed into a
@@ -1293,7 +1290,7 @@ def read_master_sku_excel_file(
         .unique()
         .join(
             convert_dict_to_polars_df(
-                NUMERIC_SIZE, "size", "numeric_size"
+                NUMERIC_SIZE_MAP, "size", "numeric_size"
             ).cast(
                 {
                     "size": master_sku_df["size"].dtype,
