@@ -810,10 +810,16 @@ class Dispatcher:
         self.all_sku_info = self.all_sku_info.with_columns(
             jjweb_inv_3pl=pl.lit(0)
         )
-        # TODO: need to calculate the JJWEB EAST fractions based on sales data
-        self.all_sku_info = self.all_sku_info.with_columns(
-            jjweb_east_frac=pl.lit(0.0)
-        )
+
+        self.all_sku_info = self.all_sku_info.join(
+            db.meta_info.jjweb_east_frac,
+            on=["a_sku"],
+            how="left",
+        ).with_columns(pl.col.jjweb_east_frac.fill_null(0))
+        # need to calculate the JJWEB EAST fractions based on sales data
+        # self.all_sku_info = self.all_sku_info.with_columns(
+        #     jjweb_east_frac=pl.lit(0.0)
+        # )
 
         self.all_sku_info = (
             self.all_sku_info.with_columns(

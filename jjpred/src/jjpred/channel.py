@@ -284,7 +284,7 @@ class Platform(PlatformAttrs, EnumLike):
         auto(),
         FixedCountries(CountryFlags.all_regions()),
         DistributionMode.WHOLESALE,
-        PossibleSubCountry([SubCountry.ALL]),
+        PossibleSubCountry([SubCountry.ALL, SubCountry.EAST, SubCountry.WEST]),
     )
     XiaoHongShu = (
         auto(),
@@ -536,6 +536,26 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             Platform.Wholesale,
             CountryFlags.CA,
             DistributionMode.WHOLESALE,
+        ).as_dict(),
+        (
+            "wholesale-ca (west)",
+            "wholesale ca (west)",
+            "wholesale ca west",
+        ): RawChannel(
+            Platform.Wholesale,
+            CountryFlags.CA,
+            DistributionMode.WHOLESALE,
+            SubCountry.WEST,
+        ).as_dict(),
+        (
+            "wholesale-ca (east)",
+            "wholesale ca (east)",
+            "wholesale ca east",
+        ): RawChannel(
+            Platform.Wholesale,
+            CountryFlags.CA,
+            DistributionMode.WHOLESALE,
+            SubCountry.EAST,
         ).as_dict(),
         ("wholesale-us", "wholesale us"): RawChannel(
             Platform.Wholesale,

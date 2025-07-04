@@ -18,6 +18,7 @@ import polars as pl
 import polars.selectors as cs
 from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel, Platform
+from jjpred.countryflags import CountryFlags
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
@@ -118,6 +119,7 @@ class MetaInfo(MasterSkuInfo):
     expanded_jjweb_history: pl.DataFrame = field(init=False)
     """The channels associated with gathered historical/inventory
     information."""
+    """The fraction of sales that happen in """
 
     @classmethod
     def from_master_sku_result(cls, master_sku_result: MasterSkuInfo) -> Self:
@@ -609,6 +611,14 @@ class DataBase:
             self.dfs[DataVariant.History],
             pl.col.platform.eq(Platform.JJWeb.name),
         )
+        wholesale_ca_history, other_history = binary_partition_strict(
+            other_history,
+            (
+                pl.col.platform.eq(Platform.Wholesale.name)
+                & pl.col.country_flag.eq(CountryFlags.CA.value)
+            ),
+        )
+
         aggregated_jjweb_history = (
             jjweb_history.group_by("a_sku", "date", "category")
             .agg(pl.col.sales.sum())
@@ -621,9 +631,27 @@ class DataBase:
                 how="cross",
             )
         )
-        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
-            [aggregated_jjweb_history, other_history]
+        aggregated_wholesale_ca_history = (
+            wholesale_ca_history.group_by("a_sku", "date", "category")
+            .agg(pl.col.sales.sum())
+            .join(
+                self.meta_info.channel.filter(
+                    pl.col.channel.eq(
+                        Channel.parse("Wholesale-CA").pretty_string_repr()
+                    )
+                ),
+                how="cross",
+            )
         )
+
+        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
+            [
+                aggregated_jjweb_history,
+                aggregated_wholesale_ca_history,
+                other_history,
+            ]
+        )
+
         assert (
             len(
                 self.dfs[DataVariant.History].filter(
@@ -664,6 +692,7 @@ class DataBase:
 
 def standardize_channel_info(
     dfs: dict[DataVariant, pl.DataFrame],
+    extra_channels: list[str] = ["Wholesale-CA", "janandjul.com"],
 ) -> tuple[dict[DataVariant, pl.DataFrame], pl.DataFrame]:
     """Parse raw string channels in dataframes, interpret them as
     :py:class:`Channel` objects, and cast channel strings as
@@ -678,7 +707,15 @@ def standardize_channel_info(
 
     assert channels is not None
 
-    unique_channels = channels.unique()
+    unique_channels = (
+        channels.unique()
+        .vstack(
+            parse_channels(pl.from_dict({"channel": extra_channels})).select(
+                channels.columns
+            )
+        )
+        .unique()
+    )
     unique_channels = unique_channels.cast(
         {"channel": pl.Enum(unique_channels["channel"].unique().sort())}
     )
