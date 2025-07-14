@@ -192,21 +192,42 @@ class StrategyGroup(CategoryGroupProtocol):
     def append_referred_channels(self, df: pl.DataFrame) -> pl.DataFrame:
         if len(self.primary_to_referred) > 0:
             map_primary_to_referred = self.map_primary_to_referred(df)
-            extra = (
-                df.filter(
-                    pl.col("category").is_in(map_primary_to_referred.keys())
-                )
-                .with_columns(
-                    pl.col("category").replace_strict(
-                        map_primary_to_referred,
-                        return_dtype=pl.List(
-                            as_polars_type(df["category"].dtype, pl.Enum)
-                        ),
-                    )
-                )
-                .explode("category")
+            category_dtype = as_polars_type(df["category"].dtype, pl.Enum)
+            primary_to_referred_df = pl.from_dicts(
+                [
+                    {"primary_category": k, "referred_categories": list(v)}
+                    for k, v in map_primary_to_referred.items()
+                ],
+                schema={
+                    "primary_category": category_dtype,
+                    "referred_categories": pl.List(category_dtype),
+                },
             )
-            return vstack_to_unified(df, extra)
+            extra = (
+                df.rename({"category": "primary_category"})
+                .join(
+                    primary_to_referred_df,
+                    on=["primary_category"],
+                    validate="m:1",
+                )
+                .drop("primary_category")
+                .rename({"referred_categories": "category"})
+                .explode("category")
+                # .filter(
+                #     pl.col("category").is_in(map_primary_to_referred.keys())
+                # )
+                # .with_columns(
+                #     pl.col("category")
+                #     .replace(map_primary_to_referred)
+                #     .cast(
+                #         pl.List(as_polars_type(df["category"].dtype, pl.Enum))
+                #     )
+                # )
+                # .explode("category")
+            )
+            result = vstack_to_unified(df, extra)
+            find_dupes(result, ["category", "date"], raise_error=True)
+            return result
 
         return df
 

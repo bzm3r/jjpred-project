@@ -411,7 +411,9 @@ def read_isr_from_excel_file_given_meta_info(
                     ),
                 )
             ),
-            is_active=pl.col("a_sku").is_in(all_sku_info["a_sku"].unique()),
+            is_active=pl.col("a_sku").is_in(
+                all_sku_info["a_sku"].unique().cast(pl.String())
+            ),
         )
         .filter(pl.col("agg_sum").gt(0).or_(pl.col("is_active")))
         .drop("agg_sum", "is_active")
