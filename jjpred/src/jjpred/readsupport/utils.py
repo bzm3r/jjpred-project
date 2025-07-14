@@ -96,10 +96,6 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
         .alias("struct_channel")
     ).unnest("struct_channel")
 
-    # country_issue = unique_channels.filter(pl.col.country_flag.is_null())
-    # if len(country_issue) > 0:
-    #     print(f"trouble parsing channels: \n{country_issue}")
-
     for c in Channel.members(MemberType.PRIMARY):
         if unique_channels[c].null_count() > 0:
             if c not in ["country_flag"]:
@@ -107,17 +103,6 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
                     "ERROR: found incorrectly parsed channels: \n"
                     f"{unique_channels.filter(pl.col(c).is_null())}"
                 )
-            # else:
-            #     print(
-            #         f"WARNING: issue parsing channels ({c}), replacing with 0: \n"
-            #         f"{unique_channels.filter(pl.col(c).is_null())}"
-            #     )
-            #     unique_channels = unique_channels.with_columns(
-            #         pl.when(pl.col(c).is_null())
-            #         .then(0)
-            #         .otherwise(pl.col(c))
-            #         .alias(c)
-            #     )
 
     unique_channels = unique_channels.cast(Channel.polars_type_dict())  # type: ignore
     unique_channels = unique_channels.rename(
@@ -127,15 +112,6 @@ def parse_channels(df: pl.DataFrame) -> pl.DataFrame:
             Channel.map_polars_struct_to_string, return_dtype=pl.String()
         )
     )
-
-    # for c in Channel.members(MemberType.PRIMARY):
-    #     if unique_channels[c].dtype == pl.String():
-    #         pl_enum = pl.Enum(pl.Series(unique_channels[c].unique()))
-    #         unique_channels = unique_channels.with_columns(
-    #             pl.col(c).cast(pl_enum)
-    #         )
-    #     elif c == "country_flag":
-    #         pl.col(c).cast(PolarsCountryFlagType)
 
     if "raw_channel" not in df.columns and "channel" in df.columns:
         df = df.rename({"channel": "raw_channel"})

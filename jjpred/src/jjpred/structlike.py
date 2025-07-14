@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import _MISSING_TYPE, Field, dataclass, field
 import dataclasses
 from enum import Enum, auto
-from functools import total_ordering
+from functools import lru_cache, total_ordering
 from typing import (
     Any,
     Hashable,
