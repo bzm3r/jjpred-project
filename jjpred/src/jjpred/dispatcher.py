@@ -765,7 +765,10 @@ class Dispatcher:
                 force_po_predictions=self.analysis_defn.jjweb_reserve_info.force_reserve_po_prediction,
             )
 
-        if self.reserved_quantity is not None:
+        if (
+            self.reserved_quantity is not None
+            and len(self.reserved_quantity) > 0
+        ):
             self.all_sku_info = self.all_sku_info.join(
                 self.reserved_quantity.group_by("sku", "a_sku")
                 .agg(pl.col.reserved.sum().round().cast(pl.Int64()))
