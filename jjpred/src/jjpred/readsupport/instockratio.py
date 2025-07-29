@@ -461,6 +461,7 @@ def read_isr_from_excel_file_given_meta_info(
                 .cast(pl.Int16())
             )
         )
+        .filter(~pl.col.date.gt(pl.col.data_date))
         .drop("month_end_date")
     )
 
