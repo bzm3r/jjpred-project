@@ -619,6 +619,33 @@ def check_dispatch_results(
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "all": active_results,
         "reserved": dispatcher.reserved_quantity,
+        "reserve_percent_sku": active_results.filter(pl.col.reserved.gt(0))
+        .select("sku", "category", "wh_stock", "reserved")
+        .unique()
+        .sort("sku")
+        .with_columns(
+            reserve_percent=pl.when(
+                pl.col.wh_stock.eq(0) | pl.col.wh_stock.lt(pl.col.reserved)
+            )
+            .then(1.0)
+            .otherwise(pl.col.reserved / pl.col.wh_stock)
+        )
+        .sort("reserved", descending=True),
+        "reserve_percent_category": active_results.filter(
+            pl.col.reserved.gt(0)
+        )
+        .select("sku", "category", "wh_stock", "reserved")
+        .unique()
+        .group_by("category")
+        .agg(pl.col.wh_stock.sum(), pl.col.reserved.sum())
+        .with_columns(
+            reserve_percent=pl.when(
+                pl.col.wh_stock.eq(0) | pl.col.wh_stock.lt(pl.col.reserved)
+            )
+            .then(1.0)
+            .otherwise(pl.col.reserved / pl.col.wh_stock)
+        )
+        .sort("reserved", descending=True),
         "multi_a_sku": multi_a_sku_df,
     }
 

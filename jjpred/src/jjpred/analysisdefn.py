@@ -325,7 +325,7 @@ class OutperformerSettings:
     Note that currently this setting assumes we are working in the Northern Hemisphere."""
 
 
-FW_RESERVATION_MONTHS = [(8, 1)]
+FW_RESERVATION_MONTHS = [(7, 1)]
 """If the item is FW: then the reservation period is: Aug to Jan (not inclusive)."""
 SS_TYPICAL_RESERVATION_MONTHS = [(2, 6)]
 """If the item is SS: then typically the reservation period is: Feb to Jun (not

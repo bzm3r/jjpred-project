@@ -1005,6 +1005,9 @@ class Dispatcher:
             .otherwise(pl.col.no_qty_box_info)
         )
 
+        find_dupes(
+            self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
+        )
         assert len(
             self.all_sku_info.select(Channel.members()).unique()
         ) == len(self.dispatch_channels)

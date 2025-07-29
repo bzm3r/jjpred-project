@@ -81,13 +81,16 @@ def write_excel(
     autofit: bool = False,
     column_formats: pltypes.ColumnFormatDict | None = None,
     conditional_formats: dict | None = None,
+    nan_inf_to_errors: bool = False,
 ) -> Path:
     print(f"Saving to: {save_path}")
 
     if save_path.exists():
         save_path.unlink()
 
-    with xlw.Workbook(save_path) as workbook:
+    with xlw.Workbook(
+        save_path, {"nan_inf_to_errors": nan_inf_to_errors}
+    ) as workbook:
         for key, df in sheet_dict.items():
             if df is not None:
                 convert_df_for_excel(df).write_excel(
