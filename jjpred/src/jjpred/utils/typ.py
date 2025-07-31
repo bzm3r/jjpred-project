@@ -87,6 +87,15 @@ def as_polars_type[T: pl.DataType | pl.Expr](x: Any, required: type[T]) -> T:
         raise TypeError(f"{x} is not of type {required}")
 
 
+def cast_str_list_to_polars_enum_series(
+    xs: list[str], reference_df: pl.DataFrame, reference_column: str
+) -> pl.Series:
+    enum_dtype = as_polars_type(reference_df[reference_column].dtype, pl.Enum)
+    return pl.Series(
+        [x for x in xs if x in enum_dtype.categories], dtype=enum_dtype
+    )
+
+
 def do_nothing[T](x: T) -> T:
     """Takes an input, and returns it. The identity function."""
     return x
