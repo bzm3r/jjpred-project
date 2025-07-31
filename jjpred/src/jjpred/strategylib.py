@@ -185,7 +185,6 @@ REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
         ("HBU",): "HBS",
         ("HLC", "HXC", "HXU"): "HXP",
         ("HJS", "AJS", "ACB", "ACA", "AAA", "HLH"): "HCF0",
-        ("SPW", "SJF"): "SKB",
         ("BSL",): "BSA",
     }
 )
