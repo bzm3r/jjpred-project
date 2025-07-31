@@ -447,7 +447,9 @@ class DataBase:
                                 )
                             ),
                             is_active=pl.col("a_sku").is_in(
-                                self.meta_info.active_sku["a_sku"]
+                                self.meta_info.active_sku["a_sku"].cast(
+                                    pl.String()
+                                )
                             ),
                         )
                         .filter(
@@ -508,7 +510,9 @@ class DataBase:
                     )
                     .filter(
                         pl.col.sku.is_in(
-                            self.meta_info.all_sku["sku"].unique()
+                            self.meta_info.all_sku["sku"]
+                            .unique()
+                            .cast(pl.String())
                         )
                     )
                     .filter(
@@ -532,7 +536,9 @@ class DataBase:
                 [self.meta_info.all_sku],
                 self.dfs[DataVariant.History].filter(
                     ~pl.col.a_sku.is_in(ignore_a_skus),
-                    pl.col.a_sku.is_in(self.meta_info.all_sku["a_sku"]),
+                    pl.col.a_sku.is_in(
+                        self.meta_info.all_sku["a_sku"].cast(pl.String())
+                    ),
                 ),
             ).join(
                 # we might want to pick out "category" (corresponding to

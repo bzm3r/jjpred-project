@@ -12,7 +12,7 @@ def merge_wholesale(
 ) -> pl.DataFrame:
     wholesale_data, other_data = binary_partition_strict(
         df,
-        pl.col.channel.is_in(
+        pl.col.channel.cast(pl.String()).is_in(
             [
                 Channel.parse(x).pretty_string_repr()
                 for x in [
