@@ -165,7 +165,7 @@ AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
 # from historic_extract.ipynb
 REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
     data={
-        ("AJA",): "WJT",
+        ("AJA", "AWWJ"): "WJT",
         ("WPO", "WJO", "FSM", "FJM"): "FPM",
         ("GBX",): "GUX",
         ("GHA",): "GUA",
@@ -180,7 +180,6 @@ REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
         ("LBP", "LBT"): "LAB",
         ("SMF", "SWS"): "SKG",
         ("LAN", "WBF"): "WPF",
-        ("AWWJ", "WJT"): "WJA",
         ("WGS", "WRM"): "WMT",
         ("UST",): "UT1",
         ("HBU",): "HBS",
