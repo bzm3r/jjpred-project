@@ -212,13 +212,13 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
                 "UJ1",
                 "UV2",
                 "HXP",
-            ): ALL_CHANNEL_AGGREGATOR,
+            ): ALL_CAN_US_RETAIL_AGGREGATOR,
             ("FMR", "KEH", "BSW", "BSA", "BRC", "KMT"): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
     Channel.parse("Wholesale"): MultiDict(
         data={
-            ("XBM", "LBS", "FPM", "BCV"): ALL_CHANNEL_AGGREGATOR,
+            ("XBM", "LBS", "FPM", "BCV"): ALL_CAN_US_RETAIL_AGGREGATOR,
             ("UST", "HBU", "HLC", "HXC", "HXU", "HXP"): AMAZON_CA_AGGREGATOR,
         }
     ).as_dict(),
@@ -405,7 +405,7 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
                 "UJ1",
                 "UV2",
                 "HXP",
-            ): ALL_CHANNEL_AGGREGATOR
+            ): ALL_CAN_US_RETAIL_AGGREGATOR
         }
     ).as_dict(),
 }
