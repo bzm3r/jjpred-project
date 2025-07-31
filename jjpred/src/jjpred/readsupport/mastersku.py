@@ -34,7 +34,7 @@ from jjpred.utils.polars import (
     find_dupes,
     sanitize_excel_extraction,
 )
-from jjpred.utils.typ import RuntimeCheckableDataclass
+from jjpred.utils.typ import RuntimeCheckableDataclass, as_polars_type
 
 
 def column_renamer(x: str) -> str:
@@ -1290,7 +1290,16 @@ def read_master_sku_excel_file(
         .unique()
         .join(
             convert_dict_to_polars_df(
-                NUMERIC_SIZE_MAP, "size", "numeric_size"
+                {
+                    k: v
+                    for k, v in NUMERIC_SIZE_MAP.items()
+                    if k
+                    in as_polars_type(
+                        master_sku_df["size"].dtype, pl.Enum
+                    ).categories
+                },
+                "size",
+                "numeric_size",
             ).cast(
                 {
                     "size": master_sku_df["size"].dtype,
