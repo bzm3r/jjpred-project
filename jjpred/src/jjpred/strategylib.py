@@ -12,9 +12,8 @@ from functools import total_ordering
 from analysis_tools.utils import get_analysis_defn_and_db
 from jjpred.aggregator import (
     Aggregator,
-    UsingAllChannels,
     UsingCanUSRetail,
-    UsingRetail,
+    UsingChannels,
 )
 from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
@@ -60,9 +59,8 @@ LATEST = StrategyId("latest")
 AUG_BIG = StrategyId("aug_big")
 PO_DOUBLE_CHECK = StrategyId("po_double_check")
 
-ALL_CHANNEL_AGGREGATOR = UsingAllChannels()
 ALL_CAN_US_RETAIL_AGGREGATOR = UsingCanUSRetail()
-AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
+AMAZON_CA_AGGREGATOR = UsingChannels(["Amazon.ca"])
 
 # # generated using mainprogram_current_period_defn.ipynb
 # CURRENT_PERIODS: MultiDict[Category, SimpleTimePeriod] = MultiDict(

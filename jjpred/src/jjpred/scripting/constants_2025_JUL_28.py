@@ -65,7 +65,7 @@ analysis_defn_test = FbaRevDefn.from_args(
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="test",
+        extra_descriptor="test_simple_agg",
     )
 )
 
