@@ -619,8 +619,112 @@ def check_dispatch_results(
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "all": active_results,
         "reserved": dispatcher.reserved_quantity,
+        "reserved_conflict_sku": (
+            active_results.filter(pl.col.reserved.gt(0))
+            .select(
+                "sku",
+                *Channel.members(),
+                "category",
+                "wh_stock",
+                "wh_on_order",
+                "reserved_before_on_order",
+                "reserved",
+                "wh_dispatchable",
+                "required",
+                "total_required",
+                "dispatch",
+            )
+            .sort("sku")
+            .with_columns(
+                total_possible_dispatch=pl.min_horizontal(
+                    pl.col.total_required,
+                    pl.col.wh_dispatchable + pl.col.reserved,
+                )
+            )
+            .filter(pl.col.total_possible_dispatch.gt(0))
+            .with_columns(
+                total_dispatch=pl.col.dispatch.sum().over("sku"),
+            )
+            .with_columns(
+                reserve_percent=pl.when(
+                    pl.col.wh_stock.eq(0) | pl.col.wh_stock.lt(pl.col.reserved)
+                )
+                .then(1.0)
+                .otherwise(pl.col.reserved / pl.col.wh_stock),
+            )
+            # .with_columns(
+            #     total_dispatched_over_total_required=pl.col.total_dispatch
+            #     / pl.col.total_required,
+            # )
+            .with_columns(
+                total_dispatch_over_total_possible_dispatch=pl.col.total_dispatch
+                / pl.col.total_possible_dispatch,
+            )
+            .sort("total_dispatch_over_total_possible_dispatch")
+            .filter(~pl.col.total_dispatch.ge(pl.col.total_possible_dispatch))
+        ),
+        "reserved_conflict_category": (
+            active_results.filter(pl.col.reserved.gt(0))
+            .select(
+                "sku",
+                *Channel.members(),
+                "category",
+                "wh_stock",
+                "wh_on_order",
+                "reserved_before_on_order",
+                "reserved",
+                "wh_dispatchable",
+                "required",
+                "total_required",
+                "dispatch",
+            )
+            .sort("sku")
+            .with_columns(
+                total_possible_dispatch=pl.min_horizontal(
+                    pl.col.total_required,
+                    pl.col.wh_dispatchable + pl.col.reserved,
+                )
+            )
+            .filter(pl.col.total_possible_dispatch.gt(0))
+            .with_columns(
+                total_dispatch=pl.col.dispatch.sum().over("sku"),
+            )
+            .group_by("category", *Channel.members())
+            .agg(
+                pl.col.wh_stock.sum(),
+                pl.col.wh_on_order.sum(),
+                pl.col.reserved_before_on_order.sum(),
+                pl.col.reserved.sum(),
+                pl.col.wh_dispatchable.sum(),
+                pl.col.required.sum(),
+                pl.col.total_required.sum(),
+                pl.col.dispatch.sum(),
+                pl.col.total_dispatch.sum(),
+                pl.col.total_possible_dispatch.sum(),
+            )
+            .with_columns(
+                reserve_percent=pl.when(
+                    pl.col.wh_stock.eq(0) | pl.col.wh_stock.lt(pl.col.reserved)
+                )
+                .then(1.0)
+                .otherwise(pl.col.reserved / pl.col.wh_stock),
+            )
+            .with_columns(
+                total_dispatch_over_total_possible_dispatch=pl.col.total_dispatch
+                / pl.col.total_possible_dispatch,
+            )
+            .sort("total_dispatch_over_total_possible_dispatch")
+            .filter(~pl.col.total_dispatch.ge(pl.col.total_possible_dispatch))
+        ),
         "reserve_percent_sku": active_results.filter(pl.col.reserved.gt(0))
-        .select("sku", "category", "wh_stock", "reserved")
+        .select(
+            "sku",
+            "category",
+            "wh_stock",
+            "wh_on_order",
+            "reserved_before_on_order",
+            "reserved",
+        )
         .unique()
         .sort("sku")
         .with_columns(
@@ -634,10 +738,22 @@ def check_dispatch_results(
         "reserve_percent_category": active_results.filter(
             pl.col.reserved.gt(0)
         )
-        .select("sku", "category", "wh_stock", "reserved")
+        .select(
+            "sku",
+            "category",
+            "wh_stock",
+            "wh_on_order",
+            "reserved_before_on_order",
+            "reserved",
+        )
         .unique()
         .group_by("category")
-        .agg(pl.col.wh_stock.sum(), pl.col.reserved.sum())
+        .agg(
+            pl.col.wh_stock.sum(),
+            pl.col.wh_on_order.sum(),
+            pl.col.reserved_before_on_order.sum(),
+            pl.col.reserved.sum(),
+        )
         .with_columns(
             reserve_percent=pl.when(
                 pl.col.wh_stock.eq(0) | pl.col.wh_stock.lt(pl.col.reserved)

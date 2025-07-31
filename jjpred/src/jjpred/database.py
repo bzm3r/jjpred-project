@@ -483,40 +483,48 @@ class DataBase:
             else pl.Series(IGNORE_SKU_LIST)
         )
         # ignore_skus = self.meta_info.ignored_sku["sku"].unique()
-        self.dfs[DataVariant.Inventory] = parse_channels(
-            cast_standard(
-                [self.meta_info.all_sku],
-                self.dfs[DataVariant.Inventory].filter(
-                    ~pl.col.a_sku.is_in(ignore_a_skus)
-                ),
-            )
-        ).join(self.meta_info.all_sku.select("sku", "a_sku"), on="a_sku")
-        self.dfs[DataVariant.Inventory] = self.dfs[
-            DataVariant.Inventory
-        ].vstack(
-            cast_standard(
-                [self.meta_info.all_sku],
-                read_inventory(
-                    self.analysis_defn,
-                    InventoryType.AUTO,
-                    read_from_disk=False,
-                    overwrite=overwrite,
+        self.dfs[DataVariant.Inventory] = (
+            parse_channels(
+                cast_standard(
+                    [self.meta_info.all_sku],
+                    self.dfs[DataVariant.Inventory].filter(
+                        ~pl.col.a_sku.is_in(ignore_a_skus)
+                    ),
                 )
-                .filter(
-                    pl.col.sku.is_in(self.meta_info.all_sku["sku"].unique())
+            )
+            .join(self.meta_info.all_sku.select("sku", "a_sku"), on="a_sku")
+            .with_columns(on_order=pl.lit(0))
+        )
+        self.dfs[DataVariant.Inventory] = concat_enum_extend_vstack_strict(
+            [
+                self.dfs[DataVariant.Inventory],
+                cast_standard(
+                    [self.meta_info.all_sku],
+                    read_inventory(
+                        self.analysis_defn,
+                        InventoryType.AUTO,
+                        read_from_disk=False,
+                        overwrite=overwrite,
+                    )
+                    .filter(
+                        pl.col.sku.is_in(
+                            self.meta_info.all_sku["sku"].unique()
+                        )
+                    )
+                    .filter(
+                        ~pl.col.category.is_in(pl.Series(IGNORE_CATEGORY_LIST))
+                    ),
                 )
-                .filter(
-                    ~pl.col.category.is_in(pl.Series(IGNORE_CATEGORY_LIST))
-                ),
-            )
-            .join(
-                self.meta_info.all_sku.select("a_sku", "sku"),
-                on="sku",
-                how="left",
-                validate="m:1",
-                nulls_equal=True,
-            )
-            .select(self.dfs[DataVariant.Inventory].columns)
+                .join(
+                    self.meta_info.all_sku.select("a_sku", "sku"),
+                    on="sku",
+                    how="left",
+                    validate="m:1",
+                    nulls_equal=True,
+                )
+                .select(self.dfs[DataVariant.Inventory].columns),
+            ],
+            coerce_dtypes=True,
         )
 
         self.dfs[DataVariant.History] = parse_channels(

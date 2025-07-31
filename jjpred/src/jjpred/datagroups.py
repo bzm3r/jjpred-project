@@ -130,6 +130,7 @@ INVENTORY_INFO = [
     "jjweb_inv_3pl",
     "jjweb_east_frac",
     "has_reservation",
+    "reserved_before_on_order",
     "reserved",
     "wh_dispatchable_accounting_jjweb_west",
     "wh_dispatchable_accounting_jjweb_east",

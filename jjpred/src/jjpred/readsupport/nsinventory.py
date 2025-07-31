@@ -85,16 +85,18 @@ def read_netsuite_surrey_inv(
         analysis_defn.warehouse_inventory_date
     )
 
-    use_columns = [
-        "Name",
-        "Warehouse Available",
-        "Item Parent Category",
-        "Base Price",
-        "Item Category SKU",
-    ]
-    rename_map = {k: k.lower() for k in use_columns} | {
+    use_columns = {
+        "Name": pl.String(),
+        "Warehouse Available": pl.Int64(),
+        "Warehouse On Order": pl.Int64(),
+        "Item Parent Category": pl.String(),
+        "Base Price": pl.String(),
+        "Item Category SKU": pl.String(),
+    }
+    rename_map = {k: k.lower() for k in use_columns.keys()} | {
         "Name": "sku",
         "Warehouse Available": "stock",
+        "Warehouse On Order": "on_order",
         "Item Parent Category": "item_category",
         "Base Price": "price",
         "Item Category SKU": "category",
@@ -104,11 +106,14 @@ def read_netsuite_surrey_inv(
             pl.read_csv(
                 inventory_path,
                 has_header=True,
-                columns=use_columns,
+                columns=list(use_columns.keys()),
             )
         )
         .rename(rename_map)
-        .with_columns(channel=pl.lit("Warehouse CA"))
+        .with_columns(
+            channel=pl.lit("Warehouse CA"),
+            on_order=pl.col.on_order.fill_null(0),
+        )
     )
 
     ns_inv_df = parse_channels(raw_df)
@@ -144,6 +149,7 @@ def read_netsuite_inv(
         "Name": pl.String(),
         "Inventory Warehouse": pl.String(),
         "Warehouse Available": pl.Int64(),
+        "Warehouse On Order": pl.Int64(),
         "Item Parent Category": pl.String(),
         "Base Price": pl.String(),
         "Item Category SKU": pl.String(),
@@ -152,20 +158,27 @@ def read_netsuite_inv(
         "Name": "sku",
         "Inventory Warehouse": "channel",
         "Warehouse Available": "stock",
+        "Warehouse On Order": "on_order",
         "Item Parent Category": "item_category",
         "Base Price": "price",
         "Item Category SKU": "category",
     }
-    raw_df = sanitize_excel_extraction(
-        pl.read_csv(
-            inventory_path,
-            has_header=True,
-            columns=list(use_columns.keys()),
-            schema_overrides=use_columns,
+    raw_df = (
+        sanitize_excel_extraction(
+            pl.read_csv(
+                inventory_path,
+                has_header=True,
+                columns=list(use_columns.keys()),
+                schema_overrides=use_columns,
+            )
+            .filter(~pl.col("Base Price").str.ends_with("%"))
+            .with_columns(pl.col("Base Price").cast(pl.Float64()))
         )
-        .filter(~pl.col("Base Price").str.ends_with("%"))
-        .with_columns(pl.col("Base Price").cast(pl.Float64()))
-    ).rename(rename_map)
+        .rename(rename_map)
+        .with_columns(
+            on_order=pl.col.on_order.fill_null(0),
+        )
+    )
 
     ns_inv_df = parse_channels(
         raw_df.filter(

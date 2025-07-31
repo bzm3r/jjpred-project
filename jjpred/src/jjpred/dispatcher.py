@@ -287,7 +287,7 @@ def attach_inventory_info(
 ) -> pl.DataFrame:
     inv_df = struct_filter(db.dfs[DataVariant.Inventory], filters)
     wh_stock, ch_stock = binary_partition_strict(
-        inv_df.select(WHOLE_SKU_IDS + CHANNEL_IDS + ["stock"]),
+        inv_df.select(WHOLE_SKU_IDS + CHANNEL_IDS + ["stock", "on_order"]),
         warehouse_filter,
     )
     wh_stock = (
@@ -295,10 +295,10 @@ def attach_inventory_info(
             pl.col("country_flag").eq(int(CountryFlags.CA)),
         )
         .drop(Channel.members())
-        .rename({"stock": "wh_stock"})
-        .select(WHOLE_SKU_IDS + ["wh_stock"])
+        .rename({"stock": "wh_stock", "on_order": "wh_on_order"})
+        .select(WHOLE_SKU_IDS + ["wh_stock", "wh_on_order"])
     )
-    ch_stock = ch_stock.rename({"stock": "ch_stock"})
+    ch_stock = ch_stock.drop("on_order").rename({"stock": "ch_stock"})
 
     all_sku_info = override_sku_info(
         all_sku_info,
@@ -794,6 +794,11 @@ class Dispatcher:
             .and_(pl.col("mode").eq(DistributionMode.WAREHOUSE.name)),
             analysis_defn.warehouse_min_keep_qty,
             self.filters,
+        ).with_columns(
+            reserved_before_on_order=pl.col.reserved,
+            reserved=pl.max_horizontal(
+                pl.col.reserved - pl.col.wh_on_order, 0
+            ),
         )
         assert len(
             self.all_sku_info.select(Channel.members()).unique()

@@ -20,7 +20,7 @@ args = FbaRevDefnArgs(
     current_seasons=CurrentSeasonDefn(FW=25, SS=25),
     dispatch_date="2025-JUL-28",
     master_sku_date="2025-JUL-28",
-    sales_and_inventory_date="2025-JUL-28",
+    sales_and_inventory_date="2025-JUL-29",
     warehouse_inventory_date="2025-JUL-28",
     in_stock_ratio_date="2025-JUL-04",
     website_sku_date="2025-MAR-18",
