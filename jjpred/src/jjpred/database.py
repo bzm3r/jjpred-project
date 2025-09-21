@@ -17,7 +17,7 @@ from pathlib import Path
 import polars as pl
 import polars.selectors as cs
 from jjpred.analysisdefn import AnalysisDefn, RefillDefn
-from jjpred.channel import Channel, Platform
+from jjpred.channel import Channel, Platform, SubCountry
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
@@ -615,24 +615,41 @@ class DataBase:
                 .agg(pl.col.sales.sum())
             )
 
-        jjweb_history, other_history = binary_partition_strict(
+        # jjweb_history, other_history = binary_partition_strict(
+        #     self.dfs[DataVariant.History],
+        #     pl.col.platform.eq(Platform.JJWeb.name),
+        # )
+        # aggregated_jjweb_history = (
+        #     jjweb_history.group_by("a_sku", "date", "category")
+        #     .agg(pl.col.sales.sum())
+        #     .join(
+        #         self.meta_info.channel.filter(
+        #             pl.col.channel.eq(
+        #                 Channel.parse("janandjul.com").pretty_string_repr()
+        #             )
+        #         ),
+        #         how="cross",
+        #     )
+        # )
+
+        sub_country_specific_history, other_history = binary_partition_strict(
             self.dfs[DataVariant.History],
-            pl.col.platform.eq(Platform.JJWeb.name),
+            pl.col.sub_country.ne(SubCountry.ALL.name),
         )
-        aggregated_jjweb_history = (
-            jjweb_history.group_by("a_sku", "date", "category")
+        aggregated_subcountry_specific_history = (
+            sub_country_specific_history.group_by(
+                "a_sku", "date", "category", "platform", "country", "mode"
+            )
             .agg(pl.col.sales.sum())
             .join(
-                self.meta_info.channel.filter(
-                    pl.col.channel.eq(
-                        Channel.parse("janandjul.com").pretty_string_repr()
-                    )
-                ),
-                how="cross",
+                self.meta_info.channel,
+                on=["platform", "country", "mode"],
+                how="left",
             )
         )
+
         self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
-            [aggregated_jjweb_history, other_history]
+            [aggregated_subcountry_specific_history, other_history]
         )
         assert (
             len(
@@ -642,8 +659,11 @@ class DataBase:
             )
             == 0
         )
-        self.meta_info.expanded_jjweb_history = jjweb_history.filter(
-            pl.col.sub_country.ne("ALL")
+        self.meta_info.expanded_jjweb_history = (
+            sub_country_specific_history.filter(
+                pl.col.sub_country.ne("ALL")
+                & pl.col.platform.eq(Platform.JJWeb)
+            )
         )
 
         self.filter()

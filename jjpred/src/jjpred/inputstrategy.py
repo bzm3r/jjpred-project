@@ -146,8 +146,10 @@ class RefillType(EnumLike):
                 return Date.from_datelike("2025-OCT-01")
             case RefillType.END_OF_NOV_2025:
                 start_date = Date.from_datelike(start_date)
-                assert start_date == Date.from_datelike("2025-JUL-28"), (
-                    start_date
+                assert (
+                    start_date == Date.from_datelike("2025-JUL-28")
+                    or start_date == Date.from_datelike("2025-AUG-25")
+                    or start_date == Date.from_datelike("2025-SEP-18")
                 )
                 return Date.from_datelike("2025-DEC-01")
             case value:
