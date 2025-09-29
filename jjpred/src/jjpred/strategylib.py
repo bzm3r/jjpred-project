@@ -305,6 +305,7 @@ PER_CHANNEL_REFERENCE_CHANNELS: Mapping[
         }
     ).as_dict(),
     Channel.parse("janandjul.com"): ALL_CAN_US_RETAIL_AGGREGATOR,
+    Channel.parse("jjweb ca east"): UsingRetail(["jjweb ca east"]),
     Channel.parse("Amazon DE"): MultiDict(
         data={
             (
@@ -474,6 +475,7 @@ def get_strategy_from_library(
                 "amazon.com",
                 "amazon.ca",
                 "janandjul.com",
+                "jjweb ca east",
                 "wholesale",
                 "amazon.co.uk",
                 "amazon.de",

@@ -172,18 +172,24 @@ def attach_refill_info_from_config(
         all_sku_info, config_data.refill, fill_null_value=PolarsLit(0)
     )
 
+    for x in ["is_config_paused", "refill_request"]:
+        if x not in all_sku_info.columns:
+            all_sku_info = all_sku_info.with_columns(pl.lit(False).alias(x))
+
     all_sku_info = all_sku_info.with_columns(
         is_config_paused=pl.when(
-            pl.struct(*Channel.members()).eq(
-                Channel.parse("janandjul.com").as_dict()
-            )
+            pl.col.platform.eq(Platform.JJWeb.name)
+            # pl.struct(*Channel.members()).eq(
+            #     Channel.parse("janandjul.com").as_dict()
+            # )
         )
         .then(pl.lit(False))
         .otherwise(pl.col.is_config_paused),
         refill_request=pl.when(
-            pl.struct(*Channel.members()).eq(
-                Channel.parse("janandjul.com").as_dict()
-            )
+            pl.col.platform.eq(Platform.JJWeb.name)
+            # pl.struct(*Channel.members()).eq(
+            #     Channel.parse("janandjul.com").as_dict()
+            # )
         )
         .then(pl.lit(1))
         .otherwise(pl.col.refill_request),

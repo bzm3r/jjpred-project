@@ -650,6 +650,11 @@ class DataBase:
         #     )
         # )
 
+        expanded_jjweb_history = jjweb_history.filter(
+            pl.col.sub_country.ne("ALL")
+            & pl.col.platform.eq(Platform.JJWeb.name)
+        )
+
         self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
             [aggregated_jjweb_history, other_history]
         )
@@ -657,16 +662,16 @@ class DataBase:
             len(
                 self.dfs[DataVariant.History].filter(
                     pl.col.sub_country.ne("ALL")
+                    & pl.col.platform.ne(Platform.Wholesale.name)
                 )
             )
             == 0
         )
-        self.meta_info.expanded_jjweb_history = (
-            aggregated_jjweb_history.filter(
-                pl.col.sub_country.ne("ALL")
-                & pl.col.platform.eq(Platform.JJWeb)
-            )
+
+        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
+            [self.dfs[DataVariant.History], expanded_jjweb_history]
         )
+        self.meta_info.expanded_jjweb_history = expanded_jjweb_history
 
         self.filter()
 

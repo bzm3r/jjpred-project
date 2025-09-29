@@ -8,7 +8,7 @@ import polars as pl
 
 from analysis_tools.utils import get_analysis_defn_and_db
 from jjpred.analysisdefn import RefillDefn
-from jjpred.channel import Channel, DistributionMode
+from jjpred.channel import Channel, DistributionMode, Platform
 from jjpred.datagroups import (
     ALL_IDS,
     ALL_SKU_AND_CHANNEL_IDS,
@@ -23,7 +23,10 @@ from jjpred.datagroups import (
 )
 from jjpred.countryflags import CountryFlags
 from jjpred.database import DataBase
-from jjpred.dispatchformatter import format_dispatch_for_netsuite
+from jjpred.dispatchformatter import (
+    format_fba_dispatch_for_netsuite,
+    format_jjweb_dispatch_for_netsuite,
+)
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
 from jjpred.predictor import Predictor
 from jjpred.readsheet import DataVariant
@@ -808,7 +811,7 @@ class Dispatcher:
                 ch_stock=pl.when(pl.col.is_active).then(pl.lit(0))
             )
 
-        jjweb_channel = Channel.parse("janandjul.com")
+        # jjweb_channel = Channel.parse("janandjul.com")
 
         skus_with_reservation = self.all_sku_info.filter(
             pl.col.reserved.gt(0)
@@ -829,7 +832,8 @@ class Dispatcher:
             )
             .with_columns(
                 reserved=pl.when(
-                    pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
+                    pl.col.platform.eq(Platform.JJWeb.name)
+                    # pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
                 )
                 .then(pl.lit(0))
                 .otherwise(pl.col.reserved)
@@ -922,13 +926,18 @@ class Dispatcher:
             self.dispatch_end,
         ).filter(
             ~(
-                pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
+                # pl.struct(Channel.members()).eq(jjweb_channel.as_dict())
+                pl.col.platform.eq(Platform.JJWeb.name)
                 & pl.col.sku.is_in(skus_with_reservation)
             )
         )
 
         if self.analysis_defn.jjweb_reserve_info is not None:
-            if jjweb_channel in self.dispatch_channels:
+            if any(
+                (x.platform == Platform.JJWeb.name)
+                for x in self.dispatch_channels
+            ):
+                # if jjweb_channel in self.dispatch_channels:
                 demand_predictions = concat_enum_extend_vstack_strict(
                     [
                         demand_predictions,
@@ -936,7 +945,8 @@ class Dispatcher:
                             [
                                 x
                                 for x in self.dispatch_channels
-                                if x == jjweb_channel
+                                if x.platform == Platform.JJWeb.name
+                                # if x == jjweb_channel
                             ],
                             self.analysis_defn.dispatch_date,
                             self.analysis_defn.jjweb_reserve_info.prediction_offset_3pl_when_reservation_on.apply_to(
@@ -1167,27 +1177,15 @@ class Dispatcher:
         if calculated_dispatch is None:
             calculated_dispatch = self.calculate_dispatch()
 
-        final_dispatch = calculated_dispatch.filter(
-            pl.col("is_active")
-            & ~(
-                pl.col("is_master_paused")
-                | pl.col("is_config_paused")
-                | pl.col("dispatch_below_cutoff")
-            )
-        )
+        final_dispatch = calculated_dispatch.filter(pl.col.dispatch.gt(0))
 
         if dispatch_filter is not None:
             final_dispatch = final_dispatch.filter(dispatch_filter)
 
-        raise NotImplementedError("Not yet implemented!")
+        # raise NotImplementedError("Not yet implemented!")
 
         sheets = {
-            "US": format_dispatch_for_netsuite(
-                self.analysis_defn.date,
-                final_dispatch,
-                CountryFlags.US,
-            ),
-            "CA": format_dispatch_for_netsuite(
+            "EAST": format_jjweb_dispatch_for_netsuite(
                 self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.CA,
@@ -1210,7 +1208,7 @@ class Dispatcher:
             for x in sheets.keys():
                 result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
                     Path(
-                        f"TO_SRR_FBA{x}{self.analysis_defn.date.fmt_flat()}.csv"
+                        f"TO_SRR_JJWEB{x}{self.analysis_defn.date.fmt_flat()}.csv"
                     )
                 )
                 sheets[x].write_csv(result_path)
@@ -1253,13 +1251,13 @@ class Dispatcher:
             final_dispatch = final_dispatch.filter(dispatch_filter)
 
         sheets = {
-            "US": format_dispatch_for_netsuite(
+            "US": format_fba_dispatch_for_netsuite(
                 self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.US,
                 extra_cols=extra_cols,
             ),
-            "CA": format_dispatch_for_netsuite(
+            "CA": format_fba_dispatch_for_netsuite(
                 self.analysis_defn.date,
                 final_dispatch,
                 CountryFlags.CA,

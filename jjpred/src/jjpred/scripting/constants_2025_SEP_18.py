@@ -98,7 +98,7 @@ analysis_defn_test_jj_expanded = FbaRevDefn.from_args(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
-        use_old_current_period_method=True,
+        use_old_current_period_method=False,
         extra_descriptor="test_jj_expanded",
     )
 )

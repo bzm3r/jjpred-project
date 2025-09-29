@@ -20,7 +20,7 @@ def determine_season(month: int) -> str:
         return "F"
 
 
-def format_dispatch_for_netsuite(
+def format_fba_dispatch_for_netsuite(
     analysis_date: DateLike,
     dispatch_results: pl.DataFrame,
     country_flag: CountryFlags,
@@ -73,6 +73,65 @@ def format_dispatch_for_netsuite(
             "MEMO",
             "ORDER PLACED BY",
             "FBA SKUs",
+            *extra_cols,
+        )
+    )
+
+    return formatted_results
+
+
+def format_jjweb_dispatch_for_netsuite(
+    analysis_date: DateLike,
+    dispatch_results: pl.DataFrame,
+    country_flag: CountryFlags,
+    extra_cols: list[str] = [],
+) -> pl.DataFrame:
+    """Format a dispatch result dataframe as a NetSuite-style output file."""
+
+    country_str = country_flag.try_to_string()
+    # we expect that there is some country
+    if country_str is None:
+        raise ValueError(
+            f"No logic for handling {country_flag=} with "
+            f"string representation {country_str=}"
+        )
+    # for FBA dispatch, the country_flag should indicate a single country rather
+    # than a group of countries
+    assert len(country_str.split("|")) == 1, country_str.split("|")
+
+    date: Date = Date.from_datelike(analysis_date)
+
+    assert dispatch_results["dispatch"].dtype == pl.Int64()
+    formatted_results = (
+        dispatch_results.filter(pl.col.country_flag == int(country_flag))
+        .select("sku", "dispatch", *extra_cols)
+        .with_columns(pl.col.dispatch.cast(pl.UInt64()))
+        .rename({"sku": "ITEM", "dispatch": "Quantity"})
+        .with_columns(
+            pl.lit(date.format_as(r"%m/%d/%Y")).alias("Date"),
+            pl.lit("FBA Replenishment").alias("TO TYPE"),
+            pl.lit(
+                f"{date.format_as(r'%y')}{determine_season(date.month)}"
+            ).alias("SEASON"),
+            pl.lit("WH-SURREY").alias("FROM WAREHOUSE"),
+            pl.lit(f"WH-AMZ : FBA-{country_str}").alias("TO WAREHOUSE"),
+            pl.lit(f"TO-FBA{country_str}{date.format_as(r'%y%m%d')}").alias(
+                "REF NO"
+            ),
+            pl.lit("").alias("MEMO"),
+            pl.lit("Gloria Li").alias("ORDER PLACED BY"),
+        )
+        .select(
+            "Date",
+            "TO TYPE",
+            "SEASON",
+            "FROM WAREHOUSE",
+            "TO WAREHOUSE",
+            "ITEM",
+            "Quantity",
+            "REF NO",
+            "MEMO",
+            "ORDER PLACED BY",
             *extra_cols,
         )
     )

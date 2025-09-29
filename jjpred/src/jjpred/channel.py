@@ -460,10 +460,7 @@ KNOWN_CHANNEL_MATCHERS: dict[str, ChannelDictType] = MultiDict(
             DistributionMode.RETAIL,
             sub_country=SubCountry.ALL,
         ).as_dict(),
-        (
-            "ca.janandjul.com",
-            "janandjul.com (ca)",
-        ): RawChannel(
+        ("ca.janandjul.com", "janandjul.com (ca)", "jjweb ca"): RawChannel(
             Platform.JJWeb,
             CountryFlags.CA,
             DistributionMode.RETAIL,

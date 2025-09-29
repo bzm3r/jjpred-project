@@ -4,6 +4,7 @@ comparing it with actual dispatch data."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pandas import DataFrame
 import polars as pl
 from pathlib import Path
 
@@ -371,7 +372,9 @@ def check_dispatch_results(
             ]
         )
         .unique()
-        .sort(ALL_SKU_AND_CHANNEL_IDS),
+        .sort(ALL_SKU_AND_CHANNEL_IDS)
+        if "no_ch_stock_info" in unpaused_results
+        else pl.DataFrame(),
         "WH INV missing": unpaused_results.filter(
             pl.col("no_wh_stock_info") & pl.col("is_current_sku")
         )

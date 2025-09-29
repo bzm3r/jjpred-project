@@ -19,6 +19,8 @@ def merge_wholesale(
                     "Faire.com",
                     "Wholesale",
                     "Wholesale-CA",
+                    "Wholesale-CA (East)",
+                    "Wholesale-CA (West)",
                     "Wholesale-US",
                 ]
             ],
