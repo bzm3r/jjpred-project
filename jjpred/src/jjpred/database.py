@@ -16,8 +16,9 @@ from pathlib import Path
 
 import polars as pl
 import polars.selectors as cs
-from jjpred.analysisdefn import AnalysisDefn, RefillDefn
-from jjpred.channel import Channel, Platform, SubCountry
+from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn, RefillDefn
+from jjpred.channel import Channel, Platform
+from jjpred.eastwestfrac import calculate_east_west_fracs
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
 
@@ -115,6 +116,7 @@ class MetaInfo(MasterSkuInfo):
     expanded_jjweb_history: pl.DataFrame = field(init=False)
     """The channels associated with gathered historical/inventory
     information."""
+    east_west_fracs: pl.DataFrame | None = field(init=False)
 
     @classmethod
     def from_master_sku_result(cls, master_sku_result: MasterSkuInfo) -> Self:
@@ -619,59 +621,85 @@ class DataBase:
             self.dfs[DataVariant.History],
             pl.col.platform.eq(Platform.JJWeb.name),
         )
-        aggregated_jjweb_history = (
-            jjweb_history.group_by("a_sku", "date", "category")
-            .agg(pl.col.sales.sum())
-            .join(
-                self.meta_info.channel.filter(
-                    pl.col.channel.eq(
-                        Channel.parse("janandjul.com").pretty_string_repr()
-                    )
-                ),
-                how="cross",
-            )
-        )
 
-        # sub_country_specific_history, other_history = binary_partition_strict(
-        #     self.dfs[DataVariant.History],
-        #     pl.col.sub_country.ne(SubCountry.ALL.name),
-        # )
-        # aggregated_subcountry_specific_history = (
-        #     sub_country_specific_history.group_by(
-        #         "a_sku", "date", "category", "platform", "country_flag", "mode"
-        #     )
-        #     .agg(pl.col.sales.sum())
-        #     .join(
-        #         self.meta_info.channel.filter(
-        #             pl.col.sub_country.eq(SubCountry.ALL.name)
-        #         ),
-        #         on=["platform", "country_flag", "mode"],
-        #         how="left",
-        #     )
-        # )
-
-        expanded_jjweb_history = jjweb_history.filter(
-            pl.col.sub_country.ne("ALL")
-            & pl.col.platform.eq(Platform.JJWeb.name)
-        )
-
-        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
-            [aggregated_jjweb_history, other_history]
-        )
-        assert (
+        if (
             len(
-                self.dfs[DataVariant.History].filter(
-                    pl.col.sub_country.ne("ALL")
-                    & pl.col.platform.ne(Platform.Wholesale.name)
+                self.dfs[DataVariant.History]
+                .select(Channel.members())
+                .unique()
+                .filter(
+                    pl.struct(Channel.members()).eq(
+                        Channel.parse("janandjul.com").as_dict()
+                    )
                 )
             )
             == 0
-        )
+            and len(jjweb_history) > 0
+        ):
+            aggregated_jjweb_history = (
+                jjweb_history.group_by("a_sku", "date", "category")
+                .agg(pl.col.sales.sum())
+                .join(
+                    self.meta_info.channel.filter(
+                        pl.col.channel.eq(
+                            Channel.parse("janandjul.com").pretty_string_repr()
+                        )
+                    ),
+                    how="cross",
+                )
+            )
 
-        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
-            [self.dfs[DataVariant.History], expanded_jjweb_history]
-        )
-        self.meta_info.expanded_jjweb_history = expanded_jjweb_history
+            # sub_country_specific_history, other_history = binary_partition_strict(
+            #     self.dfs[DataVariant.History],
+            #     pl.col.sub_country.ne(SubCountry.ALL.name),
+            # )
+            # aggregated_subcountry_specific_history = (
+            #     sub_country_specific_history.group_by(
+            #         "a_sku", "date", "category", "platform", "country_flag", "mode"
+            #     )
+            #     .agg(pl.col.sales.sum())
+            #     .join(
+            #         self.meta_info.channel.filter(
+            #             pl.col.sub_country.eq(SubCountry.ALL.name)
+            #         ),
+            #         on=["platform", "country_flag", "mode"],
+            #         how="left",
+            #     )
+            # )
+
+            expanded_jjweb_history = jjweb_history.filter(
+                pl.col.sub_country.ne("ALL")
+                & pl.col.platform.eq(Platform.JJWeb.name)
+            )
+
+            self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
+                [aggregated_jjweb_history, other_history]
+            )
+            assert (
+                len(
+                    self.dfs[DataVariant.History].filter(
+                        pl.col.sub_country.ne("ALL")
+                        & pl.col.platform.ne(Platform.Wholesale.name)
+                    )
+                )
+                == 0
+            )
+
+            self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
+                [self.dfs[DataVariant.History], expanded_jjweb_history]
+            )
+
+            self.meta_info.expanded_jjweb_history = expanded_jjweb_history
+            self.meta_info.expanded_jjweb_history = pl.DataFrame(
+                schema=self.dfs[DataVariant.History].schema
+            )
+
+        if isinstance(self.analysis_defn, FbaRevDefn):
+            self.meta_info.east_west_fracs = calculate_east_west_fracs(
+                self.analysis_defn, self.dfs[DataVariant.History]
+            )
+        else:
+            self.meta_info.east_west_fracs = pl.DataFrame()
 
         self.filter()
 
@@ -701,6 +729,7 @@ class DataBase:
 
 def standardize_channel_info(
     dfs: dict[DataVariant, pl.DataFrame],
+    extra_channels: list[str | Channel] = ["jjweb ca east"],
 ) -> tuple[dict[DataVariant, pl.DataFrame], pl.DataFrame]:
     """Parse raw string channels in dataframes, interpret them as
     :py:class:`Channel` objects, and cast channel strings as
@@ -714,6 +743,22 @@ def standardize_channel_info(
         )
 
     assert channels is not None
+
+    for channel in extra_channels:
+        channel = Channel.parse(channel)
+        channels = concat_enum_extend_vstack_strict(
+            [
+                channels,
+                pl.from_dicts(
+                    [
+                        channel.as_dict(Channel.members())
+                        | {"channel": channel.pretty_string_repr()}
+                    ],
+                    schema=Channel.polars_type_dict()
+                    | {"channel": pl.String()},
+                ),
+            ]
+        )
 
     unique_channels = channels.unique()
     unique_channels = unique_channels.cast(

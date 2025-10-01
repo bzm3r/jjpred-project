@@ -8,8 +8,10 @@ import re
 import sys
 from typing import NamedTuple
 
+from analysis_tools.utils import get_analysis_defn_and_db
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel
+from jjpred.database import DataBase
 from jjpred.globalpaths import BRIAN_TWK_FOLDER
 from jjpred.readsheet import fill_unnamed_cols
 import polars as pl
@@ -28,6 +30,7 @@ from jjpred.utils.fileio import (
     write_df,
 )
 from jjpred.utils.polars import (
+    concat_enum_extend_vstack_strict,
     vstack_to_unified,
     find_dupes,
     sanitize_excel_extraction,
@@ -358,12 +361,14 @@ def rename_25SS_gra_to_asg_for_hca0_hcb0(
 
 
 def read_po(
-    analysis_defn: AnalysisDefn,
+    analysis_defn_or_db: AnalysisDefn | DataBase,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
     overwrite: bool = True,
 ) -> pl.DataFrame:
     disable_fastexcel_dtypes_logger()
+
+    analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
 
     po_per_sku_path = gen_support_info_path(
         analysis_defn,
@@ -428,6 +433,47 @@ def read_po(
 
     all_po_per_sku = rename_25SS_gra_to_asg_for_hca0_hcb0(
         active_sku_info, all_po_per_sku
+    )
+
+    jjweb_east_po = None
+
+    if (
+        db.meta_info.east_west_fracs is not None
+        and len(db.meta_info.east_west_fracs) > 0
+    ):
+        jjweb_east_po = (
+            all_po_per_sku.filter(
+                pl.struct(Channel.members()).eq(
+                    Channel.parse("janandjul.com").as_dict()
+                )
+            )
+            .drop(Channel.members())
+            .join(
+                db.meta_info.east_west_fracs.select("a_sku", "east_frac"),
+                on=["a_sku"],
+                validate="m:1",
+            )
+            .with_columns(sales=pl.col.sales * pl.col.east_frac)
+            .drop("east_frac")
+            .join(
+                db.meta_info.channel.filter(
+                    pl.struct(Channel.members()).eq(
+                        Channel.parse("jjweb ca east").as_dict()
+                    )
+                ).select(Channel.members()),
+                how="cross",
+            )
+        )
+
+        assert len(jjweb_east_po) > 0
+
+    po_df = concat_enum_extend_vstack_strict(
+        [x for x in [all_po_per_sku, jjweb_east_po] if x is not None]
+    )
+    find_dupes(
+        po_df,
+        ["sku", "po_year", "month", "po_season"] + Channel.members(),
+        raise_error=True,
     )
 
     write_df(overwrite, po_per_sku_path, all_po_per_sku)

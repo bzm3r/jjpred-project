@@ -74,33 +74,15 @@ def calculate_required(
     df = predicted_demand
 
     assert df["expected_demand"].dtype == pl.Int64()
-    df = (
-        df.with_columns(
-            pre_part_requesting=pl.max_horizontal(
-                pl.col("expected_demand").ceil().cast(pl.Int64()),
-                pl.col("refill_request"),
-            )
+    df = df.with_columns(
+        requesting=pl.max_horizontal(
+            pl.col("expected_demand").ceil().cast(pl.Int64()),
+            pl.col("refill_request"),
         )
-        .with_columns(
-            requesting=(
-                pl.when(
-                    pl.struct(Channel.members()).eq(
-                        Channel.parse("janandjul.com").as_dict()
-                    )
-                )
-                .then(
-                    (pl.col.jjweb_east_frac * pl.col.pre_part_requesting)
-                    .ceil()
-                    .cast(pl.Int64())
-                )
-                .otherwise(pl.col.pre_part_requesting)
-            )
-        )
-        .with_columns(
-            uses_refill_request=(
-                pl.col("requesting").eq(pl.col("refill_request"))
-                & pl.col.refill_request.gt(0)
-            )
+    ).with_columns(
+        uses_refill_request=(
+            pl.col("requesting").eq(pl.col("refill_request"))
+            & pl.col.refill_request.gt(0)
         )
     )
 
