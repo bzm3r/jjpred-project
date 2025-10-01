@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import copy
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NamedTuple, Self, Sequence
+from typing import NamedTuple, Self
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import ALL_SKU_AND_CHANNEL_IDS, ALL_SKU_IDS
@@ -37,10 +38,11 @@ from jjpred.utils.typ import (
 
 
 def gen_config_path(analysis_input_folder: Path, date: DateLike) -> Path:
-    """Generate the marketing configuration file path (``2023 category focus``)
+    """Generate the marketing configuration file path (e.g. ``category focus-20250929.xlsx``)
     of the required date."""
+    date = Date.from_datelike(date)
     return analysis_input_folder.joinpath(
-        f"2023 category focus-{Date.from_datelike(date).fmt_flat()}.xlsx"
+        f"category focus-{date.fmt_flat()}.xlsx"
     )
 
 
@@ -311,7 +313,10 @@ def extract_df(
     return (
         sanitize_excel_extraction(
             pl.read_excel(
-                gen_config_path(analysis_input_folder, date),
+                gen_config_path(
+                    analysis_input_folder,
+                    date,
+                ),
                 sheet_name="CONFIG",
                 read_options={
                     "skip_rows": 2,
@@ -474,9 +479,7 @@ def generate_channel_df(
     )
 
 
-def read_config(
-    analysis_defn: AnalysisDefn,
-) -> ConfigData:
+def read_config(analysis_defn: AnalysisDefn) -> ConfigData:
     """Read configuration information from the marketing configuration Excel
     file.
 
@@ -523,7 +526,11 @@ def read_config(
         raise ValueError(f"{analysis_defn.config_date=}")
 
     refill_request = (
-        extract_df(ANALYSIS_INPUT_FOLDER, config_date, use_columns)
+        extract_df(
+            ANALYSIS_INPUT_FOLDER,
+            config_date,
+            use_columns,
+        )
         .unpivot(index="category", on=["Amazon.com", "Amazon.ca"])
         .rename({"variable": "channel", "value": "refill_params"})
         .with_columns(
@@ -586,7 +593,11 @@ def read_config(
         RelevantColumn(10, "min_keep"),
     ]
     min_keep = (
-        extract_df(ANALYSIS_INPUT_FOLDER, config_date, use_columns)
+        extract_df(
+            ANALYSIS_INPUT_FOLDER,
+            config_date,
+            use_columns,
+        )
         .filter(pl.col("min_keep").is_not_null())
         .with_columns(
             pl.col("min_keep").map_elements(
@@ -665,7 +676,11 @@ def read_config(
     ]
     category_season = cast_standard(
         [active_sku_info],
-        extract_df(ANALYSIS_INPUT_FOLDER, config_date, use_columns),
+        extract_df(
+            ANALYSIS_INPUT_FOLDER,
+            config_date,
+            use_columns,
+        ),
     )
 
     return ConfigData.create(refill_request, min_keep, category_season)
