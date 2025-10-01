@@ -92,13 +92,13 @@ analysis_defn_website_reserved_force_po_old_method = FbaRevDefn.from_args(
     )
 )
 
-analysis_defn_test_jj_expanded = FbaRevDefn.from_args(
+analysis_defn_3pl_east = FbaRevDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="test_jj_expanded",
+        extra_descriptor="3pl_east",
     )
 )
