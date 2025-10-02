@@ -443,12 +443,12 @@ class RefillDefn(AnalysisDefn):
     enable_full_box_logic: bool = field(default=True)
     """Enable logic for rounding dispatches to the nearest full-box."""
 
-    full_box_rounding_margion_ratio: float = field(default=True)
+    full_box_rounding_margin_ratio: float = field(default=True)
     """The percent difference from a full box that is used to round up or down.
     Should be a value between 0 and 1 (inclusive). Usually taken as 0.1."""
 
     full_box_rounding_margin_qty: int = field(default=True)
-    """If the quantity is within ``+/-full_box_rounding_margion_qty`` pieces,
+    """If the quantity is within ``+/-full_box_rounding_margin_qty`` pieces,
     then round up or round down."""
 
     enable_low_current_period_isr_logic: bool = field(default=True)
@@ -498,7 +498,7 @@ class RefillDefn(AnalysisDefn):
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
         use_old_current_period_method: bool = True,
-        full_box_rounding_margion_ratio: float = 0.1,
+        full_box_rounding_margin_ratio: float = 0.1,
         full_box_rounding_margin_qty: int = 0,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
@@ -553,10 +553,10 @@ class RefillDefn(AnalysisDefn):
 
         self.use_old_current_period_method = use_old_current_period_method
 
-        assert (0 <= full_box_rounding_margion_ratio) and (
-            full_box_rounding_margion_ratio <= 1
+        assert (0 <= full_box_rounding_margin_ratio) and (
+            full_box_rounding_margin_ratio <= 1
         )
-        self.full_box_rounding_margion_ratio = full_box_rounding_margion_ratio
+        self.full_box_rounding_margin_ratio = full_box_rounding_margin_ratio
 
         assert (
             isinstance(full_box_rounding_margin_qty, int)

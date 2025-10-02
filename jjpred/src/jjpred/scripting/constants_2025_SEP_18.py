@@ -58,37 +58,25 @@ args = FbaRevDefnArgs(
 
 analysis_defn_no_reservation = FbaRevDefn.from_args(args)
 
-analysis_defn_test = FbaRevDefn.from_args(
+analysis_defn_website = FbaRevDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="test_main",
+        extra_descriptor="main",
     )
 )
 
-analysis_defn_website_reserved_force_po_new_method = FbaRevDefn.from_args(
+analysis_defn_qty_box_rework = FbaRevDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="web_res_force_po_new_rolling_update_v2_new_type",
-    )
-)
-
-
-analysis_defn_website_reserved_force_po_old_method = FbaRevDefn.from_args(
-    args.update(
-        jjweb_reserve_info=JJWebPredictionInfo(
-            reservation_expr=DEFAULT_RESERVATION_EXPR,
-            force_po_prediction_for_reservation=True,
-        ),
-        use_old_current_period_method=True,
-        extra_descriptor="web_res_force_po_new_rolling_update_v2_old_type",
+        extra_descriptor="qty_box_rework",
     )
 )
 
