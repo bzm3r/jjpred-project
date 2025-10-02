@@ -16,12 +16,13 @@ from jjpred.aggregator import (
     UsingCanUSRetail,
     UsingRetail,
 )
-from jjpred.analysisdefn import RefillDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.database import DataBase
 from jjpred.inputstrategy import InputStrategy, SimpleTimePeriod
 from jjpred.sku import Category
 
+from jjpred.utils.datetime import Date
 from jjpred.utils.multidict import MultiDict
 
 
@@ -418,13 +419,10 @@ their own channel's data."""
 # assert datetime.datetime.today().month <= 3
 
 
-def get_strategy_from_library(
-    analysis_defn_or_db: RefillDefn | DataBase, id: StrategyId
-) -> list[InputStrategy]:
+def get_default_current_period_dict(
+    analysis_defn_or_db: AnalysisDefn | DataBase,
+) -> dict[str, SimpleTimePeriod]:
     analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
-
-    assert isinstance(analysis_defn, RefillDefn)
-
     category_current_period_start_end = (
         db.meta_info.active_sku.select("category", "season")
         .unique()
@@ -459,9 +457,58 @@ def get_strategy_from_library(
     )
 
     current_period_dict = {
-        x["category"]: SimpleTimePeriod(x["start_date"], x["end_date"])
+        str(x["category"]): SimpleTimePeriod(x["start_date"], x["end_date"])
         for x in category_current_period_start_end.to_dicts()
     }
+
+    return current_period_dict
+
+
+def get_last_year_as_current_period_dict(
+    analysis_defn_or_db: RefillDefn | DataBase,
+) -> dict[str, SimpleTimePeriod]:
+    analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
+    assert isinstance(analysis_defn, RefillDefn)
+
+    assert analysis_defn.dispatch_date >= Date.from_ymd(
+        2005, Month.SEPTEMBER, 1
+    )
+
+    category_current_period_start_end = (
+        db.meta_info.active_sku.select("category", "season")
+        .unique()
+        .with_columns(
+            start_date=analysis_defn.date.as_polars_date()
+            .dt.month_start()
+            .dt.offset_by("-1y"),
+        )
+        .with_columns(
+            end_date=pl.col.start_date.dt.offset_by("1y"),
+        )
+    )
+
+    current_period_dict = {
+        str(x["category"]): SimpleTimePeriod(x["start_date"], x["end_date"])
+        for x in category_current_period_start_end.to_dicts()
+    }
+
+    return current_period_dict
+
+
+def get_strategy_from_library(
+    analysis_defn_or_db: RefillDefn | DataBase,
+    id: StrategyId,
+    current_period_overrides: dict[str, SimpleTimePeriod] | None = None,
+) -> list[InputStrategy]:
+    analysis_defn, db = get_analysis_defn_and_db(analysis_defn_or_db)
+
+    current_period_dict = (
+        get_default_current_period_dict(db)
+        if current_period_overrides is None
+        else current_period_overrides
+    )
+
+    assert isinstance(analysis_defn, RefillDefn)
 
     STRATEGY_LIBRARY: dict[StrategyId, list[InputStrategy]] = {
         LATEST: [

@@ -478,7 +478,7 @@ def read_po(
 
     write_df(overwrite, po_per_sku_path, all_po_per_sku)
 
-    return all_po_per_sku
+    return po_df
 
 
 class PredictedDemandData(NamedTuple):

@@ -1126,7 +1126,9 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         return category_type_df
 
     def get_input_data_info(
-        self, force_po_prediction: bool = False
+        self,
+        force_po_prediction: bool = False,
+        force_e_prediction: bool = False,
     ) -> pl.DataFrame:
         """Get dataframe recording:
         * availability of historical sales data, current sales data, PO data
@@ -1137,6 +1139,8 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         * whether a category is marked "new" by marketing
         * etc.
         """
+
+        assert not (force_e_prediction and force_po_prediction)
 
         current_sales_info = self.get_current_sales_info()
 
@@ -1193,6 +1197,15 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                                 "prediction_type"
                             ].dtype,
                         )
+                    )
+                    .when(pl.lit(force_e_prediction))
+                    .then(
+                        pl.lit(
+                            "E",
+                            dtype=self.prediction_types[
+                                "prediction_type"
+                            ].dtype,
+                        ),
                     )
                     .otherwise(pl.col.prediction_type)
                     .alias("prediction_type")
@@ -1356,13 +1369,17 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         end_date: DateLike,
         aggregate_final_result: bool = True,
         force_po_prediction: bool = False,
+        force_e_prediction: bool = False,
     ) -> pl.DataFrame:
         """Predict demand across all SKUs and channels."""
+        assert not (force_e_prediction and force_po_prediction)
+
         channels = [Channel.parse(ch) for ch in normalize_as_list(channels)]
         expected_demands_per_channel = {}
 
         input_data_info = self.get_input_data_info(
-            force_po_prediction=force_po_prediction
+            force_po_prediction=force_po_prediction,
+            force_e_prediction=force_e_prediction,
         )
 
         if self.db.dfs[DataVariant.InStockRatio] is not None:

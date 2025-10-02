@@ -622,6 +622,7 @@ def check_dispatch_results(
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "all": active_results,
         "reserved": dispatcher.reserved_quantity,
+        "expected_demand_last_year": dispatcher.expected_demand_last_year,
         "reserved_conflict_sku": (
             active_results.filter(pl.col.reserved.gt(0))
             .select(
@@ -655,10 +656,6 @@ def check_dispatch_results(
                 .then(1.0)
                 .otherwise(pl.col.reserved / pl.col.wh_stock),
             )
-            # .with_columns(
-            #     total_dispatched_over_total_required=pl.col.total_dispatch
-            #     / pl.col.total_required,
-            # )
             .with_columns(
                 total_dispatch_over_total_possible_dispatch=pl.col.total_dispatch
                 / pl.col.total_possible_dispatch,
