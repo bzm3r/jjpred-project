@@ -31,3 +31,6 @@ members = ["jjpred", "analysis_tools"]
 [tool.uv.sources]
 jjpred = { workspace = true }
 analysis-tools = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["jjpred", "analysis_tools"]
