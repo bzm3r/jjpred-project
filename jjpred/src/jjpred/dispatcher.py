@@ -53,8 +53,8 @@ from jjpred.utils.typ import PolarsLit, normalize_optional
 
 
 def calculate_required(
+    analysis_defn: RefillDefn,
     predicted_demand: pl.DataFrame,
-    enable_full_box_logic: bool,
 ) -> pl.DataFrame:
     """Calculate the quantity of goods required by a channel, given its
     predicted demand.
@@ -113,36 +113,93 @@ def calculate_required(
     df = (
         df.with_columns(
             enable_full_box_logic=pl.lit(
-                enable_full_box_logic, dtype=pl.Boolean()
+                analysis_defn.enable_full_box_logic, dtype=pl.Boolean()
             )
         )
         .with_columns(
             exact_boxes=pl.when(
-                pl.col.qty_box.is_not_null() & pl.col.qty_box.gt(0)
-            )
-            .then((pl.col("prebox_required") / pl.col("qty_box")).round())
-            .cast(pl.Int64())
+                pl.col.enable_full_box_logic
+                & pl.col.qty_box.is_not_null()
+                & pl.col.qty_box.gt(0)
+            ).then(pl.col.prebox_required / pl.col.qty_box)
         )
         .with_columns(
-            rounded_to_closest_box=pl.when(
+            exact_boxes_floor=pl.col.exact_boxes.floor().cast(pl.Int64()),
+            exact_boxes_ceil=pl.col.exact_boxes.ceil().cast(pl.Int64()),
+        )
+        .with_columns(
+            qty_exact_boxes_floor=(
+                pl.col.qty_box * pl.col.exact_boxes_floor
+            ).cast(pl.Int64),
+            qty_exact_boxes_ceil=(
+                pl.col.qty_box * pl.col.exact_boxes_ceil
+            ).cast(pl.Int64()),
+        )
+        .with_columns(
+            distance_to_floor=(
+                pl.col.prebox_required.sub(pl.col.qty_exact_boxes_floor)
+            ),
+            distance_to_ceil=pl.col.qty_exact_boxes_ceil.sub(
+                pl.col.prebox_required
+            ),
+            exact_boxes_remainder=(
+                pl.col.exact_boxes - pl.col.exact_boxes_floor
+            ),
+        )
+        .with_columns(
+            close_to_floor_by_ratio=(
                 pl.col.exact_boxes.is_not_null()
-                & pl.col.prebox_required.gt(0)
-                & pl.col.enable_full_box_logic
-            )
-            .then(
-                (0.9 * pl.col.qty_box * pl.col.exact_boxes).le(
-                    pl.col.prebox_required
+                & pl.col.exact_boxes_remainder.le(
+                    analysis_defn.full_box_rounding_margin_ratio
                 )
-                & (pl.col.prebox_required).le(
-                    1.1 * pl.col.qty_box * pl.col.exact_boxes
+                & pl.col.exact_boxes_floor
+                > 0
+            ),
+            close_to_floor_by_qty=(
+                pl.col.exact_boxes.is_not_null()
+                & pl.col.qty_exact_boxes_floor.lt(pl.col.prebox_required)
+                & pl.col.distance_to_floor.lt(
+                    analysis_defn.full_box_rounding_margin_qty
                 )
-            )
-            .otherwise(False)
+                & pl.col.exact_boxes_floor
+                > 0
+            ),
+            close_to_ceil_by_ratio=(
+                pl.col.exact_boxes.is_not_null()
+                & pl.col.exact_boxes_remainder.ge(
+                    1 - analysis_defn.full_box_rounding_margin_ratio
+                )
+            ),
+            close_to_ceil_by_qty=(
+                pl.col.exact_boxes.is_not_null()
+                & pl.col.qty_exact_boxes_ceil.gt(pl.col.prebox_required)
+                & pl.col.distance_to_ceil.lt(
+                    analysis_defn.full_box_rounding_margin_qty
+                )
+            ),
         )
         .with_columns(
-            required=pl.when(pl.col.rounded_to_closest_box)
-            .then(pl.col.exact_boxes * pl.col.qty_box)
-            .otherwise(pl.col.prebox_required)
+            close_to_floor=pl.col.close_to_floor_by_ratio
+            | pl.col.close_to_floor_by_qty,
+            close_to_ceil=pl.col.close_to_ceil_by_qty
+            | pl.col.close_to_ceil_by_ratio,
+        )
+        .with_columns(
+            required=pl.when(pl.col.exact_boxes.is_not_null()).then(
+                pl.when(pl.col.close_to_floor & pl.col.close_to_ceil)
+                .then(pl.col.qty_exact_boxes_ceil)
+                .when(
+                    pl.col.close_to_floor.xor(pl.col.close_to_ceil)
+                    & pl.col.close_to_floor
+                )
+                .then(pl.col.qty_exact_boxes_floor)
+                .when(
+                    pl.col.close_to_floor.xor(pl.col.close_to_ceil)
+                    & pl.col.close_to_ceil
+                )
+                .then(pl.col.qty_exact_boxes_ceil)
+                .otherwise(pl.col.prebox_required)
+            )
         )
     )
 
@@ -340,12 +397,104 @@ def attach_inventory_info(
     return all_sku_info
 
 
+# FINE AUTOSPLIT LOGIC: removed for now after discussion with Matt
+# This was meant to make sure that auto-splits do not spill into the
+# minimum quantity meant to be kept in a warehouse.
+# if (
+#     requires_fine_splitting is not None
+#     or len(requires_fine_splitting) > 0
+# ):
+#     # the fundamental assumption here is that at this point, the
+#     # delta between supply and total required cannot be greater than
+#     # the number of SKUs * the number of channels = N
+#     #
+#     # for those cases where a fix is still required, we rank the
+#     # SKUs by their dispatch fraction, and then subtract one from
+#     # the dispatch of the bottom K SKUs, where 0 < K <= N.
+#     requires_fine_splitting = (
+#         # sort the data by Sku, to make the ranking performed
+#         # deterministic
+#         requires_fine_splitting.sort(
+#             Sku.members(MemberType.META)
+#         ).with_columns(
+#             delta_wh=(
+#                 pl.col("total_dispatch")
+#                 - pl.col("wh_dispatchable")
+#             ),
+#             # rank the data for each SKU by size of dispatch
+#             # resolve tie-breaks by the order of SKU in the group
+#             # (groups are per channel)
+#             index=(
+#                 pl.col("fraction_dispatch")
+#                 .rank("ordinal")
+#                 .over(Sku.members())
+#                 - 1
+#             ),
+#         )
+#     ).with_columns(
+#         # subtract -1 from the bottom "delta_wh" SKUs by
+#         # dispatch fraction
+#         fixed_dispatch=pl.when(
+#             (pl.col("index") < pl.col("delta_wh"))
+#             & (pl.col("dispatch").gt(0))
+#         )
+#         .then(pl.col("dispatch") - 1)
+#         .otherwise(pl.col("dispatch"))
+#     )
+#     # setup for checking that now we have fixed the total dispatch
+#     requires_fine_splitting = requires_fine_splitting.with_columns(
+#         fixed_total_dispatch=pl.col("fixed_dispatch")
+#         .sum()
+#         .over(Sku.members(MemberType.META))
+#     ).with_columns(
+#         fixed_delta_inv=(
+#             pl.col("fixed_total_dispatch")
+#             - pl.col("wh_dispatchable")
+#         )
+#     )
+#     # fixed_delta_inv should now be 0 across all entries
+#     assert (
+#         requires_fine_splitting["fixed_delta_inv"].min() == 0
+#         and requires_fine_splitting["fixed_delta_inv"].max() == 0
+#     ), requires_fine_splitting.filter(
+#         ~pl.col("fixed_delta_inv").eq(0)
+#     )
+
+#     requires_fine_splitting = requires_fine_splitting.with_columns(
+#         dispatch=pl.col("fixed_dispatch"),
+#         auto_split=pl.lit(True),
+#         fine_auto_split=pl.lit(True),
+#     )
+#     assert requires_fine_splitting["dispatch"].dtype == pl.Int64()
+
+#     self.all_sku_info = override_sku_info(
+#         self.all_sku_info.with_columns(
+#             fine_auto_split=pl.lit(False)
+#         ),
+#         requires_fine_splitting.select(
+#             Sku.members(MemberType.META)
+#             + Channel.members()
+#             + [
+#                 "prebox_required",
+#                 "dispatch",
+#                 "num_closest_box",
+#                 "auto_split",
+#                 "fine_auto_split",
+#             ]
+#         ),
+#         fill_null_value=None,
+#         create_info_columns=None,
+#         create_missing_info_flags=False,
+#     ).with_columns(pl.col.auto_split.fill_null(False))
+
+
 def calculate_full_box_and_auto_split(
     analysis_defn: RefillDefn,
     all_sku_info: pl.DataFrame,
 ) -> pl.DataFrame:
     # calculated what each channel + SKU requires for dispatch
     required_df = calculate_required(
+        analysis_defn,
         all_sku_info.filter(
             pl.col("is_active")
             & ~pl.col("is_master_paused")
@@ -353,7 +502,6 @@ def calculate_full_box_and_auto_split(
             & ~pl.col("no_wh_stock_info")
             & ~pl.col("zero_wh_dispatchable")
         ),
-        analysis_defn.enable_full_box_logic,
     )
 
     all_sku_info = cast_standard(
@@ -366,7 +514,7 @@ def calculate_full_box_and_auto_split(
                 {
                     "uses_refill_request": PolarsLit(False),
                     "enable_full_box_logic": PolarsLit(False),
-                    "rounded_to_closest_box": PolarsLit(False),
+                    "num_closest_box": PolarsLit(None, dtype=pl.Int64()),
                 },
             ),
             create_info_columns=[
@@ -437,34 +585,56 @@ def calculate_full_box_and_auto_split(
         required_gt_supply = (
             required_gt_supply.with_columns(
                 exact_boxes=pl.when(
-                    pl.col.qty_box.is_not_null() & pl.col.qty_box.gt(0)
-                )
-                .then((pl.col("prebox_required") / pl.col("qty_box")).round())
-                .cast(pl.Int64())
+                    pl.col.enable_full_box_logic
+                    & pl.col.qty_box.is_not_null()
+                    & pl.col.qty_box.gt(0)
+                ).then(pl.col.prebox_required / pl.col.qty_box)
             )
             .with_columns(
-                rounded_to_closest_box=pl.when(
+                exact_boxes_floor=pl.col.exact_boxes.floor().cast(pl.Int64()),
+            )
+            .with_columns(
+                qty_exact_boxes_floor=(
+                    pl.col.qty_box * pl.col.exact_boxes_floor
+                ).cast(pl.Int64)
+            )
+            .with_columns(
+                distance_to_floor=(
+                    pl.col.prebox_required.sub(pl.col.qty_exact_boxes_floor)
+                ),
+                exact_boxes_remainder=(
+                    pl.col.exact_boxes - pl.col.exact_boxes_floor
+                ),
+            )
+            .with_columns(
+                close_to_floor_by_ratio=(
                     pl.col.exact_boxes.is_not_null()
-                    & pl.col.prebox_required.gt(0)
-                    & pl.col.enable_full_box_logic
-                )
-                .then(
-                    (1.0 * pl.col.qty_box * pl.col.exact_boxes).le(
-                        pl.col.prebox_required
+                    & pl.col.exact_boxes_remainder.le(
+                        analysis_defn.full_box_rounding_margin_ratio
                     )
-                    # & (0.9 * pl.col.qty_box * pl.col.exact_boxes).le(
-                    #     pl.col.prebox_dispatch
-                    # )
-                    & (pl.col.prebox_required).le(
-                        1.1 * pl.col.qty_box * pl.col.exact_boxes
+                    & pl.col.exact_boxes_floor
+                    > 0
+                ),
+                close_to_floor_by_qty=(
+                    pl.col.exact_boxes.is_not_null()
+                    & pl.col.qty_exact_boxes_floor.lt(pl.col.prebox_required)
+                    & pl.col.distance_to_floor.lt(
+                        analysis_defn.full_box_rounding_margin_qty
                     )
-                )
-                .otherwise(False)
+                    & pl.col.exact_boxes_floor
+                    > 0
+                ),
             )
             .with_columns(
-                dispatch=pl.when(pl.col.rounded_to_closest_box)
-                .then(pl.col.exact_boxes * pl.col.qty_box)
-                .otherwise(pl.col.prebox_required)
+                close_to_floor=pl.col.close_to_floor_by_ratio
+                | pl.col.close_to_floor_by_qty
+            )
+            .with_columns(
+                required=pl.when(pl.col.exact_boxes.is_not_null()).then(
+                    pl.when(pl.col.close_to_floor)
+                    .then(pl.col.qty_exact_boxes_floor)
+                    .otherwise(pl.col.prebox_required)
+                )
             )
         )
         assert required_gt_supply["required"].dtype == pl.Int64()
@@ -502,7 +672,7 @@ def calculate_full_box_and_auto_split(
                     "exact_boxes",
                     "prebox_required",
                     "dispatch",
-                    "rounded_to_closest_box",
+                    "num_closest_box",
                     "auto_split",
                 ]
             ),
@@ -510,96 +680,6 @@ def calculate_full_box_and_auto_split(
             create_info_columns=None,
             create_missing_info_flags=False,
         )
-
-        # FINE AUTOSPLIT LOGIC: removed for now after discussion with Matt
-        # This was meant to make sure that auto-splits do not spill into the
-        # minimum quantity meant to be kept in a warehouse.
-        # if (
-        #     requires_fine_splitting is not None
-        #     or len(requires_fine_splitting) > 0
-        # ):
-        #     # the fundamental assumption here is that at this point, the
-        #     # delta between supply and total required cannot be greater than
-        #     # the number of SKUs * the number of channels = N
-        #     #
-        #     # for those cases where a fix is still required, we rank the
-        #     # SKUs by their dispatch fraction, and then subtract one from
-        #     # the dispatch of the bottom K SKUs, where 0 < K <= N.
-        #     requires_fine_splitting = (
-        #         # sort the data by Sku, to make the ranking performed
-        #         # deterministic
-        #         requires_fine_splitting.sort(
-        #             Sku.members(MemberType.META)
-        #         ).with_columns(
-        #             delta_wh=(
-        #                 pl.col("total_dispatch")
-        #                 - pl.col("wh_dispatchable")
-        #             ),
-        #             # rank the data for each SKU by size of dispatch
-        #             # resolve tie-breaks by the order of SKU in the group
-        #             # (groups are per channel)
-        #             index=(
-        #                 pl.col("fraction_dispatch")
-        #                 .rank("ordinal")
-        #                 .over(Sku.members())
-        #                 - 1
-        #             ),
-        #         )
-        #     ).with_columns(
-        #         # subtract -1 from the bottom "delta_wh" SKUs by
-        #         # dispatch fraction
-        #         fixed_dispatch=pl.when(
-        #             (pl.col("index") < pl.col("delta_wh"))
-        #             & (pl.col("dispatch").gt(0))
-        #         )
-        #         .then(pl.col("dispatch") - 1)
-        #         .otherwise(pl.col("dispatch"))
-        #     )
-        #     # setup for checking that now we have fixed the total dispatch
-        #     requires_fine_splitting = requires_fine_splitting.with_columns(
-        #         fixed_total_dispatch=pl.col("fixed_dispatch")
-        #         .sum()
-        #         .over(Sku.members(MemberType.META))
-        #     ).with_columns(
-        #         fixed_delta_inv=(
-        #             pl.col("fixed_total_dispatch")
-        #             - pl.col("wh_dispatchable")
-        #         )
-        #     )
-        #     # fixed_delta_inv should now be 0 across all entries
-        #     assert (
-        #         requires_fine_splitting["fixed_delta_inv"].min() == 0
-        #         and requires_fine_splitting["fixed_delta_inv"].max() == 0
-        #     ), requires_fine_splitting.filter(
-        #         ~pl.col("fixed_delta_inv").eq(0)
-        #     )
-
-        #     requires_fine_splitting = requires_fine_splitting.with_columns(
-        #         dispatch=pl.col("fixed_dispatch"),
-        #         auto_split=pl.lit(True),
-        #         fine_auto_split=pl.lit(True),
-        #     )
-        #     assert requires_fine_splitting["dispatch"].dtype == pl.Int64()
-
-        #     self.all_sku_info = override_sku_info(
-        #         self.all_sku_info.with_columns(
-        #             fine_auto_split=pl.lit(False)
-        #         ),
-        #         requires_fine_splitting.select(
-        #             Sku.members(MemberType.META)
-        #             + Channel.members()
-        #             + [
-        #                 "prebox_required",
-        #                 "dispatch",
-        #                 "rounded_to_closest_box",
-        #                 "auto_split",
-        #                 "fine_auto_split",
-        #             ]
-        #         ),
-        #         fill_null_value=None,
-        #         create_info_columns=None,
-        #         create_missing_info_flags=False,
-        #     ).with_columns(pl.col.auto_split.fill_null(False))
     else:
         all_sku_info = all_sku_info.with_columns(auto_split=pl.lit(False))
 
