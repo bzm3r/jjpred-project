@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-
+import getpass
 
 ASSUMED_FOLDER_NAME: str = "jjpred-project"
 """Assumed name of the main project folder."""
+
+USER_NAME = getpass.getuser()
+"""User's login name."""
 
 
 def get_main_folder(assumed_folder_name: str) -> Path:
@@ -27,13 +30,13 @@ def get_main_folder(assumed_folder_name: str) -> Path:
     )
 
 
-BRIAN_HOME_FOLDER: Path = Path("C:\\Users\\bhmer_hr1owv0")
+USER_HOME_FOLDER: Path = Path(f"C:\\Users\\{USER_NAME}")
 
-BRIAN_ONEDRIVE_FOLDER: Path = BRIAN_HOME_FOLDER.joinpath(
+USER_ONEDRIVE_FOLDER: Path = USER_HOME_FOLDER.joinpath(
     "OneDrive - Jan and Jul"
 )
 
-BRIAN_TWK_FOLDER: Path = BRIAN_ONEDRIVE_FOLDER.joinpath("TWK-Brian")
+BRIAN_TWK_FOLDER: Path = USER_ONEDRIVE_FOLDER.joinpath("TWK-Brian")
 
 MAIN_FOLDER: Path = get_main_folder(ASSUMED_FOLDER_NAME)
 """Full path of the main folder."""
