@@ -140,8 +140,8 @@ INVENTORY_INFO = [
 DISPATCH_INFO = INVENTORY_INFO + [
     "requesting",
     "qty_box",
-    "required",
-    "prebox_required",
+    "post_box_required",
+    "pre_box_required",
     "dispatch",
 ]
 DISPATCHABLE_PAUSED_DATA = (
