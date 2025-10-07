@@ -31,7 +31,6 @@ from jjpred.datagroups import (
 )
 from jjpred.dispatcher import Dispatcher
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
-from jjpred.globalvariables import DISPATCH_CUTOFF_QTY, MAIN_VS_THIS_TOLERANCE
 from jjpred.readsupport.mainprogram import (
     read_current_period_defn,
     read_excel_predictions,
@@ -131,6 +130,7 @@ def check_dispatch_results(
     jjpred_dispatch: pl.DataFrame,
     actual_dispatch: pl.DataFrame | None = None,
     read_from_disk: bool = False,
+    main_versus_this_tolerance: int = 0,
 ) -> CheckResult:
     """Check results calculated by JJPRED program.
 
@@ -139,7 +139,11 @@ def check_dispatch_results(
         order to get which SKUs are missing from the main program and which
         categories do not have current periods defined properly.
     :param jjpred_dispatch:  Results calculated by JJPRED program.
-    :param actual_dispatch: Optional actual dispatch (usually read from a REFILL DRAFT PLAN Excel file) to compare against.
+    :param actual_dispatch: Optional actual dispatch (usually read from a REFILL
+        DRAFT PLAN Excel file) to compare against.
+    :param main_versus_this_tolerance: If the difference in dispatch for the
+      main program vs. this program is equal to or less than this many
+      units, then we consider it to be okay.
     :return: Structure containing check-info dataframes.
     """
     active_results = jjpred_dispatch.filter(pl.col("is_active"))
@@ -489,7 +493,9 @@ def check_dispatch_results(
             .sort(pl.col("dispatch_delta").abs())
             .with_columns(
                 within_tolerance=(
-                    pl.col("dispatch_delta").abs().le(MAIN_VS_THIS_TOLERANCE)
+                    pl.col("dispatch_delta")
+                    .abs()
+                    .le(main_versus_this_tolerance)
                 ),
             )
         )
@@ -529,12 +535,12 @@ def check_dispatch_results(
         # )
         not_in_jjpred, with_actual_dispatch = binary_partition_strict(
             with_actual_dispatch,
-            pl.col.actual_final_dispatch.ge(DISPATCH_CUTOFF_QTY)
+            pl.col.actual_final_dispatch.ge(analysis_defn.dispatch_cutoff_qty)
             & (pl.col.dispatch_below_cutoff | pl.col.dispatch.is_null()),
         )
         not_in_actual, with_actual_dispatch = binary_partition_strict(
             with_actual_dispatch,
-            pl.col.actual_final_dispatch.lt(DISPATCH_CUTOFF_QTY)
+            pl.col.actual_final_dispatch.lt(analysis_defn.dispatch_cutoff_qty)
             & ~(pl.col.dispatch_below_cutoff | pl.col.dispatch.is_null()),
         )
         diff_wrt_actual = with_actual_dispatch

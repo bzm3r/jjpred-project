@@ -9,7 +9,7 @@ import polars as pl
 from dataclasses import dataclass, field
 import datetime
 from functools import total_ordering
-from typing import Self
+from typing import Literal, Self
 
 from jjpred.channel import Channel
 from jjpred.inputstrategy import RefillType
@@ -175,6 +175,16 @@ class AnalysisDefn:
     whether an item is continued/discontinued) is usually in the middle of the
     year."""
 
+    ignore_sku_list: list[str] = field(compare=False)
+    """SKUs to ignore when preparing the relevant database."""
+
+    ignore_category_list: list[str] = field(compare=False)
+    """Categories to ignore when preparing the relevant database."""
+
+    default_storage_format: Literal["parquet"] = field(compare=False)
+    """Use ``parquet`` files for default storage as they are robust (unlike the
+    ``arrow`` format) for saving Polars data to  and compact."""
+
     config_date: Date | None = field(default=None, init=False, compare=False)
     """Date of associated marketed configuration file."""
 
@@ -204,6 +214,9 @@ class AnalysisDefn:
         sales_and_inventory_date: DateLike,
         warehouse_inventory_date: DateLike,
         current_seasons: CurrentSeasonDefn,
+        ignore_sku_list: list[str],
+        ignore_category_list: list[str],
+        default_storage_format: Literal["parquet"],
         latest_dates: LatestDates | None = None,
         config_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
@@ -226,6 +239,10 @@ class AnalysisDefn:
             in_stock_ratio_date
         )
         self.po_date = normalize_optional_datelike(po_date)
+
+        self.ignore_sku_list = ignore_sku_list
+        self.ignore_category_list = ignore_category_list
+        self.default_storage_format = default_storage_format
 
         if latest_dates is None:
             self.latest_dates = LatestDates(self.date)
@@ -324,7 +341,15 @@ class OutperformerSettings:
     If an item is all-season, and no special definition is given for all-season
     items, then a combination of SS and FW definition is used.
 
-    Note that currently this setting assumes we are working in the Northern Hemisphere."""
+    Note that currently this setting assumes we are working in the Northern
+    Hemisphere."""
+
+    outperform_factor: float = field(default=0.2)
+    """If an item's historical estimate is greater than ``1 + outperform_factor``
+of the PO estimate, then we consider it to be an "outperformer". If it is less
+than ``1 - outperform_factor`` then we consider it to be an "underperformer". If
+an item does not have a PO estimate to bench mark against, we cannot do such
+benchmarking."""
 
 
 FW_RESERVATION_MONTHS = [(7, 1)]
@@ -412,7 +437,9 @@ class RefillDefn(AnalysisDefn):
     """If a dispatch is calculated to be below the cutoff, no dispatch should be
     made."""
 
-    prediction_type_meta_date: DateLike | None = field(compare=False)
+    prediction_type_meta_date: DateLike | None = field(
+        default=None, compare=False
+    )
     """Date of associated prediction type information file."""
 
     website_sku_date: Date | None = field(default=None, compare=False)
@@ -479,6 +506,19 @@ class RefillDefn(AnalysisDefn):
     channels: list[Channel] = field(default_factory=list)
     """The channels for which we make predictions."""
 
+    dispatch_cutoff_qty: int = field(default=2)
+    """Minimum number of items to dispatch for an FBA refill."""
+
+    low_current_period_sales: int = field(default=20)
+    """Cutoff below which we consider that an item has low current period
+    sales."""
+
+    low_category_historical_sales: int = field(default=100)
+    """If category historical sales of SKU are lower than this value, then mark the SKU
+as having low category historical sales (relevant if historical sales data + current
+period data is used to generate a prediction for expected sales for this
+SKU)."""
+
     def __init__(
         self,
         refill_description: str,
@@ -490,7 +530,9 @@ class RefillDefn(AnalysisDefn):
         warehouse_inventory_date: DateLike,
         current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
-        prediction_type_meta_date: DateLike | None,
+        ignore_sku_list: list[str],
+        ignore_category_list: list[str],
+        prediction_type_meta_date: DateLike | None = None,
         website_sku_date: DateLike | None = None,
         jjweb_reserve_info: JJWebPredictionInfo | None = None,
         check_dispatch_date: bool = True,
@@ -515,6 +557,10 @@ class RefillDefn(AnalysisDefn):
         new_categories: list[str] = [],
         forced_po_categories: list[str] = [],
         channels: Sequence[str | Channel] = list(),
+        default_storage_format: Literal["parquet"] = "parquet",
+        low_current_period_sales: int = 20,
+        low_category_historical_sales: int = 100,
+        outperform_factor: float = 0.2,
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -573,13 +619,19 @@ class RefillDefn(AnalysisDefn):
         self.new_categories = new_categories
         self.forced_po_categories = forced_po_categories
         self.channels = [Channel.parse(x) for x in channels]
+        self.low_current_period_sales = low_current_period_sales
+        self.low_category_historical_sales = low_category_historical_sales
+        self.outperform_factor = outperform_factor
 
         super().__init__(
-            refill_description,
-            analysis_date,
-            master_sku_date,
-            sales_and_inventory_date,
-            warehouse_inventory_date,
+            basic_descriptor=refill_description,
+            date=analysis_date,
+            master_sku_date=master_sku_date,
+            sales_and_inventory_date=sales_and_inventory_date,
+            warehouse_inventory_date=warehouse_inventory_date,
+            ignore_sku_list=ignore_sku_list,
+            ignore_category_list=ignore_category_list,
+            default_storage_format=default_storage_format,
             config_date=config_date,
             in_stock_ratio_date=in_stock_ratio_date,
             po_date=po_date,
@@ -612,9 +664,11 @@ class FbaRevDefnArgs:
     warehouse_inventory_date: DateLike
     current_seasons: CurrentSeasonDefn
     config_date: DateLike
-    prediction_type_meta_date: DateLike | None
+    ignore_sku_list: list[str]
+    ignore_category_list: list[str]
     refill_type: RefillType
     check_dispatch_date: bool = True
+    prediction_type_meta_date: DateLike | None = field(default=None)
     website_sku_date: DateLike | None = field(default=None)
     jjweb_reserve_info: JJWebPredictionInfo | None = field(default=None)
     qty_box_date: DateLike | None = field(default=None)
@@ -648,6 +702,9 @@ class FbaRevDefnArgs:
     full_box_rounding_margin_ratio: float = field(default=0.1)
     full_box_rounding_margin_qty: int = field(default=10)
     channels: list[Channel] = field(default_factory=list)
+    default_storage_format: Literal["parquet"] = field(default="parquet")
+    low_current_period_sales: int = field(default=20)
+    low_category_historical_sales: int = field(default=20)
 
     def as_dict(self) -> dict:
         return {
@@ -711,9 +768,11 @@ class FbaRevDefn(RefillDefn):
         warehouse_inventory_date: DateLike,
         current_seasons: CurrentSeasonDefn,
         config_date: DateLike,
-        prediction_type_meta_date: DateLike | None,
+        ignore_sku_list: list[str],
+        ignore_category_list: list[str],
         refill_type: RefillType,
         check_dispatch_date: bool = True,
+        prediction_type_meta_date: DateLike | None = None,
         website_sku_date: DateLike | None = None,
         jjweb_reserve_info: JJWebPredictionInfo | None = None,
         qty_box_date: DateLike | None = None,
@@ -743,6 +802,9 @@ class FbaRevDefn(RefillDefn):
         full_box_rounding_margin_ratio: float = 0.1,
         full_box_rounding_margin_qty: int = 10,
         channels: Sequence[str | Channel] = list(),
+        default_storage_format: Literal["parquet"] = "parquet",
+        low_current_period_sales: int = 20,
+        low_category_historical_sales: int = 100,
     ):
         self.refill_type = refill_type
 
@@ -798,6 +860,8 @@ class FbaRevDefn(RefillDefn):
             sales_and_inventory_date=sales_and_inventory_date,
             warehouse_inventory_date=warehouse_inventory_date,
             config_date=config_date,
+            ignore_sku_list=ignore_sku_list,
+            ignore_category_list=ignore_category_list,
             prediction_type_meta_date=prediction_type_meta_date,
             website_sku_date=website_sku_date,
             jjweb_reserve_info=jjweb_reserve_info,
@@ -822,6 +886,9 @@ class FbaRevDefn(RefillDefn):
             full_box_rounding_margin_qty=full_box_rounding_margin_qty,
             full_box_rounding_margin_ratio=full_box_rounding_margin_ratio,
             channels=channels,
+            default_storage_format=default_storage_format,
+            low_current_period_sales=low_current_period_sales,
+            low_category_historical_sales=low_category_historical_sales,
         )
 
     @classmethod
@@ -852,6 +919,12 @@ class FbaRevDefn(RefillDefn):
             full_box_rounding_margin_qty=self.full_box_rounding_margin_qty,
             full_box_rounding_margin_ratio=self.full_box_rounding_margin_ratio,
             channels=self.channels,
+            default_storage_format=self.default_storage_format,
+            dispatch_cutoff_qty=self.dispatch_cutoff_qty,
+            low_current_period_sales=self.low_current_period_sales,
+            low_category_historical_sales=self.low_category_historical_sales,
+            ignore_category_list=self.ignore_category_list,
+            ignore_sku_list=self.ignore_sku_list,
         )
 
     @classmethod
@@ -861,9 +934,11 @@ class FbaRevDefn(RefillDefn):
         dispatch_date: DateLike,
         config_date: DateLike,
         current_seasons: CurrentSeasonDefn,
-        prediction_type_meta_date: DateLike | None,
         real_analysis_date: DateLike,
         refill_type: RefillType,
+        ignore_sku_list: list[str],
+        ignore_category_list: list[str],
+        prediction_type_meta_date: DateLike | None = None,
         check_dispatch_date: bool = True,
         prediction_start_date_required_month_parts: int | None = None,
         prediction_end_date_required_month_parts: int | None = None,
@@ -883,16 +958,16 @@ class FbaRevDefn(RefillDefn):
         use_old_current_period_method: bool = True,
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
-        compare against a real analysis.
+        compare against an analysis from Matt's program.
 
-        Typically, the real analysis date corresponds with the date of files
+        Typically, the analysis from Matt's program's date corresponds with the date of files
         like such as master SKU file, sales and inventory file, warehouse
         inventory file, ``MonSaleR`` sheet file, main program file, and refill
         draft plan.
 
         If you need finer control over these dates, use the standard
         initialization method for the class, or use files which have date set to
-        the real analysis date."""
+        the analysis from Matt's program's date."""
 
         master_sku_date = real_analysis_date
         sales_and_inventory_date = real_analysis_date
@@ -906,6 +981,8 @@ class FbaRevDefn(RefillDefn):
             warehouse_inventory_date=warehouse_inventory_date,
             current_seasons=current_seasons,
             config_date=config_date,
+            ignore_sku_list=ignore_sku_list,
+            ignore_category_list=ignore_category_list,
             prediction_type_meta_date=prediction_type_meta_date,
             refill_type=refill_type,
             check_dispatch_date=check_dispatch_date,

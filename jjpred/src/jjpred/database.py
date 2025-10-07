@@ -20,8 +20,6 @@ from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn, RefillDefn
 from jjpred.channel import Channel, Platform
 from jjpred.eastwestfrac import calculate_east_west_fracs
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
-from jjpred.globalvariables import IGNORE_CATEGORY_LIST, IGNORE_SKU_LIST
-
 from jjpred.readsupport.instockratio import (
     read_isr_from_excel_file_given_meta_info,
 )
@@ -487,9 +485,9 @@ class DataBase:
             )["a_sku"]
             .unique()
             .cast(pl.String())
-            .append(pl.Series(IGNORE_SKU_LIST))
+            .append(pl.Series(self.analysis_defn.ignore_sku_list))
             if len(self.meta_info.ignored_sku) > 0
-            else pl.Series(IGNORE_SKU_LIST)
+            else pl.Series(self.analysis_defn.ignore_sku_list)
         )
         # ignore_skus = self.meta_info.ignored_sku["sku"].unique()
         assert len(self.meta_info.active_sku) > 0
@@ -524,7 +522,9 @@ class DataBase:
                         )
                     )
                     .filter(
-                        ~pl.col.category.is_in(pl.Series(IGNORE_CATEGORY_LIST))
+                        ~pl.col.category.is_in(
+                            pl.Series(self.analysis_defn.ignore_category_list)
+                        )
                     ),
                 )
                 .join(

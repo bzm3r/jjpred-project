@@ -16,11 +16,6 @@ from jjpred.datagroups import (
     ALL_SKU_IDS,
     NOVELTY_FLAGS,
 )
-from jjpred.globalvariables import (
-    LOW_CATEGORY_HISTORICAL_SALES,
-    LOW_CURRENT_PERIOD_SALES,
-    OUTPERFORM_FACTOR,
-)
 from jjpred.inputstrategy import SimpleTimePeriod
 from jjpred.performanceflags import PerformanceFlag
 from jjpred.predictiontypes import PredictionType
@@ -1313,7 +1308,11 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         | (pl.col.uses_po & pl.col.category_marked_new)
                     )
                 )
-                .then(pl.col.current_period_sales.lt(LOW_CURRENT_PERIOD_SALES))
+                .then(
+                    pl.col.current_period_sales.lt(
+                        self.analysis_defn.low_current_period_sales
+                    )
+                )
                 .otherwise(True)
             )
             .with_columns(
@@ -1322,7 +1321,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 )
                 .then(
                     pl.col.category_historical_year_sales.lt(
-                        LOW_CATEGORY_HISTORICAL_SALES
+                        self.analysis_defn.low_category_historical_sales
                     )
                 )
                 .otherwise(True)
@@ -1535,7 +1534,10 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                                 & (
                                     pl.col.monthly_expected_demand_from_history
                                     > (
-                                        (1 + OUTPERFORM_FACTOR)
+                                        (
+                                            1
+                                            + self.analysis_defn.outperform_factor
+                                        )
                                         * pl.col.monthly_expected_demand_from_po
                                     )
                                 )
@@ -1548,7 +1550,10 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                                     & (
                                         pl.col.monthly_expected_demand_from_history
                                         < (
-                                            (1 - OUTPERFORM_FACTOR)
+                                            (
+                                                1
+                                                - self.analysis_defn.outperform_factor
+                                            )
                                             * pl.col.monthly_expected_demand_from_po
                                         )
                                     )

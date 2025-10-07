@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 import polars._typing as pltypes
@@ -12,16 +13,17 @@ import xlsxwriter as xlw  # type: ignore
 
 from jjpred.analysisdefn import AnalysisDefn
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER, BRIAN_TWK_FOLDER
-from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.excel import convert_df_for_excel
 
 
 def delete_or_read_df(
-    delete_if_exists: bool, save_path: Path
+    delete_if_exists: bool,
+    save_path: Path,
+    default_storage_format: Literal["parquet"] = "parquet",
 ) -> pl.DataFrame | None:
     if delete_if_exists:
-        delete_df(save_path)
+        delete_df(save_path, default_storage_format)
     else:
         return try_read_df(save_path)
 
@@ -33,7 +35,10 @@ def read_df(save_path: Path) -> pl.DataFrame:
     return pl.read_parquet(save_path, memory_map=False)
 
 
-def try_read_df(save_path: Path, verbose: bool = True) -> pl.DataFrame | None:
+def try_read_df(
+    save_path: Path,
+    verbose: bool = True,
+) -> pl.DataFrame | None:
     """Try reading a Polars dataframe at the given path. If the read fails,
     return ``None``."""
     try:
@@ -45,18 +50,20 @@ def try_read_df(save_path: Path, verbose: bool = True) -> pl.DataFrame | None:
 
 
 def delete_df(
-    save_path: Path, check_if_default_storage_format: bool = True
+    save_path: Path,
+    default_storage_format: Literal["parquet"] = "parquet",
+    check_if_default_storage_format: bool = True,
 ) -> bool:
     if save_path.exists():
         if (not check_if_default_storage_format) or save_path.name.endswith(
-            DEFAULT_STORAGE_FORMAT
+            default_storage_format
         ):
             print(f"Deleting {save_path}...")
             save_path.unlink()
             return True
         else:
             raise ValueError(
-                f"{save_path} is not a {DEFAULT_STORAGE_FORMAT} type file."
+                f"{save_path} is not a {default_storage_format} type file."
             )
     else:
         return False
@@ -125,7 +132,7 @@ def read_storage_file(
 
 def gen_meta_info_path(analysis_defn: AnalysisDefn, meta_name: str) -> Path:
     return ANALYSIS_OUTPUT_FOLDER.joinpath(
-        f"{analysis_defn.tag()}_{meta_name}_info.{DEFAULT_STORAGE_FORMAT}"
+        f"{analysis_defn.tag()}_{meta_name}_info.{analysis_defn.default_storage_format}"
     )
 
 
@@ -135,16 +142,16 @@ class Placeholder:
 
 
 def gen_support_info_path_from_tags(
-    analysis_defn_tag: str,
+    analysis_defn: AnalysisDefn,
     support_name_tag: str,
     support_file_date_tag: str,
     source_name_tag: str,
 ) -> Path:
     return ANALYSIS_OUTPUT_FOLDER.joinpath(
-        f"{str(analysis_defn_tag)}_{support_name_tag}_info"
+        f"{str(analysis_defn)}_{support_name_tag}_info"
         + source_name_tag
         + support_file_date_tag
-        + f".{DEFAULT_STORAGE_FORMAT}"
+        + f".{analysis_defn.default_storage_format}"
     )
 
 
@@ -167,18 +174,11 @@ def gen_support_info_path(
         source_name_tag = f"_src_{source_name}"
 
     return gen_support_info_path_from_tags(
-        str(analysis_defn),
+        analysis_defn,
         support_name,
         source_name_tag,
         support_file_date_tag,
     )
-
-    # return ANALYSIS_OUTPUT_FOLDER.joinpath(
-    #     f"{str(analysis_defn)}_{support_name}_info"
-    #     + source_part
-    #     + date_part
-    #     + f".{DEFAULT_STORAGE_FORMAT}"
-    # )
 
 
 def gen_isr_year_info_path(years: int | list[int] | None) -> Path:

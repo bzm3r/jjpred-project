@@ -20,7 +20,6 @@ from jjpred.columns import (
 )
 import polars.selectors as cs
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
-from jjpred.globalvariables import DEFAULT_STORAGE_FORMAT
 from jjpred.sku import Category
 import re
 
@@ -485,7 +484,7 @@ class DataVariant(DataVariantMeta, Enum):
         will be saved. (This can also be used to figure out where to read this
         saved data from later.)"""
         return ANALYSIS_OUTPUT_FOLDER.joinpath(
-            f"{analysis_defn.tag()}_{self.name}.{DEFAULT_STORAGE_FORMAT}"
+            f"{analysis_defn.tag()}_{self.name}.{analysis_defn.default_storage_format}"
         )
 
     @classmethod

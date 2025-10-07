@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import Enum, unique
 from pathlib import Path
-from typing import Sequence
 import polars as pl
 import polars.selectors as cs
 
 from jjpred.analysisdefn import FbaRevDefn
 from jjpred.channel import Channel
 from jjpred.countryflags import CountryFlags
-from jjpred.globalvariables import DISPATCH_CUTOFF_QTY
 from jjpred.readsupport.utils import (
     NA_FBA_SHEET,
     cast_standard,
@@ -355,7 +354,7 @@ def create_dispatch_info(
         .with_columns(pl.col.final_dispatch.fill_null(0))
         .with_columns(
             manually_deleted=(
-                pl.col.calc_dispatch.ge(DISPATCH_CUTOFF_QTY)
+                pl.col.calc_dispatch.ge(analysis_defn.dispatch_cutoff_qty)
                 & pl.col.final_dispatch.eq(0)
             ),
         )

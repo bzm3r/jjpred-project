@@ -14,10 +14,6 @@ import polars as pl
 
 from jjpred.aggregator import Aggregator, UsingChannels
 from jjpred.channel import Channel
-from jjpred.globalvariables import (
-    WEEKLY_PREDICTION_OFFSET,
-    SEASON_START_PREDICTION_OFFSET,
-)
 from jjpred.sku import Category
 
 
@@ -73,13 +69,20 @@ class RefillType(EnumLike):
 
         raise ValueError(f"Could not parse {x} as {cls}.")
 
-    def end_date(self, start_date: DateLike) -> Date:
+    def end_date(
+        self,
+        start_date: DateLike,
+        weekly_prediction_offset: DateOffset = DateOffset(6, DateUnit.WEEK),
+        season_start_prediction_offset: DateOffset = DateOffset(
+            3, DateUnit.MONTH
+        ),
+    ) -> Date:
         """Get the end date of the prediction period for this refill type."""
         match self:
             case RefillType.MONTHLY | RefillType.WEEKLY:
-                return offset_date(start_date, WEEKLY_PREDICTION_OFFSET)
+                return offset_date(start_date, weekly_prediction_offset)
             case RefillType.SEASON_START:
-                return offset_date(start_date, SEASON_START_PREDICTION_OFFSET)
+                return offset_date(start_date, season_start_prediction_offset)
             case RefillType.CUSTOM_2024_SEP_10:
                 start_date = Date.from_datelike(start_date)
                 assert start_date == Date.from_datelike("2024-SEP-01"), (
