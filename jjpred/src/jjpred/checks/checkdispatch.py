@@ -693,7 +693,7 @@ def check_dispatch_results(
             "uses_ce",
             "ce_uses_e",
             "ce_uses_po",
-            "prebox_required",
+            "pre_box_required",
             pl.col("expected_demand_from_history").list.sum(),
             pl.col("expected_demand_from_po").list.sum(),
             "dispatch",

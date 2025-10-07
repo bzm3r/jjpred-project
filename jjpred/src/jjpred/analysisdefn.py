@@ -637,6 +637,8 @@ class FbaRevDefnArgs:
     use_old_current_period_method: bool = field(default=True)
     new_categories: list[str] = field(default_factory=list)
     forced_po_categories: list[str] = field(default_factory=list)
+    full_box_rounding_margin_ratio: float = field(default=0.1)
+    full_box_rounding_margin_qty: int = field(default=10)
 
     def as_dict(self) -> dict:
         return {
@@ -729,6 +731,8 @@ class FbaRevDefn(RefillDefn):
         use_old_current_period_method: bool = True,
         new_categories: list[str] = list(),
         forced_po_categories: list[str] = list(),
+        full_box_rounding_margin_ratio: float = 0.1,
+        full_box_rounding_margin_qty: int = 10,
     ):
         self.refill_type = refill_type
 
@@ -805,6 +809,8 @@ class FbaRevDefn(RefillDefn):
             use_old_current_period_method=use_old_current_period_method,
             new_categories=new_categories,
             forced_po_categories=forced_po_categories,
+            full_box_rounding_margin_qty=full_box_rounding_margin_qty,
+            full_box_rounding_margin_ratio=full_box_rounding_margin_ratio,
         )
 
     @classmethod
@@ -832,6 +838,8 @@ class FbaRevDefn(RefillDefn):
             mainprogram_date=self.mainprogram_date,
             new_categories=self.new_categories,
             forced_po_categories=self.forced_po_categories,
+            full_box_rounding_margin_qty=self.full_box_rounding_margin_qty,
+            full_box_rounding_margin_ratio=self.full_box_rounding_margin_ratio,
         )
 
     @classmethod
