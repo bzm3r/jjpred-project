@@ -43,6 +43,8 @@ DATA_AVAILABILITY_FLAGS = [
 ]
 NOVELTY_FLAGS = [
     "is_new_category",
+    "is_current_category",
+    "is_future_category",
     "is_current_sku",
     "is_future_sku",
     "is_new_sku",

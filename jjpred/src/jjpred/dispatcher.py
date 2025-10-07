@@ -956,6 +956,10 @@ class Dispatcher:
                     ]
                 )
 
+        self.all_sku_info = self.all_sku_info.join(
+            self.config_data.in_config_file, on=["category"], how="left"
+        ).with_columns(pl.col.in_config_file.fill_null(pl.lit(False)))
+
         find_dupes(
             demand_predictions,
             ["sku", "a_sku"] + Channel.members(),

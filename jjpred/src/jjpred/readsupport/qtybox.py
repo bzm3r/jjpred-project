@@ -17,7 +17,9 @@ from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.polars import find_dupes, sanitize_excel_extraction
 from jjpred.utils.typ import normalize_as_list
 
-QTY_BOX_FILE: str = "PO boxes and volume - All seasons{date_part}.xlsx"
+# QTY_BOX_FILE: str = "qty box {date_part}.xlsx"
+
+QTY_BOX_FILE: str = "qty_box.xlsx"
 
 
 def gen_qty_box_path(file_date: DateLike | None) -> Path:
@@ -28,13 +30,13 @@ def gen_qty_box_path(file_date: DateLike | None) -> Path:
 
     If the file is not found, raise an error."""
 
-    if file_date is None:
-        date_part = ""
-    else:
-        date_part = f" ({str(Date.from_datelike(file_date))})"
+    # if file_date is None:
+    #     date_part = ""
+    # else:
+    #     date_part = f" ({str(Date.from_datelike(file_date))})"
 
     path = ANALYSIS_INPUT_FOLDER.joinpath(
-        QTY_BOX_FILE.format(date_part=date_part)
+        QTY_BOX_FILE  # .format(date_part=date_part)
     )
     if path.exists():
         print(f"{path} exists!")
@@ -136,7 +138,7 @@ def read_qty_box(
     all_sku_info = read_meta_info(analysis_defn, "all_sku")
     # channel_info = read_meta_info(analysis_defn, "channel")
 
-    required_sheets = ["SS", "FW"]
+    required_sheets = ["RDF"]
 
     sheet_headers: dict[str, pl.DataFrame] = pl.read_excel(
         qty_box_path,

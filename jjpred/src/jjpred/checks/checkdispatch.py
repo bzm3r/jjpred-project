@@ -4,7 +4,6 @@ comparing it with actual dispatch data."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pandas import DataFrame
 import polars as pl
 from pathlib import Path
 
@@ -256,6 +255,15 @@ def check_dispatch_results(
         .unique()
         .sort(
             ALL_SKU_IDS + CHANNEL_IDS + ["wh_dispatchable", "expected_demand"]
+        ),
+        "Missing CONFIG": active_results.filter(
+            ~pl.col.in_config_file, pl.col.is_current_category
+        ).select(
+            "category",
+            "category_year_history",
+            "is_current_category",
+            "is_new_category",
+            "in_config_file",
         ),
         "NE data missing (sku)": active_results.filter(
             pl.col("new_category_problem") & pl.col("is_current_sku")
@@ -621,6 +629,40 @@ def check_dispatch_results(
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "all": active_results,
+        "estimation_check": active_results.select(
+            "sku",
+            "category",
+            "season",
+            "sku_year_history",
+            "category_year_history",
+            "is_master_paused",
+            "is_config_paused",
+            (pl.col.is_master_paused | pl.col.is_config_paused).alias(
+                "is_paused"
+            ),
+            pl.concat_arr(
+                *[pl.col(x).cast(pl.String()) for x in Channel.members()]
+            ).arr.join(" "),
+            "ch_stock",
+            "wh_stock",
+            "prediction_type",
+            "uses_ce",
+            "ce_uses_e",
+            "ce_uses_po",
+            "prebox_required",
+            pl.col("expected_demand_from_history").list.sum(),
+            pl.col("expected_demand_from_po").list.sum(),
+            "dispatch",
+        ).with_columns(
+            (
+                pl.col.expected_demand_from_history
+                < 0.5 * pl.col.expected_demand_from_po
+            ).alias("e < 0.5 * po"),
+            (
+                pl.col.expected_demand_from_po
+                - pl.col.expected_demand_from_history
+            ).alias("po - e"),
+        ),
         "reserved": dispatcher.reserved_quantity,
         "reserved_conflict_sku": (
             active_results.filter(pl.col.reserved.gt(0))

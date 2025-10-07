@@ -25,6 +25,7 @@ from jjpred.structlike import MemberType
 from jjpred.utils.fileio import read_meta_info
 from jjpred.utils.polars import (
     OverrideLeft,
+    concat_enum_extend_vstack_strict,
     find_dupes,
     join_and_coalesce,
 )
@@ -420,6 +421,7 @@ def get_checked_a_sku_info(
     info_columns: list[str] = ["season_history"],
     rename_brc_ylw_to_brc_yel: bool = True,
     rename_icp_to_ipc: bool = True,
+    extend_with_sku_as_a_sku: bool = False,
 ) -> pl.DataFrame:
     if only_active_sku:
         info_type = "active_sku"
@@ -487,6 +489,11 @@ def get_checked_a_sku_info(
                 raise ValueError("Found dupes in SKU info!")
 
             sku_info = sku_info.with_columns(pl.col(y).list.first().alias(y))
+
+    if extend_with_sku_as_a_sku and "sku" in sku_info.columns:
+        sku_info = concat_enum_extend_vstack_strict(
+            [sku_info, sku_info.with_columns(sku=pl.col.a_sku)]
+        ).unique()
 
     return sku_info
 

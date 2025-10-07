@@ -431,7 +431,7 @@ def get_strategy_from_library(
         .with_columns(
             fw_start=pl.date(
                 analysis_defn.current_seasons.FW + 2000,
-                int(Month.SEPTEMBER),
+                int(Month.AUGUST),
                 1,
             ),
             ss_start=pl.date(

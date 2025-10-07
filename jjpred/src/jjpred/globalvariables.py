@@ -35,44 +35,6 @@ as having low category historical sales (relevant if historical sales data + cur
 period data is used to generate a prediction for expected sales for this
 SKU)."""
 
-# This is read by main_program_new_categories.ipynb
-# also manually added: FVM, AJC, SBS, but this should correspond to changes in
-# the main program
-NEW_CATEGORIES = [
-    "AJA",
-    "AJC",
-    "BSL",
-    "BST",
-    "DRC",
-    "FAN",
-    "FHA",
-    "FVM",
-    "IHT",  # temporarily adding IHT
-    "IPC",
-    "IPS",
-    "ISB",
-    "ISJ",
-    "ISS",
-    "LAB",
-    "LAN",
-    "LBP",
-    "LBT",
-    # "SKX",
-    "SBS",
-    "SMF",
-    "SSW",
-    "SWS",
-    "WGS",
-    "WRM",
-    "XBK",
-    "XBM",
-    "XLB",
-    "XPC",
-    "XWG",
-]
-"""Categories marked "NEW" as per marketing, so we use "NE" type prediction for
-these, if they are in the "PO"-based prediction phase of the year."""
-
 ENDS_WITH_U_OK_LIST = ["HXU", "HBU"]
 """We typically ignore SKUs that end with U, but some should not be ignored."""
 

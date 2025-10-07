@@ -1332,11 +1332,16 @@ def read_master_sku_excel_file(
         .with_columns(
             is_new_category=(pl.col.is_current_sku | pl.col.is_future_sku)
             .all()
-            .over("category")
+            .over("category"),
+            is_current_category=pl.col.is_current_sku.any().over("category"),
+            is_future_category=pl.col.is_future_sku.all().over("category"),
         )
     )
     is_new_category_df = result.active_sku.select(
-        "category", "is_new_category"
+        "category",
+        "is_current_category",
+        "is_new_category",
+        "is_future_category",
     ).unique()
     find_dupes(is_new_category_df, id_cols=["category"])
     result.all_sku = (

@@ -17,7 +17,10 @@ from jjpred.parse.patternmatch import (
 )
 from jjpred.readsupport.utils import cast_standard, parse_channels
 from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
-from jjpred.sku import SKU_CATEGORY_PRINT_SIZE_REMAINDER, Sku
+from jjpred.sku import (
+    SKU_CATEGORY_PRINT_SIZE_REMAINDER,
+    Sku,
+)
 from jjpred.structlike import FieldMeta, MemberType, StructLike
 from jjpred.utils.datetime import Date, DateLike
 import polars as pl
@@ -219,6 +222,8 @@ class ConfigData:
     """Configured category season.
 
     This can affect the prediction type (E vs. PO based) for items."""
+    in_config_file: pl.DataFrame
+    "Contains information about whether categories were found in the configuration file."
 
     def filter_channels(self, channel_df: pl.DataFrame) -> Self:
         channel_df = channel_df.select(Channel.members())
@@ -235,6 +240,13 @@ class ConfigData:
             RefillConfigInfo | GeneralRefillConfigInfo
         ],
     ) -> Self:
+        active_sku_info = active_sku_info.join(
+            self.refill.select("sku", "a_sku", "refill_request")
+            .group_by("sku", "a_sku")
+            .agg(pl.col.refill_request.min().alias("min_refill_request")),
+            on=["sku", "a_sku"],
+            how="left",
+        ).with_columns(pl.col.min_refill_request.fill_null(0))
         if len(extra_refill_info) > 0:
             normalized_extra_refill_info: list[RefillConfigInfo] = []
             for x in extra_refill_info:
@@ -264,19 +276,23 @@ class ConfigData:
             )
             assert len(extra_refill_df.filter(pl.col.category.is_null())) == 0
 
-            new_refill_df = concat_enum_extend_vstack_strict(
-                [
-                    result.refill.filter(
-                        ~pl.struct("sku", *Channel.members()).is_in(
-                            extra_refill_df.select(
-                                pl.struct("sku", *Channel.members()).alias(
-                                    "id"
-                                )
-                            )["id"]
-                        )
-                    ),
-                    extra_refill_df,
-                ]
+            new_refill_df = (
+                concat_enum_extend_vstack_strict(
+                    [
+                        result.refill.filter(
+                            ~pl.struct("sku", *Channel.members()).is_in(
+                                extra_refill_df.select(
+                                    pl.struct("sku", *Channel.members()).alias(
+                                        "id"
+                                    )
+                                )["id"]
+                            )
+                        ),
+                        extra_refill_df,
+                    ]
+                )
+                .group_by(*ALL_SKU_AND_CHANNEL_IDS)
+                .agg(pl.col.refill_request.max())
             )
 
             find_dupes(
@@ -295,12 +311,15 @@ class ConfigData:
         refill: pl.DataFrame,
         min_keep: pl.DataFrame,
         category_season: pl.DataFrame,
+        in_config_file: pl.DataFrame,
     ) -> Self:
         """Generate from ``refill`` and ``min_keep`` dataframes."""
         refill, no_refill = binary_partition_strict(
             refill, pl.col("refill_request").ge(0)
         )
-        return cls(refill, no_refill, min_keep, category_season)
+        return cls(
+            refill, no_refill, min_keep, category_season, in_config_file
+        )
 
 
 def extract_df(
@@ -525,13 +544,26 @@ def read_config(analysis_defn: AnalysisDefn) -> ConfigData:
     if config_date is None:
         raise ValueError(f"{analysis_defn.config_date=}")
 
-    refill_request = (
-        extract_df(
-            ANALYSIS_INPUT_FOLDER,
-            config_date,
-            use_columns,
+    refill_request = extract_df(
+        ANALYSIS_INPUT_FOLDER,
+        config_date,
+        use_columns,
+    )
+
+    in_config_file = (
+        refill_request.select("category")
+        .with_columns(in_config_file=pl.lit(True))
+        .group_by("category")
+        .agg(
+            pl.col.in_config_file.all(),
+            pl.col.in_config_file.sum().alias("num_config_file_appearances"),
         )
-        .unpivot(index="category", on=["Amazon.com", "Amazon.ca"])
+    )
+
+    refill_request = (
+        refill_request.unpivot(
+            index="category", on=["Amazon.com", "Amazon.ca"]
+        )
         .rename({"variable": "channel", "value": "refill_params"})
         .with_columns(
             pl.col("refill_params").map_elements(
@@ -542,6 +574,11 @@ def read_config(analysis_defn: AnalysisDefn) -> ConfigData:
         )
         .unnest("refill_params")
         .rename({"qty": "refill_request"})
+    )
+
+    assert (
+        len(in_config_file.filter(pl.col.num_config_file_appearances.gt(1)))
+        == 0
     )
 
     # sys.displayhook(refill)
@@ -683,4 +720,20 @@ def read_config(analysis_defn: AnalysisDefn) -> ConfigData:
         ),
     )
 
-    return ConfigData.create(refill_request, min_keep, category_season)
+    in_config_file = (
+        active_sku_info.select("category")
+        .unique()
+        .join(
+            cast_standard(
+                [active_sku_info],
+                in_config_file.select("category", "in_config_file"),
+            ),
+            on=["category"],
+            how="left",
+        )
+        .with_columns(pl.col.in_config_file.fill_null(False))
+    )
+
+    return ConfigData.create(
+        refill_request, min_keep, category_season, in_config_file
+    )

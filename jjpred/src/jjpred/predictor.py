@@ -19,7 +19,6 @@ from jjpred.datagroups import (
 from jjpred.globalvariables import (
     LOW_CATEGORY_HISTORICAL_SALES,
     LOW_CURRENT_PERIOD_SALES,
-    NEW_CATEGORIES,
     OUTPERFORM_FACTOR,
 )
 from jjpred.inputstrategy import SimpleTimePeriod
@@ -1250,11 +1249,21 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 new_overrides_e=pl.lit(
                     self.analysis_defn.new_overrides_e, dtype=pl.Boolean()
                 ),
-                category_marked_new=pl.col("category").is_in(NEW_CATEGORIES),
+                category_marked_new=pl.col("category").is_in(
+                    self.analysis_defn.new_categories
+                ),
+                category_marked_forced_po=pl.col("category").is_in(
+                    self.analysis_defn.forced_po_categories
+                ),
             )
             .with_columns(
                 has_e_data=pl.col("has_historical_data")
                 & pl.col("has_current_data"),
+            )
+            .with_columns(
+                prediction_type=pl.when(pl.col.category_marked_forced_po)
+                .then(pl.lit("PO", dtype=joined_df["prediction_type"].dtype))
+                .otherwise(pl.col.prediction_type)
             )
             .with_columns(
                 uses_ce=pl.col.prediction_type.eq("CE"),
@@ -1271,6 +1280,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     pl.col.uses_e
                     & pl.col.new_overrides_e
                     & pl.col.category_marked_new
+                    & ~pl.col.category_marked_forced_po
                 )
             )
             .with_columns(

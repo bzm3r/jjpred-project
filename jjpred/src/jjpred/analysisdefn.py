@@ -459,6 +459,12 @@ class RefillDefn(AnalysisDefn):
     use_old_current_period_method: bool = field(default=True)
     """Whether to use the old current period method, or the new one."""
 
+    new_categories: list[str] = field(default_factory=list)
+    """Categories marked for using NE type prediction when applicable."""
+
+    forced_po_categories: list[str] = field(default_factory=list)
+    """Categories marked for using PO type prediction, instead of CE or NE or E."""
+
     def __init__(
         self,
         refill_description: str,
@@ -490,6 +496,8 @@ class RefillDefn(AnalysisDefn):
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
         use_old_current_period_method: bool = True,
+        new_categories: list = [],
+        forced_po_categories: list = [],
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -542,6 +550,9 @@ class RefillDefn(AnalysisDefn):
         self.extra_refill_config_info = extra_refill_config_info
 
         self.use_old_current_period_method = use_old_current_period_method
+
+        self.new_categories = new_categories
+        self.forced_po_categories = forced_po_categories
 
         super().__init__(
             refill_description,
@@ -612,6 +623,8 @@ class FbaRevDefnArgs:
     ] = field(default_factory=list)
     combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
     use_old_current_period_method: bool = field(default=True)
+    new_categories: list[str] = field(default_factory=list)
+    forced_po_categories: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -702,6 +715,8 @@ class FbaRevDefn(RefillDefn):
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
         use_old_current_period_method: bool = True,
+        new_categories: list[str] = list(),
+        forced_po_categories: list[str] = list(),
     ):
         self.refill_type = refill_type
 
@@ -776,6 +791,8 @@ class FbaRevDefn(RefillDefn):
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
             current_seasons=current_seasons,
             use_old_current_period_method=use_old_current_period_method,
+            new_categories=new_categories,
+            forced_po_categories=forced_po_categories,
         )
 
     @classmethod
@@ -786,21 +803,23 @@ class FbaRevDefn(RefillDefn):
         assert self.config_date is not None
 
         return FbaRevDefnArgs(
-            self.date,
-            self.master_sku_date,
-            self.sales_and_inventory_date,
-            self.dispatch_date,
-            self.warehouse_inventory_date,
-            self.current_seasons,
-            self.config_date,
-            self.prediction_type_meta_date,
-            self.refill_type,
-            check_dispatch_date,
-            self.website_sku_date,
-            self.jjweb_reserve_info,
-            self.qty_box_date,
-            self.mon_sale_r_date,
-            self.mainprogram_date,
+            analysis_date=self.date,
+            master_sku_date=self.master_sku_date,
+            sales_and_inventory_date=self.sales_and_inventory_date,
+            dispatch_date=self.dispatch_date,
+            warehouse_inventory_date=self.warehouse_inventory_date,
+            current_seasons=self.current_seasons,
+            config_date=self.config_date,
+            prediction_type_meta_date=self.prediction_type_meta_date,
+            refill_type=self.refill_type,
+            check_dispatch_date=check_dispatch_date,
+            website_sku_date=self.website_sku_date,
+            jjweb_reserve_info=self.jjweb_reserve_info,
+            qty_box_date=self.qty_box_date,
+            mon_sale_r_date=self.mon_sale_r_date,
+            mainprogram_date=self.mainprogram_date,
+            new_categories=self.new_categories,
+            forced_po_categories=self.forced_po_categories,
         )
 
     @classmethod
