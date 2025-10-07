@@ -1413,6 +1413,9 @@ class Dispatcher:
             else:
                 extra_descriptor = ""
 
+            if descriptor != "":
+                extra_descriptor += descriptor
+
             for x in sheets.keys():
                 result_path = ANALYSIS_OUTPUT_FOLDER.joinpath(
                     Path(

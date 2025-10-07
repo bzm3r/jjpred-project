@@ -257,13 +257,24 @@ def check_dispatch_results(
             ALL_SKU_IDS + CHANNEL_IDS + ["wh_dispatchable", "expected_demand"]
         ),
         "Missing CONFIG": active_results.filter(
-            ~pl.col.in_config_file, pl.col.is_current_category
-        ).select(
+            ~pl.col.in_config_file,
+            pl.col.is_current_category,
+            ~pl.col.is_master_paused,
+        )
+        .select(
             "category",
             "category_year_history",
             "is_current_category",
             "is_new_category",
             "in_config_file",
+        )
+        .unique(),
+        "Priorities (No FBA Stock)": active_results.group_by(
+            "category", *Channel.members()
+        ).agg(
+            pl.col.ch_stock.sum(),
+            pl.col.is_master_paused.any(),
+            pl.col.dispatch.sum(),
         ),
         "NE data missing (sku)": active_results.filter(
             pl.col("new_category_problem") & pl.col("is_current_sku")
