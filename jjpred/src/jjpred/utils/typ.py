@@ -154,16 +154,17 @@ class RuntimeCheckableDataclass(Protocol):
     def fields(cls) -> list[str]:
         return list(cls.__dataclass_fields__.keys())
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in self.__dataclass_fields__.keys():
-            if isinstance(value, pl.DataFrame):  # type: ignore
-                super().__setattr__(name, value)
-            else:
-                raise TypeError(
-                    f"Expected value of type {self.__dataclass_fields__[name].type}, got {type(value)}"
-                )
-        else:
-            raise ValueError(f"{name} is not an expected dataclass field")
+    # def __setattr__(self, name: str, value: Any) -> None:
+    #     if name in self.__dataclass_fields__.keys():
+    #         print(self.__dataclass_fields__[name].type)
+    #         if type(value) is self.__dataclass_fields__[name].type:  # type: ignore
+    #             super().__setattr__(name, value)
+    #         else:
+    #             raise TypeError(
+    #                 f"Expected value of type {self.__dataclass_fields__[name].type}, got {type(value)}"
+    #             )
+    #     else:
+    #         raise ValueError(f"{name} is not an expected dataclass field")
 
 
 def as_type[T](x: Any, required_type: type[T]) -> T:

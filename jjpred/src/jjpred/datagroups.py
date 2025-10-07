@@ -121,6 +121,9 @@ DEMAND_INFO = (
         "mean_current_period_isr",
         "expected_demand_from_history",
         "expected_demand_from_po",
+        "expected_demand_before_missing_po_consideration",
+        "expected_demand_last_year",
+        "applies_missing_po_consideration",
         "expected_demand",
         "refill_request",
     ]

@@ -39,6 +39,12 @@ from jjpred.skuinfo import (
     attach_channel_info,
     attach_refill_info_from_config,
 )
+from jjpred.strategies import ChannelStrategyGroups
+from jjpred.strategylib import (
+    LATEST,
+    get_last_year_as_current_period_dict,
+    get_strategy_from_library,
+)
 from jjpred.structlike import MemberType, StructLike
 from jjpred.utils.datetime import Date, DateLike
 from jjpred.utils.fileio import write_df, write_excel
@@ -74,33 +80,15 @@ def calculate_required(
     df = predicted_demand
 
     assert df["expected_demand"].dtype == pl.Int64()
-    df = (
-        df.with_columns(
-            pre_part_requesting=pl.max_horizontal(
-                pl.col("expected_demand").ceil().cast(pl.Int64()),
-                pl.col("refill_request"),
-            )
+    df = df.with_columns(
+        requesting=pl.max_horizontal(
+            pl.col("expected_demand").ceil().cast(pl.Int64()),
+            pl.col("refill_request"),
         )
-        .with_columns(
-            requesting=(
-                pl.when(
-                    pl.struct(Channel.members()).eq(
-                        Channel.parse("janandjul.com").as_dict()
-                    )
-                )
-                .then(
-                    (pl.col.jjweb_east_frac * pl.col.pre_part_requesting)
-                    .ceil()
-                    .cast(pl.Int64())
-                )
-                .otherwise(pl.col.pre_part_requesting)
-            )
-        )
-        .with_columns(
-            uses_refill_request=(
-                pl.col("requesting").eq(pl.col("refill_request"))
-                & pl.col.refill_request.gt(0)
-            )
+    ).with_columns(
+        uses_refill_request=(
+            pl.col("requesting").eq(pl.col("refill_request"))
+            & pl.col.refill_request.gt(0)
         )
     )
 
@@ -347,6 +335,40 @@ def calculate_reserved_quantity(
         return concat_enum_extend_vstack_strict(reserve_demands)
     else:
         return pl.DataFrame()
+
+
+def calculate_jjweb_past_one_year_quantity(
+    db: DataBase,
+    predictor: Predictor,
+) -> pl.DataFrame:
+    assert isinstance(db.analysis_defn, RefillDefn)
+    find_dupes(db.meta_info.active_sku, ["sku", "a_sku"], raise_error=True)
+
+    predictor = Predictor(
+        db.analysis_defn,
+        db,
+        ChannelStrategyGroups(
+            db.analysis_defn,
+            input_strategies=get_strategy_from_library(
+                db.analysis_defn,
+                LATEST,
+                current_period_overrides=get_last_year_as_current_period_dict(
+                    db
+                ),
+            ),
+        ),
+        predictor.po_data,
+    )
+
+    predicted_demand = predictor.predict_demand(
+        ["jjweb ca east"],
+        db.analysis_defn.dispatch_date,
+        db.analysis_defn.end_date,
+        aggregate_final_result=True,
+        force_e_prediction=True,
+    )
+
+    return predicted_demand
 
 
 def attach_inventory_info(
@@ -774,6 +796,8 @@ class Dispatcher:
     """Next year (relative to the prediction start date)."""
     reserved_quantity: pl.DataFrame | None
     """Reserved quantity dataframe."""
+    expected_demand_last_year: pl.DataFrame | None
+    """Expected demand if current period is taken to be the last year."""
 
     @property
     def db(self) -> DataBase:
@@ -858,6 +882,7 @@ class Dispatcher:
         self.all_sku_info = attach_channel_info(
             self.all_sku_info, self.channel_info
         )
+
         # do a duplicate check, in order to catch any duplicates (there should
         # be no duplicate entries for each SKU + channel)
         find_dupes(
@@ -912,6 +937,44 @@ class Dispatcher:
         else:
             self.all_sku_info = self.all_sku_info.with_columns(
                 reserved=pl.lit(0)
+            )
+
+        input_data_info = self.predictor.get_input_data_info().join(
+            self.channel_info, on=Channel.members()
+        )
+
+        if Channel.parse("jjweb ca east") in self.dispatch_channels:
+            self.expected_demand_last_year = (
+                calculate_jjweb_past_one_year_quantity(db, predictor).join(
+                    input_data_info.select(
+                        "sku",
+                        *Channel.members(),
+                        "prediction_type",
+                        "has_po_data",
+                    ).filter(
+                        pl.col.prediction_type.eq("PO") & ~pl.col.has_po_data
+                    ),
+                    on=["sku", *Channel.members()],
+                    validate="1:1",
+                )
+            )
+
+            if len(self.expected_demand_last_year) > 0:
+                self.all_sku_info = self.all_sku_info.join(
+                    self.expected_demand_last_year.select(
+                        "sku",
+                        *Channel.members(),
+                        pl.col.expected_demand.alias(
+                            "expected_demand_last_year"
+                        ),
+                    ),
+                    on=["sku"] + Channel.members(),
+                    how="left",
+                )
+        else:
+            self.expected_demand_last_year = pl.DataFrame()
+            self.all_sku_info = self.all_sku_info.with_columns(
+                expected_demand_last_year=pl.lit(0)
             )
 
         # attach warehouse stock information and min_keep_qty information
@@ -1011,9 +1074,6 @@ class Dispatcher:
             self.all_sku_info.select(Channel.members()).unique()
         ) == len(self.dispatch_channels)
 
-        input_data_info = self.predictor.get_input_data_info().join(
-            self.channel_info, on=Channel.members()
-        )
         # attach input data information
         self.all_sku_info = override_sku_info(
             self.all_sku_info,
@@ -1124,11 +1184,31 @@ class Dispatcher:
                 & pl.col("refill_request").gt(0)
             )
             .with_columns(
-                expected_demand=pl.when(
+                expected_demand_before_missing_po_consideration=pl.when(
                     pl.col("refill_request_override").gt(0)
                 )
                 .then(pl.col("refill_request"))
                 .otherwise(pl.col("expected_demand")),
+            )
+            .with_columns(
+                applies_missing_po_consideration=pl.when(
+                    pl.col.prediction_type.eq("PO")
+                    & pl.struct(Channel.members()).eq(
+                        Channel.parse("jjweb ca east").as_dict()
+                    )
+                    & ~pl.col.has_po_data
+                )
+                .then(pl.lit(True))
+                .otherwise(pl.lit(False))
+            )
+            .with_columns(
+                expected_demand=pl.when(
+                    pl.col.applies_missing_po_consideration
+                )
+                .then(pl.col.expected_demand_last_year)
+                .otherwise(
+                    pl.col.expected_demand_before_missing_po_consideration
+                )
             )
         )
         find_dupes(
@@ -1156,64 +1236,6 @@ class Dispatcher:
         assert len(
             self.all_sku_info.select(Channel.members()).unique()
         ) == len(self.dispatch_channels)
-
-        # if isinstance(db.analysis_defn, JJWebDefn):
-        #     jjweb_proportions = read_jjweb_proportions(db)
-
-        #     jjweb_demand, other_demand = binary_partition_weak(
-        #         self.all_sku_info,
-        #         pl.struct(*Channel.members()).eq(
-        #             Channel.parse("janandjul.com").as_dict()
-        #         ),
-        #     )
-
-        #     jjweb_demand_with_fracs = jjweb_demand.join(
-        #         jjweb_proportions, on="category", how="left"
-        #     )
-
-        #     categories_with_missing_jjweb_proportions = list(
-        #         jjweb_demand_with_fracs.filter(
-        #             pl.col.ca_frac.is_null() & ~pl.col.is_master_paused
-        #         )["category"].unique()
-        #     )
-
-        #     if len(categories_with_missing_jjweb_proportions) > 0:
-        #         sys.displayhook(categories_with_missing_jjweb_proportions)
-        #         raise ValueError(
-        #             f"{categories_with_missing_jjweb_proportions=}"
-        #         )
-
-        #     jjweb_demand_after_split = jjweb_demand_with_fracs.with_columns(
-        #         country_flag=pl.lit(
-        #             int(CountryFlags.CA),
-        #             dtype=other_demand["country_flag"].dtype,
-        #         ),
-        #         expected_demand=pl.when(pl.col.ca_frac.is_not_null())
-        #         .then(
-        #             (
-        #                 pl.col.ca_frac
-        #                 * pl.col.east_frac
-        #                 * pl.col.expected_demand
-        #             ).round()
-        #         )
-        #         .otherwise(pl.lit(0))
-        #         .cast(pl.Int64()),
-        #     ).select(other_demand.columns)
-
-        #     # a_type = {x: other_demand[x].dtype for x in other_demand.columns}
-        #     # b_type = {
-        #     #     x: jjweb_demand_after_split[x].dtype
-        #     #     for x in jjweb_demand_after_split.columns
-        #     # }
-
-        #     # for key in a_type.keys():
-        #     #     if a_type[key] != b_type[key]:
-        #     #         print(f"found mismatch: {key=}")
-        #     #         print(f"{key=}, {a_type[key]=}, {b_type[key]=}")
-
-        #     self.all_sku_info = other_demand.vstack(
-        #         jjweb_demand_after_split.select(other_demand.columns)
-        #     )
 
     def calculate_dispatch(
         self,
