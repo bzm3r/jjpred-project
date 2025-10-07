@@ -4,12 +4,14 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
+from collections.abc import Sequence
 import polars as pl
 from dataclasses import dataclass, field
 import datetime
 from functools import total_ordering
 from typing import Self
 
+from jjpred.channel import Channel
 from jjpred.inputstrategy import RefillType
 from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
 from jjpred.scripting.dateoffset import (
@@ -471,7 +473,11 @@ class RefillDefn(AnalysisDefn):
     """Categories marked for using NE type prediction when applicable."""
 
     forced_po_categories: list[str] = field(default_factory=list)
-    """Categories marked for using PO type prediction, instead of CE or NE or E."""
+    """Categories marked for using PO type prediction, instead of CE or NE or
+    E."""
+
+    channels: list[Channel] = field(default_factory=list)
+    """The channels for which we make predictions."""
 
     def __init__(
         self,
@@ -506,8 +512,9 @@ class RefillDefn(AnalysisDefn):
         use_old_current_period_method: bool = True,
         full_box_rounding_margin_ratio: float = 0.1,
         full_box_rounding_margin_qty: int = 0,
-        new_categories: list = [],
-        forced_po_categories: list = [],
+        new_categories: list[str] = [],
+        forced_po_categories: list[str] = [],
+        channels: Sequence[str | Channel] = list(),
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -565,6 +572,7 @@ class RefillDefn(AnalysisDefn):
         self.full_box_rounding_margin_ratio = full_box_rounding_margin_ratio
         self.new_categories = new_categories
         self.forced_po_categories = forced_po_categories
+        self.channels = [Channel.parse(x) for x in channels]
 
         super().__init__(
             refill_description,
@@ -639,6 +647,7 @@ class FbaRevDefnArgs:
     forced_po_categories: list[str] = field(default_factory=list)
     full_box_rounding_margin_ratio: float = field(default=0.1)
     full_box_rounding_margin_qty: int = field(default=10)
+    channels: list[Channel] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -733,6 +742,7 @@ class FbaRevDefn(RefillDefn):
         forced_po_categories: list[str] = list(),
         full_box_rounding_margin_ratio: float = 0.1,
         full_box_rounding_margin_qty: int = 10,
+        channels: Sequence[str | Channel] = list(),
     ):
         self.refill_type = refill_type
 
@@ -811,6 +821,7 @@ class FbaRevDefn(RefillDefn):
             forced_po_categories=forced_po_categories,
             full_box_rounding_margin_qty=full_box_rounding_margin_qty,
             full_box_rounding_margin_ratio=full_box_rounding_margin_ratio,
+            channels=channels,
         )
 
     @classmethod
@@ -840,6 +851,7 @@ class FbaRevDefn(RefillDefn):
             forced_po_categories=self.forced_po_categories,
             full_box_rounding_margin_qty=self.full_box_rounding_margin_qty,
             full_box_rounding_margin_ratio=self.full_box_rounding_margin_ratio,
+            channels=self.channels,
         )
 
     @classmethod

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import Enum, unique
 from pathlib import Path
+from typing import Sequence
 import polars as pl
 import polars.selectors as cs
 
@@ -142,7 +143,7 @@ def read_raw_dispatch_from_excel(
 
 def read_final_dispatch(
     analysis_defn: FbaRevDefn,
-    target_channels: list[str | Channel] = ["amazon.com", "amazon.ca"],
+    target_channels: Sequence[str | Channel] = ["amazon.com", "amazon.ca"],
 ) -> pl.DataFrame:
     """Read the dispatch from a ``REFILL DRAFT PLAN`` Excel file."""
     active_sku_info = read_meta_info(analysis_defn, "active_sku")
@@ -423,7 +424,7 @@ def read_dispatch_from_refill_draft(
     analysis_defn: FbaRevDefn,
     read_from_disk: bool = False,
     delete_if_exists: bool = False,
-    target_channels: list[str | Channel] = ["amazon.ca", "amazon.com"],
+    target_channels: Sequence[str | Channel] = ["amazon.ca", "amazon.com"],
     overwrite: bool = True,
 ) -> pl.DataFrame:
     save_path = gen_support_info_path(

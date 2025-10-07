@@ -807,7 +807,6 @@ class Dispatcher:
     def __init__(
         self,
         analysis_defn_or_db: RefillDefn | DataBase,
-        dispatch_channels: list[Channel | str],
         predictor: Predictor,
         filters: list[StructLike] | None = [],
         read_from_disk: bool = False,
@@ -831,9 +830,7 @@ class Dispatcher:
             analysis_defn, read_from_disk=read_from_disk, overwrite=overwrite
         )
         # parse the given focus channels as Channels
-        self.dispatch_channels = list(
-            Channel.parse(x) for x in dispatch_channels
-        )
+        self.dispatch_channels = analysis_defn.channels
         self.predictor = predictor
         self.filters = FilterStructs(
             list(

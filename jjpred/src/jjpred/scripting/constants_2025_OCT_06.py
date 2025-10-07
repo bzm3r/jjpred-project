@@ -89,15 +89,16 @@ args = FbaRevDefnArgs(
     full_box_rounding_margin_ratio=0.2,
 )
 
-analysis_defn = FbaRevDefn.from_args(
+analysis_defn_fba = FbaRevDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="_main",
-    )
+        extra_descriptor="fba",
+        channels=["amazon.ca", "amazon.com"],
+    ),
 )
 
 
@@ -109,5 +110,6 @@ analysis_defn_3pl_east = FbaRevDefn.from_args(
         ),
         use_old_current_period_method=False,
         extra_descriptor="3pl_east",
+        channels=["jjweb ca east"],
     )
 )

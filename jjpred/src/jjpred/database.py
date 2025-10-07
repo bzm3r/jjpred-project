@@ -691,14 +691,18 @@ class DataBase:
                 == 0
             )
 
-            self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
-                [self.dfs[DataVariant.History], expanded_jjweb_history]
-            )
-
             self.meta_info.expanded_jjweb_history = expanded_jjweb_history
+        else:
             self.meta_info.expanded_jjweb_history = pl.DataFrame(
                 schema=self.dfs[DataVariant.History].schema
             )
+
+        self.dfs[DataVariant.History] = concat_enum_extend_vstack_strict(
+            [
+                self.dfs[DataVariant.History],
+                self.meta_info.expanded_jjweb_history,
+            ]
+        )
 
         if isinstance(self.analysis_defn, FbaRevDefn):
             self.meta_info.east_west_fracs = calculate_east_west_fracs(
@@ -735,7 +739,7 @@ class DataBase:
 
 def standardize_channel_info(
     dfs: dict[DataVariant, pl.DataFrame],
-    extra_channels: list[str | Channel] = ["jjweb ca east"],
+    extra_channels: Sequence[str | Channel] = ["jjweb ca east"],
 ) -> tuple[dict[DataVariant, pl.DataFrame], pl.DataFrame]:
     """Parse raw string channels in dataframes, interpret them as
     :py:class:`Channel` objects, and cast channel strings as

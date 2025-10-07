@@ -474,7 +474,7 @@ def fill_out_sku_parts(
 
 
 def generate_channel_df(
-    analysis_defn: AnalysisDefn, channels: list[str | Channel]
+    analysis_defn: AnalysisDefn, channels: Sequence[str | Channel]
 ) -> pl.DataFrame:
     """Generate the channel information dataframe."""
     channel_info = read_meta_info(analysis_defn, "channel")
