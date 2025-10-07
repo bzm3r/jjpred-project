@@ -257,13 +257,24 @@ def check_dispatch_results(
             ALL_SKU_IDS + CHANNEL_IDS + ["wh_dispatchable", "expected_demand"]
         ),
         "Missing CONFIG": active_results.filter(
-            ~pl.col.in_config_file, pl.col.is_current_category
-        ).select(
+            ~pl.col.in_config_file,
+            pl.col.is_current_category,
+            ~pl.col.is_master_paused,
+        )
+        .select(
             "category",
             "category_year_history",
             "is_current_category",
             "is_new_category",
             "in_config_file",
+        )
+        .unique(),
+        "Priorities (No FBA Stock)": active_results.group_by(
+            "category", *Channel.members()
+        ).agg(
+            pl.col.ch_stock.sum(),
+            pl.col.is_master_paused.any(),
+            pl.col.dispatch.sum(),
         ),
         "NE data missing (sku)": active_results.filter(
             pl.col("new_category_problem") & pl.col("is_current_sku")
@@ -629,6 +640,50 @@ def check_dispatch_results(
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "all": active_results,
+        "box rounding": active_results.filter(
+            pl.col.qty_box.is_not_null() & pl.col.qty_box.gt(0),
+            pl.col.requesting.gt(pl.col.ch_stock),
+        ).select(
+            "sku",
+            "platform",
+            "country_flag",
+            "ch_stock",
+            "wh_stock",
+            "expected_demand",
+            "requesting",
+            "pre_box_required",
+            "qty_box",
+            "exact_boxes",
+            "exact_boxes_floor",
+            "exact_boxes_ceil",
+            "qty_exact_boxes_floor",
+            "qty_exact_boxes_ceil",
+            "distance_to_floor",
+            "distance_to_ceil",
+            "margin_by_ratio",
+            "close_to_floor",
+            "close_to_ceil",
+            "num_closest_box",
+            "post_box_required",
+            "post_split_required",
+            "post_split_exact_boxes",
+            "post_split_exact_boxes_floor",
+            "post_split_distance_to_floor",
+            "post_split_margin_by_ratio",
+            "eb_not_null",
+            "close_by_ratio",
+            "close_by_qty",
+            "eb_gt_zero",
+            "post_split_close_to_floor",
+            "post_split_num_closest_box",
+            (
+                pl.when(pl.col.auto_split)
+                .then(pl.col.post_split_num_closest_box.is_not_null())
+                .otherwise(pl.col.num_closest_box.is_not_null())
+            ).alias("rounded_to_box"),
+            "dispatch",
+            "auto_split",
+        ),
         "estimation_check": active_results.select(
             "sku",
             "category",
@@ -649,7 +704,7 @@ def check_dispatch_results(
             "uses_ce",
             "ce_uses_e",
             "ce_uses_po",
-            "prebox_required",
+            "pre_box_required",
             pl.col("expected_demand_from_history").list.sum(),
             pl.col("expected_demand_from_po").list.sum(),
             "dispatch",
@@ -675,14 +730,14 @@ def check_dispatch_results(
                 "reserved_before_on_order",
                 "reserved",
                 "wh_dispatchable",
-                "required",
-                "total_required",
+                "post_box_required",
+                "total_post_box_required",
                 "dispatch",
             )
             .sort("sku")
             .with_columns(
                 total_possible_dispatch=pl.min_horizontal(
-                    pl.col.total_required,
+                    pl.col.total_post_box_required,
                     pl.col.wh_dispatchable + pl.col.reserved,
                 )
             )
@@ -699,7 +754,7 @@ def check_dispatch_results(
             )
             # .with_columns(
             #     total_dispatched_over_total_required=pl.col.total_dispatch
-            #     / pl.col.total_required,
+            #     / pl.col.total_post_box_required,
             # )
             .with_columns(
                 total_dispatch_over_total_possible_dispatch=pl.col.total_dispatch
@@ -719,14 +774,14 @@ def check_dispatch_results(
                 "reserved_before_on_order",
                 "reserved",
                 "wh_dispatchable",
-                "required",
-                "total_required",
+                "post_box_required",
+                "total_post_box_required",
                 "dispatch",
             )
             .sort("sku")
             .with_columns(
                 total_possible_dispatch=pl.min_horizontal(
-                    pl.col.total_required,
+                    pl.col.total_post_box_required,
                     pl.col.wh_dispatchable + pl.col.reserved,
                 )
             )
@@ -741,8 +796,8 @@ def check_dispatch_results(
                 pl.col.reserved_before_on_order.sum(),
                 pl.col.reserved.sum(),
                 pl.col.wh_dispatchable.sum(),
-                pl.col.required.sum(),
-                pl.col.total_required.sum(),
+                pl.col.post_box_required.sum(),
+                pl.col.total_post_box_required.sum(),
                 pl.col.dispatch.sum(),
                 pl.col.total_dispatch.sum(),
                 pl.col.total_possible_dispatch.sum(),

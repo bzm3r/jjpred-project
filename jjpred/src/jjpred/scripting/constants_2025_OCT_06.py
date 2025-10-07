@@ -43,9 +43,7 @@ args = FbaRevDefnArgs(
             GeneralRefillConfigInfo(
                 ["amazon.ca", "amazon.com"],
                 5,
-                pl.col.is_current_sku
-                & pl.col.min_refill_request.lt(5)
-                & pl.col.season.ne("SS"),
+                pl.col.min_refill_request.lt(5) & pl.col.season.ne("SS"),
             ),
         ]
     ),
@@ -86,19 +84,34 @@ args = FbaRevDefnArgs(
         "XPC",
         "XWG",
     ],
+    enable_full_box_logic=True,
 )
 
 
-analysis_defn_test = FbaRevDefn.from_args(
+analysis_defn_qty_test = FbaRevDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
         use_old_current_period_method=False,
-        extra_descriptor="test_main",
+        extra_descriptor="_qty_test",
     )
 )
+
+analysis_defn_qty_test_2 = FbaRevDefn.from_args(
+    args.update(
+        jjweb_reserve_info=JJWebPredictionInfo(
+            reservation_expr=DEFAULT_RESERVATION_EXPR,
+            force_po_prediction_for_reservation=True,
+        ),
+        use_old_current_period_method=False,
+        extra_descriptor="_qty_test_2",
+        full_box_rounding_margin_ratio=0.2,
+        full_box_rounding_margin_qty=10,
+    )
+)
+
 
 analysis_defn = FbaRevDefn.from_args(
     args.update(

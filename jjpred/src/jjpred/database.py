@@ -240,6 +240,8 @@ class DataBase:
         )
         self.meta_info = MetaInfo.from_master_sku_result(master_sku_result)
 
+        assert len(self.meta_info.active_sku) > 0
+
         self.initialize_filters(normalize_optional(filters, []))
 
         success = False
@@ -247,7 +249,9 @@ class DataBase:
             success = self.read_saved_dfs()
 
         if not success:
+            assert len(self.meta_info.active_sku) > 0
             self.generate_from_excel(overwrite=overwrite)
+            assert len(self.meta_info.active_sku) > 0
 
         if self.analysis_defn.config_date is not None:
             config_data = read_config(self.analysis_defn)
@@ -332,6 +336,7 @@ class DataBase:
     def generate_from_excel(self, overwrite: bool = True):
         """Generate from Excel input files."""
         disable_fastexcel_dtypes_logger()
+        assert len(self.meta_info.active_sku) > 0
         self.execute_read_from_excel(
             focus_categories=self.focus_categories, overwrite=overwrite
         )
@@ -459,8 +464,8 @@ class DataBase:
                     )
 
                 elif sheet.variant == DataVariant.Inventory:
-                    sheet.df = sheet.df.melt(
-                        id_vars=[str(c) for c in sheet.id_cols],
+                    sheet.df = sheet.df.unpivot(
+                        index=[str(c) for c in sheet.id_cols],
                         variable_name="channel",
                         value_name="stock",
                     )
@@ -485,6 +490,7 @@ class DataBase:
             else pl.Series(IGNORE_SKU_LIST)
         )
         # ignore_skus = self.meta_info.ignored_sku["sku"].unique()
+        assert len(self.meta_info.active_sku) > 0
         self.dfs[DataVariant.Inventory] = (
             parse_channels(
                 cast_standard(

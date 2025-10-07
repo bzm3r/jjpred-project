@@ -90,7 +90,7 @@ DISPATCH_CHECK_FLAGS = [
     "required_gt_supply",
     "auto_split",
     "fine_auto_split",
-    "rounded_to_closest_box",
+    "num_closest_box",
     "dispatch_below_cutoff",
 ]
 FINAL_CHECK_FLAGS = (
@@ -142,8 +142,8 @@ INVENTORY_INFO = [
 DISPATCH_INFO = INVENTORY_INFO + [
     "requesting",
     "qty_box",
-    "required",
-    "prebox_required",
+    "post_box_required",
+    "pre_box_required",
     "dispatch",
 ]
 DISPATCHABLE_PAUSED_DATA = (
