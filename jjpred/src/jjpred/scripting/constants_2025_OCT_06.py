@@ -43,7 +43,9 @@ args = FbaRevDefnArgs(
             GeneralRefillConfigInfo(
                 ["amazon.ca", "amazon.com"],
                 5,
-                pl.col.is_current_sku & pl.col.min_refill_request.lt(5),
+                pl.col.is_current_sku
+                & pl.col.min_refill_request.lt(5)
+                & pl.col.season.ne("SS"),
             ),
         ]
     ),
