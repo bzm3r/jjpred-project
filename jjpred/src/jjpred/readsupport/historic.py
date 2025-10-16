@@ -9,7 +9,7 @@ from typing import NamedTuple
 import numpy as np
 import polars as pl
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel, Platform
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.readsupport.utils import (
@@ -63,7 +63,7 @@ def gen_historic_sales_and_inv_path(
 
 
 def read_mon_sale_r_params(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
     overwrite: bool = True,
@@ -184,7 +184,7 @@ def read_mon_sale_r_params(
 
 
 def read_demand_ratios(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists=False,
     overwrite: bool = True,
@@ -344,7 +344,7 @@ class CalcParamType(CalcParamMeta, Enum):
 
 
 def read_specific_calc_param_multidict(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     specific_calc_param: CalcParamType,
     additional_filters: list[pl.Expr] | None = None,
     remove_missing: bool = False,
@@ -388,7 +388,7 @@ def read_specific_calc_param_multidict(
 
 
 def read_specific_calc_param(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     specific_calc_param: CalcParamType,
     additional_filters: list[pl.Expr] | None = None,
     remove_missing: bool = False,

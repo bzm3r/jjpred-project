@@ -2,7 +2,7 @@
 
 import polars as pl
 import polars.selectors as cs
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel, SubCountry
 from jjpred.structlike import MemberType
 from jjpred.utils.datetime import first_day
@@ -32,7 +32,7 @@ def calculate_fractions(
 
 
 def calculate_east_west_fracs(
-    analysis_defn: FbaRevDefn, history_df: pl.DataFrame
+    analysis_defn: RefillDefn, history_df: pl.DataFrame
 ) -> pl.DataFrame:
     relevant_history = (
         history_df.filter(

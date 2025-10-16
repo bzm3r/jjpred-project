@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import polars as pl
 from pathlib import Path
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import (
     ALL_IDS,
@@ -125,7 +125,7 @@ def coalesce_check_flags(
 
 
 def check_dispatch_results(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     dispatcher: Dispatcher,
     jjpred_dispatch: pl.DataFrame,
     actual_dispatch: pl.DataFrame | None = None,

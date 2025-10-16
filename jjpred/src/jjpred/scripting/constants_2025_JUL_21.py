@@ -6,7 +6,7 @@ from jjpred.analysisdefn import (
     DEFAULT_RESERVATION_EXPR,
     CurrentSeasonDefn,
     FbaRevDefn,
-    FbaRevDefnArgs,
+    RefillDefnArgs,
     JJWebPredictionInfo,
 )
 from jjpred.inputstrategy import RefillType
@@ -15,7 +15,7 @@ from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
 
 import polars as pl
 
-args = FbaRevDefnArgs(
+args = RefillDefnArgs(
     analysis_date="2025-JUL-21",
     current_seasons=CurrentSeasonDefn(FW=25, SS=25),
     dispatch_date="2025-JUL-21",

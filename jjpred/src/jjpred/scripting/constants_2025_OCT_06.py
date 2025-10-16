@@ -5,8 +5,8 @@ from __future__ import annotations
 from jjpred.analysisdefn import (
     DEFAULT_RESERVATION_EXPR,
     CurrentSeasonDefn,
-    FbaRevDefn,
-    FbaRevDefnArgs,
+    RefillDefn,
+    RefillDefnArgs,
     JJWebPredictionInfo,
 )
 from jjpred.inputstrategy import RefillType
@@ -17,7 +17,8 @@ import polars as pl
 
 from jjpred.utils.multidict import MultiDict
 
-args = FbaRevDefnArgs(
+args = RefillDefnArgs(
+    refill_description="refill",
     analysis_date="2025-OCT-06",
     current_seasons=CurrentSeasonDefn(FW=25, SS=25),
     dispatch_date="2025-OCT-06",
@@ -94,7 +95,7 @@ args = FbaRevDefnArgs(
     full_box_rounding_margin_ratio=0.2,
 )
 
-analysis_defn_fba = FbaRevDefn.from_args(
+analysis_defn_fba = RefillDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
@@ -105,7 +106,7 @@ analysis_defn_fba = FbaRevDefn.from_args(
     ),
 )
 
-analysis_defn_fba_test = FbaRevDefn.from_args(
+analysis_defn_fba_test = RefillDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
@@ -116,7 +117,7 @@ analysis_defn_fba_test = FbaRevDefn.from_args(
     ),
 )
 
-analysis_defn_3pl_east = FbaRevDefn.from_args(
+analysis_defn_3pl_east = RefillDefn.from_args(
     args.update(
         jjweb_reserve_info=JJWebPredictionInfo(
             reservation_expr=DEFAULT_RESERVATION_EXPR,

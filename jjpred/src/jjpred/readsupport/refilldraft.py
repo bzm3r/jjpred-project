@@ -8,7 +8,7 @@ from pathlib import Path
 import polars as pl
 import polars.selectors as cs
 
-from jjpred.analysisdefn import FbaRevDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
 from jjpred.countryflags import CountryFlags
 from jjpred.readsupport.utils import (
@@ -141,7 +141,7 @@ def read_raw_dispatch_from_excel(
 
 
 def read_final_dispatch(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     target_channels: Sequence[str | Channel] = ["amazon.com", "amazon.ca"],
 ) -> pl.DataFrame:
     """Read the dispatch from a ``REFILL DRAFT PLAN`` Excel file."""
@@ -179,7 +179,7 @@ def read_final_dispatch(
 
 
 def create_dispatch_info(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     save_path: Path,
     original_dispatch: pl.DataFrame,
     final_dispatch: pl.DataFrame,
@@ -420,7 +420,7 @@ def create_dispatch_info(
 
 
 def read_dispatch_from_refill_draft(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = False,
     delete_if_exists: bool = False,
     target_channels: Sequence[str | Channel] = ["amazon.ca", "amazon.com"],

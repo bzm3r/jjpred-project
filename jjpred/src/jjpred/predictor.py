@@ -9,7 +9,7 @@ import datetime as dt
 import polars as pl
 import polars.selectors as cs
 
-from jjpred.analysisdefn import FbaRevDefn, RefillDefn
+from jjpred.analysisdefn import RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import (
     ALL_SKU_AND_CHANNEL_IDS,
@@ -1183,7 +1183,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 )
                 .drop("dispatch_month")
                 .with_columns(
-                    pl.when(pl.lit(force_po_prediction))
+                    prediction_type=pl.when(pl.lit(force_po_prediction))
                     .then(
                         pl.lit(
                             PredictionType.PO.name,
@@ -1198,7 +1198,6 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         ),
                     )
                     .otherwise(pl.col.prediction_type)
-                    .alias("prediction_type")
                 ),
                 on=ALL_SKU_IDS,
                 how="left",
@@ -1277,7 +1276,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 .then(
                     pl.lit(
                         PredictionType.PO.name,
-                        dtype=joined_df["prediction_type"].dtype,
+                        dtype=PredictionType.polars_type(),
                     )
                 )
                 .otherwise(pl.col.prediction_type)
@@ -1390,7 +1389,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
 
         match_main_program_month_fractions = (
             self.analysis_defn.match_main_program_month_fractions
-            if isinstance(self.analysis_defn, FbaRevDefn)
+            if isinstance(self.analysis_defn, RefillDefn)
             else False
         )
         for channel in channels:
@@ -1507,7 +1506,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                                     > (
                                         (
                                             1
-                                            + self.analysis_defn.outperform_factor
+                                            + self.analysis_defn.outperform_settings.outperform_factor
                                         )
                                         * pl.col.monthly_expected_demand_from_po
                                     )
@@ -1523,7 +1522,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                                         < (
                                             (
                                                 1
-                                                - self.analysis_defn.outperform_factor
+                                                - self.analysis_defn.outperform_settings.outperform_factor
                                             )
                                             * pl.col.monthly_expected_demand_from_po
                                         )
@@ -1795,7 +1794,5 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 ["sku", "a_sku"] + Channel.members() + ["date"],
                 raise_error=True,
             )
-        if not force_po_prediction:
-            collated_result = collated_result.drop("prediction_type")
 
         return collated_result

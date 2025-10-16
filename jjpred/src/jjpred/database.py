@@ -16,7 +16,7 @@ from pathlib import Path
 
 import polars as pl
 import polars.selectors as cs
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn, RefillDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel, Platform
 from jjpred.eastwestfrac import calculate_east_west_fracs
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
@@ -704,7 +704,7 @@ class DataBase:
             ]
         )
 
-        if isinstance(self.analysis_defn, FbaRevDefn):
+        if isinstance(self.analysis_defn, RefillDefn):
             self.meta_info.east_west_fracs = calculate_east_west_fracs(
                 self.analysis_defn, self.dfs[DataVariant.History]
             )

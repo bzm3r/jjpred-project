@@ -45,21 +45,30 @@ PREDICTION_TYPES_SCHEMA: dict[str, pl.DataType] = {
 
 
 def gen_prediction_types_path(
-    refill_description: str,
-    prediction_types_input_meta: str | DateLike | None,
+    refill_description: str | None = None,
+    prediction_types_date: str | DateLike | None = None,
 ) -> Path:
-    if prediction_types_input_meta is None:
-        meta = ""
+    if prediction_types_date is None:
+        prediction_types_date = ""
     else:
         try:
-            prediction_types_input_meta = Date.from_datelike(
-                prediction_types_input_meta
+            prediction_types_date = Date.from_datelike(
+                prediction_types_date
             ).fmt_default()
         except ValueError:
             pass
-        meta = f"_{prediction_types_input_meta}"
+        prediction_types_date = f"_{prediction_types_date}"
 
-    return Path(f"{refill_description}_prediction_types{meta}.csv")
+    if refill_description is None:
+        refill_description = ""
+    else:
+        prediction_types_date = f"{refill_description}" + (
+            "_" if len(refill_description) > 0 else ""
+        )
+
+    return Path(
+        f"{refill_description}prediction_types{prediction_types_date}.csv"
+    )
 
 
 def read_prediction_types(
@@ -91,11 +100,7 @@ def read_prediction_types(
 
     prediction_types = (
         pl.read_csv(
-            ANALYSIS_INPUT_FOLDER.joinpath(
-                gen_prediction_types_path(
-                    analysis_defn.basic_descriptor, prediction_types_input_meta
-                )
-            )
+            ANALYSIS_INPUT_FOLDER.joinpath(gen_prediction_types_path())
         )
         .cast(
             PREDICTION_TYPES_SCHEMA  # type: ignore

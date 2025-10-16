@@ -9,7 +9,7 @@ import re
 from time import strptime
 from typing import Literal, NamedTuple
 
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import ALL_SKU_AND_CHANNEL_IDS
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
@@ -96,7 +96,7 @@ class CandidatePOSheet:
 
 
 def read_po(
-    analysis_defn_and_dispatch_date: FbaRevDefn
+    analysis_defn_and_dispatch_date: RefillDefn
     | tuple[AnalysisDefn, DateLike],
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
@@ -105,7 +105,7 @@ def read_po(
     """Read PO data from the main program ``FBA Inventory Opimization Recall
     and Replenish`` file."""
 
-    if isinstance(analysis_defn_and_dispatch_date, FbaRevDefn):
+    if isinstance(analysis_defn_and_dispatch_date, RefillDefn):
         analysis_defn = analysis_defn_and_dispatch_date
         dispatch_date = analysis_defn_and_dispatch_date.dispatch_date
     else:
@@ -128,7 +128,7 @@ def read_po(
         if per_sku is not None:  # and per_cat is not None:
             return per_sku
 
-    if isinstance(analysis_defn_and_dispatch_date, FbaRevDefn):
+    if isinstance(analysis_defn_and_dispatch_date, RefillDefn):
         active_sku_info = read_meta_info(
             analysis_defn_and_dispatch_date, "active_sku"
         )
@@ -384,7 +384,7 @@ class PredictedDemandData(NamedTuple):
 
 
 def read_excel_predictions(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
     overwrite: bool = True,
@@ -574,7 +574,7 @@ def parse_current_period_defn(x: str) -> str | None:
 
 
 def read_current_period_defn(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
     overwrite: bool = True,
@@ -693,7 +693,7 @@ def read_current_period_defn(
 
 
 def read_qty_box(
-    analysis_defn: FbaRevDefn,
+    analysis_defn: RefillDefn,
     read_from_disk: bool = True,
     delete_if_exists: bool = False,
     overwrite: bool = True,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import polars as pl
 
-from jjpred.analysisdefn import AnalysisDefn, FbaRevDefn
+from jjpred.analysisdefn import AnalysisDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.globalpaths import ANALYSIS_INPUT_FOLDER
 from jjpred.readsupport.utils import parse_channels

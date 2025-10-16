@@ -368,6 +368,70 @@ class JJWebPredictionInfo:
 
 
 @dataclass
+class RefillDefnArgs:
+    refill_description: str
+    analysis_date: DateLike
+    master_sku_date: DateLike
+    sales_and_inventory_date: DateLike
+    dispatch_date: DateLike
+    warehouse_inventory_date: DateLike
+    current_seasons: CurrentSeasonDefn
+    config_date: DateLike
+    ignore_sku_list: list[str]
+    ignore_category_list: list[str]
+    refill_type: RefillType
+    check_dispatch_date: bool = True
+    prediction_type_meta_date: DateLike | None = field(default=None)
+    website_sku_date: DateLike | None = field(default=None)
+    jjweb_reserve_info: JJWebPredictionInfo | None = field(default=None)
+    qty_box_date: DateLike | None = field(default=None)
+    mon_sale_r_date: DateLike | None = field(default=None)
+    mainprogram_date: DateLike | None = field(default=None)
+    refill_draft_date: DateLike | None = field(default=None)
+    in_stock_ratio_date: DateLike | None = field(default=None)
+    po_date: DateLike | None = field(default=None)
+    outperformer_settings: OutperformerSettings = field(
+        default_factory=lambda: OutperformerSettings(False),
+    )
+    new_overrides_e: bool = field(default=True)
+    enable_full_box_logic: bool = field(default=True)
+    demand_ratio_rolling_update_to: DateLike | None = field(default=None)
+    prediction_start_date_required_month_parts: int | None = field(
+        default=None
+    )
+    prediction_end_date_required_month_parts: int | None = field(default=None)
+    match_main_program_month_fractions: bool = field(default=False)
+    enable_low_current_period_isr_logic: bool = field(default=True)
+    warehouse_min_keep_qty: int = field(default=12)
+    dispatch_cutoff_qty: int = field(default=2)
+    extra_descriptor: str | None = field(default=None)
+    extra_refill_config_info: list[
+        RefillConfigInfo | GeneralRefillConfigInfo
+    ] = field(default_factory=list)
+    combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
+    additional_new_categories: list[str] = field(default_factory=list)
+    forced_po_categories: list[str] = field(default_factory=list)
+    full_box_rounding_margin_ratio: float = field(default=0.1)
+    full_box_rounding_margin_qty: int = field(default=10)
+    channels: list[Channel] = field(default_factory=list)
+    default_storage_format: Literal["parquet"] = field(default="parquet")
+    low_current_period_sales: int = field(default=20)
+    low_category_historical_sales: int = field(default=20)
+    reference_categories: dict[Category, Category] = field(
+        default_factory=dict
+    )
+
+    def as_dict(self) -> dict:
+        return {
+            x: self.__getattribute__(x)
+            for x in self.__dataclass_fields__.keys()
+        }
+
+    def update(self, **kwargs) -> Self:
+        return self.__class__(**(self.as_dict() | kwargs))
+
+
+@dataclass
 class RefillDefn(AnalysisDefn):
     """An analysis definition for review/refill of a channel. It is defined by a
     dispatch date (same as the prediction start date), and the date on which the
@@ -396,6 +460,43 @@ class RefillDefn(AnalysisDefn):
     """The website SKU file should be a table containing the list of SKUs that
     are sold on the website. It is used by the Master SKU reader to determine
     which SKUs listed in the Master SKU file are sold on the website."""
+
+    refill_type: RefillType = field(default=RefillType.WEEKLY, compare=False)
+    """Type of FBA Refill to perform."""
+
+    mon_sale_r_date: Date | None = field(default=None, compare=False)
+    """Date of associated Historical sales data file (which contains the
+    ``MonSaleR`` sheet.)"""
+
+    mainprogram_date: Date | None = field(default=None, compare=False)
+    """Date of associated Main Program Excel file (useful for comparing reuslts
+    between main program and JJPRED Python program)."""
+
+    refill_draft_date: Date | None = field(default=None, compare=False)
+    """Date of associated refill draft plan file (useful for comparing results
+    between main program and JJPRED Python program.)"""
+
+    prediction_start_date_required_month_parts: int | None = field(
+        default=None, compare=False
+    )
+    """Manual setting for number of month parts to use from dispatch date's
+    month.
+
+    This is sometimes necessary to make a closer comparison with the main
+    program."""
+
+    prediction_end_date_required_month_parts: int | None = field(
+        default=None, compare=False
+    )
+    """Manual setting for number of month parts to use from the end date's month
+    (determined by refill type).
+
+    This is sometimes necessary to make a closer comparison with the main
+    program."""
+
+    match_main_program_month_fractions: bool = field(default=False)
+    """Round month fractions to the nearest 25% multiple, in order to match how
+    the main program calculates dates."""
 
     jjweb_reserve_info: JJWebPredictionInfo | None = field(
         default=None, compare=False
@@ -473,246 +574,18 @@ SKU)."""
     (``reference_category``) for monthly ratio information. This dictionary
     should be a map from all primary categories to reference categories."""
 
+    outperform_settings: OutperformerSettings = field(
+        default_factory=lambda: OutperformerSettings(False)
+    )
+    """Settings for the outperformer mode. See the definition of
+    ``OutperformerSettings`` for more information."""
+
+    check_dispatch_date: bool = field(default=True)
+    """Check whether the dispatch date is a Monday."""
+
     def __init__(
         self,
         refill_description: str,
-        analysis_date: DateLike,
-        dispatch_date: DateLike,
-        end_date: DateLike,
-        master_sku_date: DateLike,
-        sales_and_inventory_date: DateLike,
-        warehouse_inventory_date: DateLike,
-        current_seasons: CurrentSeasonDefn,
-        config_date: DateLike,
-        ignore_sku_list: list[str],
-        ignore_category_list: list[str],
-        prediction_type_meta_date: DateLike | None = None,
-        website_sku_date: DateLike | None = None,
-        jjweb_reserve_info: JJWebPredictionInfo | None = None,
-        check_dispatch_date: bool = True,
-        qty_box_date: DateLike | None = None,
-        in_stock_ratio_date: DateLike | None = None,
-        po_date: DateLike | None = None,
-        outperformer_settings: OutperformerSettings = OutperformerSettings(
-            False
-        ),
-        new_overrides_e: bool = True,
-        enable_full_box_logic: bool = True,
-        demand_ratio_rolling_update_to: DateLike | None = None,
-        enable_low_current_period_isr_logic: bool = True,
-        extra_descriptor: str | None = None,
-        warehouse_min_keep_qty: int = 12,
-        dispatch_cutoff_qty: int = 2,
-        extra_refill_config_info: list[RefillConfigInfo] = [],
-        combine_hca0_hcb0_gra_asg_history: bool = False,
-        full_box_rounding_margin_ratio: float = 0.1,
-        full_box_rounding_margin_qty: int = 0,
-        additional_new_categories: list[str] = [],
-        forced_po_categories: list[str] = [],
-        channels: Sequence[str | Channel] = list(),
-        default_storage_format: Literal["parquet"] = "parquet",
-        low_current_period_sales: int = 20,
-        low_category_historical_sales: int = 100,
-        outperform_factor: float = 0.2,
-        reference_categories: dict[Category, Category] = dict(),
-    ):
-        self.dispatch_date = Date.from_datelike(dispatch_date)
-        self.end_date = Date.from_datelike(end_date)
-
-        assert self.end_date > self.dispatch_date
-
-        if (
-            check_dispatch_date
-            and calendar.day_name[self.dispatch_date.date.weekday()]
-            != "Monday"
-        ):
-            raise ValueError(
-                f"{self.dispatch_date.date} corresponds to weekday "
-                f"{calendar.day_name[self.dispatch_date.date.weekday()]}"
-                ", which is not a Monday. (To disable this check, set "
-                "`check_dispatch_date=False`.)"
-            )
-
-        self.prediction_type_meta_date = (
-            Date.from_datelike(prediction_type_meta_date)
-            if prediction_type_meta_date is not None
-            else None
-        )
-
-        self.overperformer_settings = outperformer_settings
-
-        self.new_overrides_e = new_overrides_e
-
-        self.enable_full_box_logic = enable_full_box_logic
-
-        self.enable_low_current_period_isr_logic = (
-            enable_low_current_period_isr_logic
-        )
-
-        if qty_box_date is not None:
-            self.qty_box_date = Date.from_datelike(qty_box_date)
-
-        self.warehouse_min_keep_qty = warehouse_min_keep_qty
-
-        self.dispatch_cutoff_qty = dispatch_cutoff_qty
-
-        self.website_sku_date = (
-            Date.from_datelike(website_sku_date)
-            if website_sku_date is not None
-            else None
-        )
-
-        self.jjweb_reserve_info = jjweb_reserve_info
-
-        self.extra_refill_config_info = extra_refill_config_info
-
-        self.full_box_rounding_margin_qty = full_box_rounding_margin_qty
-        self.full_box_rounding_margin_ratio = full_box_rounding_margin_ratio
-        self.additional_new_categories = additional_new_categories
-        self.forced_po_categories = forced_po_categories
-        self.channels = [Channel.parse(x) for x in channels]
-        self.low_current_period_sales = low_current_period_sales
-        self.low_category_historical_sales = low_category_historical_sales
-        self.outperform_factor = outperform_factor
-
-        self.reference_categories = reference_categories
-
-        super().__init__(
-            basic_descriptor=refill_description,
-            date=analysis_date,
-            master_sku_date=master_sku_date,
-            sales_and_inventory_date=sales_and_inventory_date,
-            warehouse_inventory_date=warehouse_inventory_date,
-            ignore_sku_list=ignore_sku_list,
-            ignore_category_list=ignore_category_list,
-            default_storage_format=default_storage_format,
-            config_date=config_date,
-            in_stock_ratio_date=in_stock_ratio_date,
-            po_date=po_date,
-            latest_date=self.dispatch_date,
-            extra_descriptor=extra_descriptor,
-            current_seasons=current_seasons,
-            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-        )
-
-    def tag(self) -> str:
-        return AnalysisDefn.tag(self) + f"_DISPATCH={self.dispatch_date}"
-
-    def tag_with_output_time(self) -> str:
-        """Return a string identifying this analysis definition, along with a
-        final part that states when this string was created."""
-        output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
-        return self.tag() + f"_OUTPUT={output_date_time}"
-
-
-@dataclass
-class FbaRevDefnArgs:
-    analysis_date: DateLike
-    master_sku_date: DateLike
-    sales_and_inventory_date: DateLike
-    dispatch_date: DateLike
-    warehouse_inventory_date: DateLike
-    current_seasons: CurrentSeasonDefn
-    config_date: DateLike
-    ignore_sku_list: list[str]
-    ignore_category_list: list[str]
-    refill_type: RefillType
-    check_dispatch_date: bool = True
-    prediction_type_meta_date: DateLike | None = field(default=None)
-    website_sku_date: DateLike | None = field(default=None)
-    jjweb_reserve_info: JJWebPredictionInfo | None = field(default=None)
-    qty_box_date: DateLike | None = field(default=None)
-    mon_sale_r_date: DateLike | None = field(default=None)
-    mainprogram_date: DateLike | None = field(default=None)
-    refill_draft_date: DateLike | None = field(default=None)
-    in_stock_ratio_date: DateLike | None = field(default=None)
-    po_date: DateLike | None = field(default=None)
-    outperformer_settings: OutperformerSettings = field(
-        default_factory=lambda: OutperformerSettings(False),
-    )
-    new_overrides_e: bool = field(default=True)
-    enable_full_box_logic: bool = field(default=True)
-    demand_ratio_rolling_update_to: DateLike | None = field(default=None)
-    prediction_start_date_required_month_parts: int | None = field(
-        default=None
-    )
-    prediction_end_date_required_month_parts: int | None = field(default=None)
-    match_main_program_month_fractions: bool = field(default=False)
-    enable_low_current_period_isr_logic: bool = field(default=True)
-    warehouse_min_keep_qty: int = field(default=12)
-    dispatch_cutoff_qty: int = field(default=2)
-    extra_descriptor: str | None = field(default=None)
-    extra_refill_config_info: list[
-        RefillConfigInfo | GeneralRefillConfigInfo
-    ] = field(default_factory=list)
-    combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
-    additional_new_categories: list[str] = field(default_factory=list)
-    forced_po_categories: list[str] = field(default_factory=list)
-    full_box_rounding_margin_ratio: float = field(default=0.1)
-    full_box_rounding_margin_qty: int = field(default=10)
-    channels: list[Channel] = field(default_factory=list)
-    default_storage_format: Literal["parquet"] = field(default="parquet")
-    low_current_period_sales: int = field(default=20)
-    low_category_historical_sales: int = field(default=20)
-    reference_categories: dict[Category, Category] = field(
-        default_factory=dict
-    )
-
-    def as_dict(self) -> dict:
-        return {
-            x: self.__getattribute__(x)
-            for x in self.__dataclass_fields__.keys()
-        }
-
-    def update(self, **kwargs) -> Self:
-        return self.__class__(**(self.as_dict() | kwargs))
-
-
-@dataclass
-class FbaRevDefn(RefillDefn):
-    """An analysis defn for an FBA review/refill. It is defined by a dispatch
-    date (same as the prediction start date), and the date on which the
-    analysis was conducted."""
-
-    refill_type: RefillType = field(default=RefillType.WEEKLY, compare=False)
-    """Type of FBA Refill to perform."""
-
-    mon_sale_r_date: Date | None = field(default=None, compare=False)
-    """Date of associated Historical sales data file (which contains the
-    ``MonSaleR`` sheet.)"""
-
-    mainprogram_date: Date | None = field(default=None, compare=False)
-    """Date of associated Main Program Excel file (useful for comparing reuslts
-    between main program and JJPRED Python program)."""
-
-    refill_draft_date: Date | None = field(default=None, compare=False)
-    """Date of associated refill draft plan file (useful for comparing results
-    between main program and JJPRED Python program.)"""
-
-    prediction_start_date_required_month_parts: int | None = field(
-        default=None, compare=False
-    )
-    """Manual setting for number of month parts to use from dispatch date's
-    month.
-
-    This is sometimes necessary to make a closer comparison with the main
-    program."""
-
-    prediction_end_date_required_month_parts: int | None = field(
-        default=None, compare=False
-    )
-    """Manual setting for number of month parts to use from the end date's month
-    (determined by refill type).
-
-    This is sometimes necessary to make a closer comparison with the main
-    program."""
-
-    match_main_program_month_fractions: bool = field(default=False)
-    """Round month fractions to the nearest 25% multiple, in order to match how
-    the main program calculates dates."""
-
-    def __init__(
-        self,
         analysis_date: DateLike,
         master_sku_date: DateLike,
         sales_and_inventory_date: DateLike,
@@ -757,6 +630,9 @@ class FbaRevDefn(RefillDefn):
         low_current_period_sales: int = 20,
         low_category_historical_sales: int = 100,
         reference_categories: dict[Category, Category] = dict(),
+        outperform_settings: OutperformerSettings = OutperformerSettings(
+            False
+        ),
     ):
         self.refill_type = refill_type
 
@@ -803,54 +679,118 @@ class FbaRevDefn(RefillDefn):
                 )
             )
 
+        self.dispatch_date = Date.from_datelike(dispatch_date)
+        self.end_date = Date.from_datelike(end_date)
+
+        assert self.end_date > self.dispatch_date
+
+        if (
+            check_dispatch_date
+            and calendar.day_name[self.dispatch_date.date.weekday()]
+            != "Monday"
+        ):
+            raise ValueError(
+                f"{self.dispatch_date.date} corresponds to weekday "
+                f"{calendar.day_name[self.dispatch_date.date.weekday()]}"
+                ", which is not a Monday. (To disable this check, set "
+                "`check_dispatch_date=False`.)"
+            )
+        else:
+            self.check_dispatch_date = check_dispatch_date
+
+        self.prediction_type_meta_date = (
+            Date.from_datelike(prediction_type_meta_date)
+            if prediction_type_meta_date is not None
+            else None
+        )
+
+        self.overperformer_settings = outperformer_settings
+
+        self.new_overrides_e = new_overrides_e
+
+        self.enable_full_box_logic = enable_full_box_logic
+
+        self.enable_low_current_period_isr_logic = (
+            enable_low_current_period_isr_logic
+        )
+
+        if qty_box_date is not None:
+            self.qty_box_date = Date.from_datelike(qty_box_date)
+
+        self.warehouse_min_keep_qty = warehouse_min_keep_qty
+
+        self.dispatch_cutoff_qty = dispatch_cutoff_qty
+
+        self.website_sku_date = (
+            Date.from_datelike(website_sku_date)
+            if website_sku_date is not None
+            else None
+        )
+
+        self.jjweb_reserve_info = jjweb_reserve_info
+
+        self.extra_refill_config_info = extra_refill_config_info
+
+        self.full_box_rounding_margin_qty = full_box_rounding_margin_qty
+        self.full_box_rounding_margin_ratio = full_box_rounding_margin_ratio
+        self.additional_new_categories = additional_new_categories
+        self.forced_po_categories = forced_po_categories
+        self.channels = [Channel.parse(x) for x in channels]
+        self.low_current_period_sales = low_current_period_sales
+        self.low_category_historical_sales = low_category_historical_sales
+
+        self.reference_categories = reference_categories
+
+        self.outperform_settings = outperform_settings
+
         super().__init__(
-            "fba_rev",
-            analysis_date=analysis_date,
-            dispatch_date=dispatch_date,
-            end_date=end_date,
+            basic_descriptor=refill_description,
+            date=analysis_date,
             master_sku_date=master_sku_date,
             sales_and_inventory_date=sales_and_inventory_date,
             warehouse_inventory_date=warehouse_inventory_date,
-            config_date=config_date,
             ignore_sku_list=ignore_sku_list,
             ignore_category_list=ignore_category_list,
-            prediction_type_meta_date=prediction_type_meta_date,
-            website_sku_date=website_sku_date,
-            jjweb_reserve_info=jjweb_reserve_info,
-            check_dispatch_date=check_dispatch_date,
-            qty_box_date=qty_box_date,
+            default_storage_format=default_storage_format,
+            config_date=config_date,
             in_stock_ratio_date=in_stock_ratio_date,
             po_date=po_date,
-            outperformer_settings=outperformer_settings,
-            new_overrides_e=new_overrides_e,
-            enable_full_box_logic=enable_full_box_logic,
-            demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
-            enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
+            latest_date=self.dispatch_date,
             extra_descriptor=extra_descriptor,
-            warehouse_min_keep_qty=warehouse_min_keep_qty,
-            dispatch_cutoff_qty=dispatch_cutoff_qty,
-            extra_refill_config_info=extra_refill_config_info,
-            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
             current_seasons=current_seasons,
-            additional_new_categories=additional_new_categories,
-            forced_po_categories=forced_po_categories,
-            full_box_rounding_margin_qty=full_box_rounding_margin_qty,
-            full_box_rounding_margin_ratio=full_box_rounding_margin_ratio,
-            channels=channels,
-            default_storage_format=default_storage_format,
-            low_current_period_sales=low_current_period_sales,
-            low_category_historical_sales=low_category_historical_sales,
-            reference_categories=reference_categories,
+            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
         )
 
+    def tag(self) -> str:
+        return AnalysisDefn.tag(self) + f"_DISPATCH={self.dispatch_date}"
+
+    def tag_with_output_time(self) -> str:
+        """Return a string identifying this analysis definition, along with a
+        final part that states when this string was created."""
+        output_date_time = datetime.datetime.now().strftime(r"%Y-%b-%d_%H%M%S")
+        return self.tag() + f"_OUTPUT={output_date_time}"
+
     @classmethod
-    def from_args(cls, args: FbaRevDefnArgs) -> Self:
+    def from_args(cls, args: RefillDefnArgs) -> Self:
         return cls(**args.as_dict())
 
-    def to_args(self, check_dispatch_date: bool = True) -> FbaRevDefnArgs:
+    def to_args(self, check_dispatch_date: bool = True) -> RefillDefnArgs:
         assert self.config_date is not None
 
-        return FbaRevDefnArgs(
+        return RefillDefnArgs(
+            refill_description=self.basic_descriptor,
+            refill_type=self.refill_type,
+            check_dispatch_date=self.check_dispatch_date,
+            prediction_type_meta_date=self.prediction_type_meta_date,
+            website_sku_date=self.website_sku_date,
+            jjweb_reserve_info=self.jjweb_reserve_info,
+            qty_box_date=self.qty_box_date,
+            mon_sale_r_date=self.mon_sale_r_date,
+            mainprogram_date=self.mainprogram_date,
+            refill_draft_date=self.refill_draft_date,
+            in_stock_ratio_date=self.in_stock_ratio_date,
+            po_date=self.po_date,
+            outperformer_settings=self.outperform_settings,
             analysis_date=self.date,
             master_sku_date=self.master_sku_date,
             sales_and_inventory_date=self.sales_and_inventory_date,
@@ -858,14 +798,6 @@ class FbaRevDefn(RefillDefn):
             warehouse_inventory_date=self.warehouse_inventory_date,
             current_seasons=self.current_seasons,
             config_date=self.config_date,
-            prediction_type_meta_date=self.prediction_type_meta_date,
-            refill_type=self.refill_type,
-            check_dispatch_date=check_dispatch_date,
-            website_sku_date=self.website_sku_date,
-            jjweb_reserve_info=self.jjweb_reserve_info,
-            qty_box_date=self.qty_box_date,
-            mon_sale_r_date=self.mon_sale_r_date,
-            mainprogram_date=self.mainprogram_date,
             additional_new_categories=self.additional_new_categories,
             forced_po_categories=self.forced_po_categories,
             full_box_rounding_margin_qty=self.full_box_rounding_margin_qty,
@@ -880,83 +812,83 @@ class FbaRevDefn(RefillDefn):
             reference_categories=self.reference_categories,
         )
 
-    @classmethod
-    def new_comparison_analysis(
-        cls,
-        analysis_date: DateLike,
-        dispatch_date: DateLike,
-        config_date: DateLike,
-        current_seasons: CurrentSeasonDefn,
-        real_analysis_date: DateLike,
-        refill_type: RefillType,
-        ignore_sku_list: list[str],
-        ignore_category_list: list[str],
-        prediction_type_meta_date: DateLike | None = None,
-        check_dispatch_date: bool = True,
-        prediction_start_date_required_month_parts: int | None = None,
-        prediction_end_date_required_month_parts: int | None = None,
-        extra_descriptor: str | None = None,
-        in_stock_ratio_date: DateLike | None = None,
-        po_date: DateLike | None = None,
-        outperformer_settings: OutperformerSettings = OutperformerSettings(
-            False
-        ),
-        new_overrides_e: bool = True,
-        demand_ratio_rolling_update_to: DateLike | None = None,
-        enable_full_box_logic: bool = True,
-        enable_low_current_period_isr_logic: bool = False,
-        match_main_program_month_fractions: bool = True,
-        extra_refill_config_info: list[RefillConfigInfo] = [],
-        combine_hca0_hcb0_gra_asg_history: bool = False,
-        reference_categories: dict[Category, Category] = dict(),
-    ) -> Self:
-        """Create an analysis definition for an FBA review that is meant to
-        compare against an analysis from Matt's program.
+    # @classmethod
+    # def new_comparison_analysis(
+    #     cls,
+    #     analysis_date: DateLike,
+    #     dispatch_date: DateLike,
+    #     config_date: DateLike,
+    #     current_seasons: CurrentSeasonDefn,
+    #     real_analysis_date: DateLike,
+    #     refill_type: RefillType,
+    #     ignore_sku_list: list[str],
+    #     ignore_category_list: list[str],
+    #     prediction_type_meta_date: DateLike | None = None,
+    #     check_dispatch_date: bool = True,
+    #     prediction_start_date_required_month_parts: int | None = None,
+    #     prediction_end_date_required_month_parts: int | None = None,
+    #     extra_descriptor: str | None = None,
+    #     in_stock_ratio_date: DateLike | None = None,
+    #     po_date: DateLike | None = None,
+    #     outperformer_settings: OutperformerSettings = OutperformerSettings(
+    #         False
+    #     ),
+    #     new_overrides_e: bool = True,
+    #     demand_ratio_rolling_update_to: DateLike | None = None,
+    #     enable_full_box_logic: bool = True,
+    #     enable_low_current_period_isr_logic: bool = False,
+    #     match_main_program_month_fractions: bool = True,
+    #     extra_refill_config_info: list[RefillConfigInfo] = [],
+    #     combine_hca0_hcb0_gra_asg_history: bool = False,
+    #     reference_categories: dict[Category, Category] = dict(),
+    # ) -> Self:
+    #     """Create an analysis definition for an FBA review that is meant to
+    #     compare against an analysis from Matt's program.
 
-        Typically, the analysis from Matt's program's date corresponds with the date of files
-        like such as master SKU file, sales and inventory file, warehouse
-        inventory file, ``MonSaleR`` sheet file, main program file, and refill
-        draft plan.
+    #     Typically, the analysis from Matt's program's date corresponds with the date of files
+    #     like such as master SKU file, sales and inventory file, warehouse
+    #     inventory file, ``MonSaleR`` sheet file, main program file, and refill
+    #     draft plan.
 
-        If you need finer control over these dates, use the standard
-        initialization method for the class, or use files which have date set to
-        the analysis from Matt's program's date."""
+    #     If you need finer control over these dates, use the standard
+    #     initialization method for the class, or use files which have date set to
+    #     the analysis from Matt's program's date."""
 
-        master_sku_date = real_analysis_date
-        sales_and_inventory_date = real_analysis_date
-        warehouse_inventory_date = real_analysis_date
+    #     master_sku_date = real_analysis_date
+    #     sales_and_inventory_date = real_analysis_date
+    #     warehouse_inventory_date = real_analysis_date
 
-        return cls(
-            analysis_date=analysis_date,
-            master_sku_date=master_sku_date,
-            sales_and_inventory_date=sales_and_inventory_date,
-            dispatch_date=dispatch_date,
-            warehouse_inventory_date=warehouse_inventory_date,
-            current_seasons=current_seasons,
-            config_date=config_date,
-            ignore_sku_list=ignore_sku_list,
-            ignore_category_list=ignore_category_list,
-            prediction_type_meta_date=prediction_type_meta_date,
-            refill_type=refill_type,
-            check_dispatch_date=check_dispatch_date,
-            mon_sale_r_date=real_analysis_date,
-            mainprogram_date=real_analysis_date,
-            refill_draft_date=real_analysis_date,
-            prediction_start_date_required_month_parts=prediction_start_date_required_month_parts,
-            prediction_end_date_required_month_parts=prediction_end_date_required_month_parts,
-            extra_descriptor=extra_descriptor,
-            new_overrides_e=new_overrides_e,
-            in_stock_ratio_date=in_stock_ratio_date,
-            po_date=po_date,
-            outperformer_settings=outperformer_settings,
-            enable_full_box_logic=enable_full_box_logic,
-            demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
-            match_main_program_month_fractions=match_main_program_month_fractions,
-            enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
-            extra_refill_config_info=extra_refill_config_info,
-            combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-            reference_categories=reference_categories,
-        )
+    #     return cls(
+    #         analysis_date=analysis_date,
+    #         master_sku_date=master_sku_date,
+    #         sales_and_inventory_date=sales_and_inventory_date,
+    #         dispatch_date=dispatch_date,
+    #         warehouse_inventory_date=warehouse_inventory_date,
+    #         current_seasons=current_seasons,
+    #         config_date=config_date,
+    #         ignore_sku_list=ignore_sku_list,
+    #         ignore_category_list=ignore_category_list,
+    #         prediction_type_meta_date=prediction_type_meta_date,
+    #         refill_type=refill_type,
+    #         check_dispatch_date=check_dispatch_date,
+    #         mon_sale_r_date=real_analysis_date,
+    #         mainprogram_date=real_analysis_date,
+    #         refill_draft_date=real_analysis_date,
+    #         prediction_start_date_required_month_parts=prediction_start_date_required_month_parts,
+    #         prediction_end_date_required_month_parts=prediction_end_date_required_month_parts,
+    #         extra_descriptor=extra_descriptor,
+    #         new_overrides_e=new_overrides_e,
+    #         in_stock_ratio_date=in_stock_ratio_date,
+    #         po_date=po_date,
+    #         outperformer_settings=outperformer_settings,
+    #         enable_full_box_logic=enable_full_box_logic,
+    #         demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
+    #         match_main_program_month_fractions=match_main_program_month_fractions,
+    #         enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
+    #         extra_refill_config_info=extra_refill_config_info,
+    #         combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
+    #         reference_categories=reference_categories,
+    #     )
 
     def _get_date(self, date_name: str) -> Date:
         date = self.__dict__.get(date_name)
