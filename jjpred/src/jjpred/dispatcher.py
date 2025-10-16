@@ -42,7 +42,6 @@ from jjpred.skuinfo import (
 )
 from jjpred.strategies import ChannelStrategyGroups
 from jjpred.strategylib import (
-    LATEST,
     get_last_year_as_current_period_dict,
     get_strategy_from_library,
 )
@@ -352,7 +351,6 @@ def calculate_jjweb_past_one_year_quantity(
             db.analysis_defn,
             input_strategies=get_strategy_from_library(
                 db.analysis_defn,
-                LATEST,
                 current_period_overrides=get_last_year_as_current_period_dict(
                     db
                 ),

@@ -1,14 +1,16 @@
 """Information used  in order to set up and/or execute analyses."""
 
 from __future__ import annotations
+from calendar import Month
 
+from jjpred.aggregator import UsingAllChannels, UsingCanUSRetail, UsingRetail
 from jjpred.analysisdefn import (
-    DEFAULT_RESERVATION_EXPR,
     CurrentSeasonDefn,
     RefillDefn,
     RefillDefnArgs,
     JJWebPredictionInfo,
 )
+from jjpred.channel import Channel
 from jjpred.inputstrategy import RefillType
 
 from jjpred.analysisconfig import GeneralRefillConfigInfo
@@ -16,6 +18,50 @@ from jjpred.analysisconfig import GeneralRefillConfigInfo
 import polars as pl
 
 from jjpred.utils.multidict import MultiDict
+
+ALL_CHANNEL_AGGREGATOR = UsingAllChannels()
+ALL_CAN_US_RETAIL_AGGREGATOR = UsingCanUSRetail()
+AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
+
+
+FW_RESERVATION_MONTHS = [(Month.JULY.value, Month.JANUARY.value)]
+"""If the item is FW: then the reservation period is: Aug to Jan (not inclusive)."""
+SS_TYPICAL_RESERVATION_MONTHS = [(Month.FEBRUARY.value, Month.JUNE.value)]
+"""If the item is SS: then typically the reservation period is: Feb to Jun (not
+inclusive)."""
+SS_SPW_AND_U_CATS_RESERVATION_MONTHS = [
+    (Month.FEBRUARY.value, Month.JULY.value)
+]
+"""If the item is SS, and its category is SPW or one of the U* categories, then
+typically the reservation period is: Feb to Jul (not inclusive)."""
+
+DEFAULT_RESERVATION_EXPR = (
+    pl.when(pl.col.season.eq("FW"))
+    .then(FW_RESERVATION_MONTHS)
+    .when(
+        pl.col.season.eq("SS")
+        & ~(
+            pl.col.category.eq("SPW")
+            | pl.col.category.cast(pl.String()).str.starts_with("U")
+        )
+    )
+    .then(SS_TYPICAL_RESERVATION_MONTHS)
+    .when(
+        pl.col.season.eq("SS")
+        & (
+            pl.col.category.eq("SPW")
+            | pl.col.category.cast(pl.String()).str.starts_with("U")
+        )
+    )
+    .then(SS_SPW_AND_U_CATS_RESERVATION_MONTHS)
+    .when(pl.col.season.eq("AS"))
+    .then(SS_TYPICAL_RESERVATION_MONTHS + FW_RESERVATION_MONTHS)
+    # months should be a pair of UInt8
+    .cast(pl.List(pl.Array(pl.UInt8(), 2)))
+)
+"""The default reservation expression. Built using ``FW_RESERVATION_MONTHS``,
+``SS_TYPICAL_RESERVATION_MONTHS`` and ``SS_SPW_AND_U_CAT_RESERVATION_MONTHS``.
+"""
 
 args = RefillDefnArgs(
     refill_description="refill",
@@ -90,9 +136,238 @@ args = RefillDefnArgs(
             ("BSL",): "BSA",
         }
     ).as_dict(),
+    per_channel_reference_channels={
+        Channel.parse("Amazon US"): MultiDict(
+            data={
+                (
+                    "XBK",
+                    "XBM",
+                    "LBS",
+                    "FPM",
+                    "BCV",
+                    "UT1",
+                    "USA",
+                    "UG1",
+                    "UJ1",
+                    "UV2",
+                    "HXP",
+                ): ALL_CAN_US_RETAIL_AGGREGATOR,
+                (
+                    "FMR",
+                    "KEH",
+                    "BSW",
+                    "BSA",
+                    "BRC",
+                    "KMT",
+                ): AMAZON_CA_AGGREGATOR,
+            }
+        ).as_dict(),
+        Channel.parse("Wholesale"): MultiDict(
+            data={
+                ("XBM", "LBS", "FPM", "BCV"): ALL_CAN_US_RETAIL_AGGREGATOR,
+                (
+                    "UST",
+                    "HBU",
+                    "HLC",
+                    "HXC",
+                    "HXU",
+                    "HXP",
+                ): AMAZON_CA_AGGREGATOR,
+            }
+        ).as_dict(),
+        Channel.parse("Amazon UK"): MultiDict(
+            data={
+                (
+                    "AJA",
+                    "WPO",
+                    "WJO",
+                    "GBX",
+                    "GHA",
+                    "ISJ",
+                    "FHA",
+                    "FAN",
+                    "BST",
+                    "IPS",
+                    "XWG",
+                    "XLB",
+                    "XPC",
+                    "XBK",
+                    "XBM",
+                    "LBP",
+                    "LBT",
+                    "IPC",
+                    "ISS",
+                    "ISB",
+                    "SMF",
+                    "SWS",
+                    "ICP",
+                    "LBS",
+                    "LAN",
+                    "LAB",
+                    "FSM",
+                    "FPM",
+                    "FJM",
+                    "FMR",
+                    "BTT",
+                    "KEH",
+                    "AWWJ",
+                    "BCV",
+                    "WGS",
+                    "WBS",
+                    "WBF",
+                    "WSF",
+                    "WJT",
+                    "BSW",
+                    "BSA",
+                    "BRC",
+                    "SKT",
+                    "BTL",
+                    "BTB",
+                    "KMT",
+                    "IHT",
+                    "WRM",
+                    "WMT",
+                    "WSS",
+                    "WPS",
+                    "WPF",
+                    "WJA",
+                    "UST",
+                    "HBU",
+                    "HLC",
+                    "HXC",
+                    "HXU",
+                    "HJS",
+                    "AJS",
+                    "ACB",
+                    "ACA",
+                    "AAA",
+                    "UT1",
+                    "USA",
+                    "UG1",
+                    "UJ1",
+                    "UV2",
+                    "HLH",
+                    "HXP",
+                    "GUA",
+                    "GUX",
+                    "HBS",
+                    "SKX",
+                    "SKG",
+                    "SPW",
+                    "SJF",
+                    "SKB",
+                ): AMAZON_CA_AGGREGATOR
+            }
+        ).as_dict(),
+        Channel.parse("janandjul.com"): ALL_CAN_US_RETAIL_AGGREGATOR,
+        Channel.parse("jjweb ca east"): UsingRetail(["jjweb ca east"]),
+        Channel.parse("Amazon DE"): MultiDict(
+            data={
+                (
+                    "AJA",
+                    "WPO",
+                    "WJO",
+                    "GBX",
+                    "GHA",
+                    "ISJ",
+                    "FHA",
+                    "FAN",
+                    "BST",
+                    "IPS",
+                    "XWG",
+                    "XLB",
+                    "XPC",
+                    "XBK",
+                    "XBM",
+                    "LBP",
+                    "LBT",
+                    "IPC",
+                    "ISS",
+                    "ISB",
+                    "SMF",
+                    "SWS",
+                    "ICP",
+                    "LBS",
+                    "LAN",
+                    "LAB",
+                    "FSM",
+                    "FPM",
+                    "FJM",
+                    "FMR",
+                    "BTT",
+                    "KEH",
+                    "AWWJ",
+                    "BCV",
+                    "WGS",
+                    "WBS",
+                    "WBF",
+                    "WSF",
+                    "WJT",
+                    "BSW",
+                    "BSA",
+                    "BRC",
+                    "SKT",
+                    "BTL",
+                    "BTB",
+                    "KMT",
+                    "IHT",
+                    "WRM",
+                    "WMT",
+                    "WSS",
+                    "WPS",
+                    "WPF",
+                    "WJA",
+                    "UST",
+                    "HBU",
+                    "HLC",
+                    "HXC",
+                    "HXU",
+                    "HJS",
+                    "AJS",
+                    "ACB",
+                    "ACA",
+                    "AAA",
+                    "UT1",
+                    "USA",
+                    "UG1",
+                    "UJ1",
+                    "UV2",
+                    "HLH",
+                    "HXP",
+                    "GUA",
+                    "GUX",
+                    "HBS",
+                    "SKX",
+                    "SKG",
+                    "SPW",
+                    "SJF",
+                    "SKB",
+                ): AMAZON_CA_AGGREGATOR,
+            }
+        ).as_dict(),
+        Channel.parse("Amazon CA"): MultiDict(
+            data={
+                (
+                    "XBK",
+                    "XBM",
+                    "LBS",
+                    "FPM",
+                    "BCV",
+                    "UT1",
+                    "USA",
+                    "UG1",
+                    "UJ1",
+                    "UV2",
+                    "HXP",
+                ): ALL_CAN_US_RETAIL_AGGREGATOR
+            }
+        ).as_dict(),
+    },
     enable_full_box_logic=True,
     full_box_rounding_margin_qty=10,
     full_box_rounding_margin_ratio=0.2,
+    ss_start_month=Month.MARCH,
+    fw_start_month=Month.AUGUST,
 )
 
 analysis_defn_fba = RefillDefn.from_args(

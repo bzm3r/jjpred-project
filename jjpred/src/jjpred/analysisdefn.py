@@ -4,13 +4,14 @@ in order to reproducibly run different analyses."""
 from __future__ import annotations
 
 import calendar
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import polars as pl
 from dataclasses import dataclass, field
 import datetime
 from functools import total_ordering
 from typing import Literal, Self
 
+from jjpred.aggregator import Aggregator, UsingRetail
 from jjpred.channel import Channel
 from jjpred.inputstrategy import RefillType
 from jjpred.analysisconfig import GeneralRefillConfigInfo, RefillConfigInfo
@@ -302,44 +303,6 @@ an item does not have a PO estimate to bench mark against, we cannot do such
 benchmarking."""
 
 
-FW_RESERVATION_MONTHS = [(7, 1)]
-"""If the item is FW: then the reservation period is: Aug to Jan (not inclusive)."""
-SS_TYPICAL_RESERVATION_MONTHS = [(2, 6)]
-"""If the item is SS: then typically the reservation period is: Feb to Jun (not
-inclusive)."""
-SS_SPW_AND_U_CATS_RESERVATION_MONTHS = [(2, 7)]
-"""If the item is SS, and its category is SPW or one of the U* categories, then
-typically the reservation period is: Feb to Jun (not inclusive)."""
-
-DEFAULT_RESERVATION_EXPR = (
-    pl.when(pl.col.season.eq("FW"))
-    .then(FW_RESERVATION_MONTHS)
-    .when(
-        pl.col.season.eq("SS")
-        & ~(
-            pl.col.category.eq("SPW")
-            | pl.col.category.cast(pl.String()).str.starts_with("U")
-        )
-    )
-    .then(SS_TYPICAL_RESERVATION_MONTHS)
-    .when(
-        pl.col.season.eq("SS")
-        & (
-            pl.col.category.eq("SPW")
-            | pl.col.category.cast(pl.String()).str.starts_with("U")
-        )
-    )
-    .then(SS_SPW_AND_U_CATS_RESERVATION_MONTHS)
-    .when(pl.col.season.eq("AS"))
-    .then(SS_TYPICAL_RESERVATION_MONTHS + FW_RESERVATION_MONTHS)
-    # months should be a pair of UInt8
-    .cast(pl.List(pl.Array(pl.UInt8(), 2)))
-)
-"""The default reservation expression. Built using ``FW_RESERVATION_MONTHS``,
-``SS_TYPICAL_RESERVATION_MONTHS`` and ``SS_SPW_AND_U_CAT_RESERVATION_MONTHS``.
-"""
-
-
 @dataclass
 class JJWebPredictionInfo:
     reservation_expr: pl.Expr | None
@@ -420,6 +383,27 @@ class RefillDefnArgs:
     reference_categories: dict[Category, Category] = field(
         default_factory=dict
     )
+    per_channel_reference_channels: Mapping[
+        Channel, Mapping[Category, Aggregator] | Aggregator
+    ] = field(
+        default_factory=lambda: {
+            Channel.parse("Amazon US"): UsingRetail(["amazon.com"]),
+            Channel.parse("Wholesale"): UsingRetail(["Wholesale"]),
+            Channel.parse("janandjul.com"): UsingRetail(["janandjul.com"]),
+            Channel.parse("jjweb ca east"): UsingRetail(["jjweb ca east"]),
+            Channel.parse("Amazon DE"): UsingRetail(["Amazon DE"]),
+            Channel.parse("Amazon CA"): UsingRetail(["amazon.ca"]),
+        }
+    )
+    fw_start_month: calendar.Month = field(
+        default_factory=lambda: calendar.Month.AUGUST
+    )
+    """Current period start for FW items."""
+
+    ss_start_month: calendar.Month = field(
+        default_factory=lambda: calendar.Month.MARCH
+    )
+    """Current period start for SS items."""
 
     def as_dict(self) -> dict:
         return {
@@ -574,6 +558,22 @@ SKU)."""
     (``reference_category``) for monthly ratio information. This dictionary
     should be a map from all primary categories to reference categories."""
 
+    per_channel_reference_channels: Mapping[
+        Channel, Mapping[Category, Aggregator] | Aggregator
+    ] = field(
+        default_factory=lambda: {
+            Channel.parse("Amazon US"): UsingRetail(["amazon.com"]),
+            Channel.parse("Wholesale"): UsingRetail(["Wholesale"]),
+            Channel.parse("janandjul.com"): UsingRetail(["janandjul.com"]),
+            Channel.parse("jjweb ca east"): UsingRetail(["jjweb ca east"]),
+            Channel.parse("Amazon DE"): UsingRetail(["Amazon DE"]),
+            Channel.parse("Amazon CA"): UsingRetail(["amazon.ca"]),
+        }
+    )
+    """Sometimes, some channels use the same aggregation strategy (i.e. the sames
+historical sales data) as another channel, rather than the default of using
+their own channel's data."""
+
     outperform_settings: OutperformerSettings = field(
         default_factory=lambda: OutperformerSettings(False)
     )
@@ -582,6 +582,16 @@ SKU)."""
 
     check_dispatch_date: bool = field(default=True)
     """Check whether the dispatch date is a Monday."""
+
+    fw_start_month: calendar.Month = field(
+        default_factory=lambda: calendar.Month.AUGUST
+    )
+    """Current period start for FW items."""
+
+    ss_start_month: calendar.Month = field(
+        default_factory=lambda: calendar.Month.MARCH
+    )
+    """Current period start for SS items."""
 
     def __init__(
         self,
@@ -630,9 +640,21 @@ SKU)."""
         low_current_period_sales: int = 20,
         low_category_historical_sales: int = 100,
         reference_categories: dict[Category, Category] = dict(),
+        per_channel_reference_channels: Mapping[
+            Channel, Mapping[Category, Aggregator] | Aggregator
+        ] = {
+            Channel.parse("Amazon US"): UsingRetail(["amazon.com"]),
+            Channel.parse("Wholesale"): UsingRetail(["Wholesale"]),
+            Channel.parse("janandjul.com"): UsingRetail(["janandjul.com"]),
+            Channel.parse("jjweb ca east"): UsingRetail(["jjweb ca east"]),
+            Channel.parse("Amazon DE"): UsingRetail(["Amazon DE"]),
+            Channel.parse("Amazon CA"): UsingRetail(["amazon.ca"]),
+        },
         outperform_settings: OutperformerSettings = OutperformerSettings(
             False
         ),
+        fw_start_month: calendar.Month = calendar.Month.AUGUST,
+        ss_start_month: calendar.Month = calendar.Month.MARCH,
     ):
         self.refill_type = refill_type
 
@@ -743,6 +765,11 @@ SKU)."""
 
         self.outperform_settings = outperform_settings
 
+        self.per_channel_reference_channels = per_channel_reference_channels
+
+        self.fw_start_month = fw_start_month
+        self.ss_start_month = ss_start_month
+
         super().__init__(
             basic_descriptor=refill_description,
             date=analysis_date,
@@ -810,6 +837,9 @@ SKU)."""
             ignore_category_list=self.ignore_category_list,
             ignore_sku_list=self.ignore_sku_list,
             reference_categories=self.reference_categories,
+            per_channel_reference_channels=self.per_channel_reference_channels,
+            fw_start_month=self.fw_start_month,
+            ss_start_month=self.ss_start_month,
         )
 
     # @classmethod
