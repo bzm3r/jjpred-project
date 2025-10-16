@@ -46,10 +46,12 @@ def normalize_pause_plan_and_country_flags_for_excel(
     df = df.with_columns(
         pl.col(x).map_elements(map_pause_plan, return_dtype=pl.String())
         for x in get_columns_in_df(df, ["pause_plan"])
+        if df[x].dtype in [pl.Int32(), pl.Int64()]
     )
     df = df.with_columns(
         pl.col(x).map_elements(map_country_flag, return_dtype=pl.String())
         for x in get_columns_in_df(df, ["country_flag"])
+        if df[x].dtype in [pl.Int32(), pl.Int64()]
     )
 
     return df
