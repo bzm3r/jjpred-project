@@ -23,7 +23,7 @@ SEASON_IDS = [
 ALL_SKU_AND_CHANNEL_IDS = ALL_SKU_IDS + CHANNEL_IDS
 ALL_IDS = ALL_SKU_IDS + CHANNEL_IDS + SEASON_IDS
 PAUSE_PLAN_IDS = [
-    "website_sku",
+    "is_website_sku",
     "pause_plan",
 ]
 STATUS_IDS = ["status", "orphan_sku"]
@@ -58,14 +58,11 @@ INV_AVAILABILITY_FLAGS = [
     "zero_wh_dispatchable",
 ]
 DATA_PROBLEM_FLAGS = [
-    "new_category_problem",
     "po_problem",
     "e_problem",
     "ce_problem",
-    "new_print_problem",
 ]
 PREDICTION_CHECK_FLAGS = [
-    "refill_request_override",
     "uses_refill_request",
     "uses_ce",
     "uses_e",

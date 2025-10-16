@@ -9,7 +9,7 @@ import datetime as dt
 import polars as pl
 import polars.selectors as cs
 
-from jjpred.analysisdefn import FbaRevDefn, LatestDates, RefillDefn
+from jjpred.analysisdefn import FbaRevDefn, RefillDefn
 from jjpred.channel import Channel
 from jjpred.datagroups import (
     ALL_SKU_AND_CHANNEL_IDS,
@@ -296,10 +296,10 @@ class POPrediction:
 class CurrentPeriodSales:
     """Manages current period sales information."""
 
-    monthly_sales: pl.DataFrame
+    current_monthly_sales: pl.DataFrame
     """Monthly sales in the current period."""
     total_sales: pl.DataFrame
-    """Total salesin the current period."""
+    """Total sales in the current period."""
     current_period: SimpleTimePeriod
     """The current time period."""
     # tpoints: pl.Series
@@ -323,10 +323,10 @@ class CurrentPeriodSales:
     def __init__(
         self,
         current_period: SimpleTimePeriod,
-        monthly_sales: pl.DataFrame,
+        current_monthly_sales: pl.DataFrame,
     ):
-        self.monthly_sales = monthly_sales
-        self.total_sales = self.monthly_sales.group_by(
+        self.current_monthly_sales = current_monthly_sales
+        self.total_sales = self.current_monthly_sales.group_by(
             cs.exclude("current_monthly_sales", "date")
         ).agg(
             pl.col("current_monthly_sales").sum().alias("current_period_sales")
@@ -629,13 +629,13 @@ class PredictionInput(CategoryGroupProtocol):
         strategy: StrategyGroup,
         sales_history_df: pl.DataFrame,
         po_data: pl.DataFrame,
-        latest_dates: LatestDates,
+        latest_date: DateLike,
     ):
         self.strategy = strategy
         self.historical = HistoricalPeriodSales(
             strategy,
             sales_history_df,
-            latest_dates.sales_history_latest_date,
+            Date.from_datelike(latest_date),
         )
         self.po_prediction = POPrediction(strategy, po_data)
         self.currents = CurrentPeriodSales.from_strategy(
@@ -756,7 +756,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
     """Dataframe containing historical sales information."""
     po_data: pl.DataFrame
     """Dataframe containing expected demands based on the PO process."""
-    latest_dates: LatestDates
+    latest_date: Date
     """The latest dates used to calculate current period sales and latest demand
     (monthly) ratios."""
     data: dict[Channel, PredictionInputs] = {}
@@ -770,7 +770,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         db: DataBase,
         strategy_groups_per_channel: ChannelStrategyGroups,
         po_data: pl.DataFrame,
-        latest_dates: LatestDates | None = None,
+        latest_date: DateLike | None = None,
         merge_faire_and_wholesale_into_wholesale: bool = True,
     ) -> None:
         self.db = db
@@ -801,10 +801,12 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
         self.po_data = po_data
 
         self.strategy_groups_per_channel = strategy_groups_per_channel
-        if latest_dates is None:
-            self.latest_dates = self.analysis_defn.latest_dates
-        else:
-            self.latest_dates = latest_dates
+
+        self.latest_date = Date.from_datelike(
+            self.analysis_defn.latest_date
+            if latest_date is None
+            else latest_date
+        )
 
         self.data = {}
         for (
@@ -818,7 +820,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         group,
                         self.history_data,
                         self.po_data,
-                        self.latest_dates,
+                        self.latest_date,
                     )
                 )
 
@@ -827,7 +829,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             )
 
     def generate_data_using_latest_dates(
-        self, latest_dates: LatestDates | None = None
+        self, latest_date: DateLike | None = None
     ) -> Predictor:
         """Create a predictor that uses current period sales and latest demand
         (monthly) ratios based on an optional given date.
@@ -841,7 +843,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             self.db,
             self.strategy_groups_per_channel,
             self.po_data,
-            latest_dates,
+            latest_date,
         )
 
     def get_historical_sales(
@@ -891,7 +893,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     current,
                 ) in pd_inputs.currents.data.items():
                     monthly_sales_df = vstack_to_unified(
-                        monthly_sales_df, current.monthly_sales
+                        monthly_sales_df, current.current_monthly_sales
                     )
 
                 if monthly_sales_df is not None:
@@ -1150,8 +1152,6 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             *ALL_SKU_IDS, *NOVELTY_FLAGS
         )
 
-        latest_date = self.latest_dates.sales_history_latest_date
-        print(f"{latest_date=}")
         joined_df = (
             sku_info_df.join(
                 current_sales_info.select(Channel.members()).unique(),
@@ -1179,26 +1179,22 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
             )
             .join(
                 self.prediction_types.filter(
-                    pl.col.dispatch_month.eq(latest_date.month)
+                    pl.col.dispatch_month.eq(self.latest_date.month)
                 )
                 .drop("dispatch_month")
                 .with_columns(
                     pl.when(pl.lit(force_po_prediction))
                     .then(
                         pl.lit(
-                            "PO",
-                            dtype=self.prediction_types[
-                                "prediction_type"
-                            ].dtype,
+                            PredictionType.PO.name,
+                            dtype=PredictionType.polars_type(),
                         )
                     )
                     .when(pl.lit(force_e_prediction))
                     .then(
                         pl.lit(
-                            "E",
-                            dtype=self.prediction_types[
-                                "prediction_type"
-                            ].dtype,
+                            PredictionType.E.name,
+                            dtype=PredictionType.polars_type(),
                         ),
                     )
                     .otherwise(pl.col.prediction_type)
@@ -1258,46 +1254,38 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     self.analysis_defn.new_overrides_e, dtype=pl.Boolean()
                 ),
                 category_marked_new=pl.col("category").is_in(
-                    self.analysis_defn.new_categories
+                    list(
+                        sku_info_df.select("category", "is_new_category")
+                        .filter(pl.col.is_new_category)
+                        .unique()
+                        .filter()["category"]
+                    )
+                    + self.analysis_defn.additional_new_categories
                 ),
-                category_marked_forced_po=pl.col("category").is_in(
+                uses_forced_po=pl.col("category").is_in(
                     self.analysis_defn.forced_po_categories
-                ),
+                )
+                | pl.lit(force_po_prediction),
+                uses_forced_e=pl.lit(force_e_prediction),
             )
             .with_columns(
                 has_e_data=pl.col("has_historical_data")
                 & pl.col("has_current_data"),
             )
             .with_columns(
-                prediction_type=pl.when(pl.col.category_marked_forced_po)
-                .then(pl.lit("PO", dtype=joined_df["prediction_type"].dtype))
+                prediction_type=pl.when(pl.col.uses_forced_po)
+                .then(
+                    pl.lit(
+                        PredictionType.PO.name,
+                        dtype=joined_df["prediction_type"].dtype,
+                    )
+                )
                 .otherwise(pl.col.prediction_type)
             )
             .with_columns(
-                uses_ce=pl.col.prediction_type.eq("CE"),
-                uses_e=pl.col.prediction_type.eq("E"),
-                uses_po=pl.col.prediction_type.eq("PO"),
-            )
-            .with_columns(
-                # uses "NEW" mode prediction
-                uses_ne=(
-                    (pl.col.uses_po | pl.col.uses_ce)
-                    & pl.col.category_marked_new
-                )
-                | (
-                    pl.col.uses_e
-                    & pl.col.new_overrides_e
-                    & pl.col.category_marked_new
-                    & ~pl.col.category_marked_forced_po
-                )
-            )
-            .with_columns(
-                # if we initially marked a category as using CE, but it is
-                # marked as a "NEW" category, then unmark it as using CE,
-                # because really it is using NE
-                uses_ce=pl.when(pl.col.uses_ne)
-                .then(pl.lit(False))
-                .otherwise(pl.col.uses_ce)
+                uses_ce=pl.col.prediction_type.eq(PredictionType.CE.name),
+                uses_e=pl.col.prediction_type.eq(PredictionType.E.name),
+                uses_po=pl.col.prediction_type.eq(PredictionType.PO.name),
             )
             .with_columns(
                 low_current_period_sales=pl.when(
@@ -1327,33 +1315,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                 .otherwise(True)
             )
             .with_columns(
-                new_category_problem=(
-                    (pl.col.uses_po | pl.col.uses_ce | pl.col.uses_ne)
-                    & pl.col.category_marked_new
-                    & ~(pl.col.has_e_data | pl.col.has_po_data)
-                ),
-                new_print_problem=(
-                    (
-                        (pl.col.uses_po | pl.col.uses_ce)
-                        & ~pl.col.category_marked_new
-                        & pl.col.is_new_sku
-                        & ~(pl.col.has_e_data | pl.col.has_po_data)
-                    )
-                    | (
-                        (pl.col.uses_e | pl.col.uses_ce)
-                        & pl.col.is_new_sku
-                        & (
-                            pl.col.low_current_period_sales
-                            | pl.col.low_category_historical_sales
-                            | ~pl.col.has_e_data
-                        )
-                    )
-                ),
-                po_problem=(
-                    pl.col.uses_po
-                    & ~pl.col.has_po_data
-                    & ~pl.col.category_marked_new
-                ),
+                po_problem=(pl.col.uses_po & ~pl.col.has_po_data),
                 e_problem=(pl.col.uses_e & ~pl.col.has_e_data),
                 ce_problem=(
                     pl.col.uses_ce & ~pl.col.has_e_data & ~pl.col.has_po_data
@@ -1400,18 +1362,27 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     + ["date", "in_stock_ratio"]
                 )
                 .join(
-                    input_data_info.select("sku", "a_sku", "current_period"),
-                    on=["sku", "a_sku"],
+                    input_data_info.select(
+                        "sku", "a_sku", *Channel.members(), "current_period"
+                    ),
+                    on=["sku", "a_sku"] + Channel.members(),
+                    validate="m:1",
                 )
                 .filter(
                     pl.col.date.ge(pl.col.current_period.list.first())
-                    & pl.col.date.le(pl.col.current_period.list.last())
+                    & pl.col.date.lt(pl.col.current_period.list.last())
                 )
                 .group_by(["sku", "a_sku"] + Channel.members())
                 .agg(
+                    pl.col.in_stock_ratio.alias("num_good_isr_months"),
                     pl.col.in_stock_ratio.mean().alias(
                         "mean_current_period_isr"
-                    )
+                    ),
+                )
+                .with_columns(
+                    num_good_isr_months=pl.col.num_good_isr_months.list.filter(
+                        pl.element().ge(0.5)
+                    ).list.len()
                 )
             )
         else:
@@ -1638,15 +1609,34 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         how="left",
                     )
                     .with_columns(
-                        e_overrides_po=(
-                            pl.col.uses_po
-                            & ~pl.col.uses_ne
-                            & pl.col.po_problem
-                        ),
+                        uses_ne=(
+                            (
+                                (pl.col.uses_po | pl.col.uses_ce)
+                                | (pl.col.uses_e & pl.col.new_overrides_e)
+                            )
+                            & pl.col.category_marked_new
+                            & ~(pl.col.uses_forced_po | pl.col.uses_forced_e)
+                            & (
+                                pl.col.has_low_isr
+                                | pl.col.num_good_isr_months.lt(3)
+                            )
+                        )
+                        | (
+                            (pl.col.uses_e | pl.col.uses_ce)
+                            & (
+                                pl.col.has_low_isr
+                                | (
+                                    pl.col.low_current_period_sales
+                                    & pl.col.num_good_isr_months.lt(3)
+                                )
+                            )
+                        )
+                    )
+                    .with_columns(
+                        e_overrides_po=pl.col.po_problem,
                         po_overrides_e=(
-                            pl.col.uses_e
+                            pl.col.e_problem
                             & pl.col.expected_demand_from_po.is_not_null()
-                            & ~pl.col.has_e_data
                         ),
                     )
                     .with_columns(
@@ -1699,16 +1689,7 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         .otherwise(pl.col.expected_demand)
                     )
                     .with_columns(
-                        expected_demand=pl.when(
-                            (
-                                # ~pl.lit(force_po_prediction) &
-                                pl.col.uses_ne
-                                | (
-                                    (pl.col.uses_e | pl.col.uses_ce)
-                                    & pl.col.has_low_isr
-                                )
-                            )
-                        )
+                        expected_demand=pl.when(pl.col.uses_ne)
                         .then(
                             pl.max_horizontal(
                                 "expected_demand_from_history",
@@ -1721,9 +1702,12 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         demand_based_on_e=pl.col("expected_demand").eq(
                             pl.col.expected_demand_from_history
                         ),
+                    )
+                    .with_columns(
                         demand_based_on_po=pl.col("expected_demand").eq(
                             pl.col.expected_demand_from_po
-                        ),
+                        )
+                        & ~pl.col.demand_based_on_e
                     )
                 )
 
@@ -1731,14 +1715,29 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                     expected_demand_df["expected_demand"].dtype == pl.Int64()
                 )
 
+                # assert that input_data_info is unique across all SKU + Channel
+                find_dupes(
+                    expected_demand_df.select(
+                        input_data_info.columns + ["uses_ne"]
+                    ).unique(),
+                    ["sku", "a_sku"] + Channel.members(),
+                    raise_error=True,
+                )
+
                 if aggregate_final_result:
-                    expected_demand_df = (
+                    final_expected_demand_df = (
                         expected_demand_df.group_by(
                             ["sku", "a_sku"] + Channel.members()
                         )
                         .agg(
                             pl.col.date,
                             pl.col.date.len().alias("prediction_parts"),
+                            *[
+                                pl.col(x).first()
+                                for x in [*input_data_info.columns, "uses_ne"]
+                                if x
+                                not in ["sku", "a_sku"] + Channel.members()
+                            ],
                             pl.col.e_overrides_po.sum(),
                             pl.col.po_overrides_e.sum(),
                             pl.col.ce_uses_e.sum(),
@@ -1751,7 +1750,6 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                             pl.col.expected_demand_from_po,
                             pl.col.expected_demand.sum(),
                             pl.col.performance_flag.first(),
-                            pl.col.prediction_type,
                         )
                         .with_columns(
                             uses_overperformer_estimate=pl.lit(
@@ -1760,16 +1758,20 @@ class Predictor(ChannelCategoryData[PredictionInputs, PredictionInput]):
                         )
                     )
 
-                    expected_demand_df = join_and_coalesce(
-                        expected_demand_df,
+                    final_expected_demand_df = join_and_coalesce(
+                        final_expected_demand_df,
                         overperformer_demand,
                         OverrideLeft(["a_sku", "sku"] + Channel.members()),
                     )
                 else:
+                    final_expected_demand_df = expected_demand_df
                     assert not self.analysis_defn.overperformer_settings.active
 
                 expected_demands_per_group.append(
-                    CategoryGroup(pdi.strategy, expected_demand_df)
+                    CategoryGroup(
+                        pdi.strategy,
+                        final_expected_demand_df,
+                    )
                 )
 
             expected_demands_per_channel[channel] = CategoryGroups(

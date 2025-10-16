@@ -66,33 +66,33 @@ ALL_CAN_US_RETAIL_AGGREGATOR = UsingCanUSRetail()
 AMAZON_CA_AGGREGATOR = UsingRetail(["Amazon.ca"])
 
 # from historic_extract.ipynb
-REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
-    data={
-        ("AJA", "AWWJ"): "WJT",
-        ("WPO", "WJO", "FSM", "FJM"): "FPM",
-        ("GBX",): "GUX",
-        ("GHA",): "GUA",
-        ("ISJ",): "ISS",
-        ("FHA", "LAB"): "KEH",
-        ("FAN",): "LAN",
-        ("BST", "BTT"): "BTB",
-        ("IPS", "IPC", "ISS", "ISB", "ICP"): "IHT",
-        ("XWG", "WBS"): "WPS",
-        ("XLB",): "XBM",
-        ("XPC",): "XBK",
-        ("LBP", "LBT"): "LAB",
-        ("SMF", "SWS"): "SKG",
-        ("LAN", "WBF"): "WPF",
-        ("WGS", "WRM"): "WMT",
-        ("UST",): "UT1",
-        ("HBU",): "HBS",
-        ("HLC", "HXC", "HXU"): "HXP",
-        ("HJS", "AJS", "ACB", "ACA", "AAA", "HLH"): "HCF0",
-        ("BSL",): "BSA",
-    }
-)
-"""Reference category definitions for SKUs, determined from historical
-(containing monthly sales ratio sheet) Excel file."""
+# REFERENCE_CATEGORIES: MultiDict[Category, Category] = MultiDict(
+#     data={
+#         ("AJA", "AWWJ"): "WJT",
+#         ("WPO", "WJO", "FSM", "FJM"): "FPM",
+#         ("GBX",): "GUX",
+#         ("GHA",): "GUA",
+#         ("ISJ",): "ISS",
+#         ("FHA", "LAB"): "KEH",
+#         ("FAN",): "LAN",
+#         ("BST", "BTT"): "BTB",
+#         ("IPS", "IPC", "ISS", "ISB", "ICP"): "IHT",
+#         ("XWG", "WBS"): "WPS",
+#         ("XLB",): "XBM",
+#         ("XPC",): "XBK",
+#         ("LBP", "LBT"): "LAB",
+#         ("SMF", "SWS"): "SKG",
+#         ("LAN", "WBF"): "WPF",
+#         ("WGS", "WRM"): "WMT",
+#         ("UST",): "UT1",
+#         ("HBU",): "HBS",
+#         ("HLC", "HXC", "HXU"): "HXP",
+#         ("HJS", "AJS", "ACB", "ACA", "AAA", "HLH"): "HCF0",
+#         ("BSL",): "BSA",
+#     }
+# )
+# """Reference category definitions for SKUs, determined from historical
+# (containing monthly sales ratio sheet) Excel file."""
 
 
 # from historic_extract.ipynb
@@ -347,9 +347,7 @@ def get_default_current_period_dict(
             .then(pl.max_horizontal(pl.col.ss_start, pl.col.fw_start))
         )
         .with_columns(
-            end_date=(
-                analysis_defn.latest_dates.sales_history_latest_date
-            ).as_polars_date(),
+            end_date=analysis_defn.latest_date.as_polars_date(),
         )
         .with_columns(
             start_date=pl.when(pl.col.end_date.lt(pl.col.start_date))
@@ -416,7 +414,7 @@ def get_strategy_from_library(
         LATEST: [
             InputStrategy(
                 Channel.from_str(channel),
-                REFERENCE_CATEGORIES.as_dict(),
+                analysis_defn.reference_categories,
                 current_period_dict,
                 PER_CHANNEL_REFERENCE_CHANNELS,
             )

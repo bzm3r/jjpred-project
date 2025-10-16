@@ -28,6 +28,7 @@ from jjpred.dispatchformatter import (
     format_jjweb_dispatch_for_netsuite,
 )
 from jjpred.globalpaths import ANALYSIS_OUTPUT_FOLDER
+from jjpred.predictiontypes import PredictionType
 from jjpred.predictor import Predictor
 from jjpred.readsheet import DataVariant
 from jjpred.readsupport.qtybox import read_qty_box
@@ -82,12 +83,12 @@ def calculate_required(
     assert df["expected_demand"].dtype == pl.Int64()
     df = df.with_columns(
         requesting=pl.max_horizontal(
-            pl.col("expected_demand").ceil().cast(pl.Int64()),
-            pl.col("refill_request"),
+            pl.col.expected_demand.ceil().cast(pl.Int64()),
+            pl.col.refill_request,
         )
     ).with_columns(
         uses_refill_request=(
-            pl.col("requesting").eq(pl.col("refill_request"))
+            pl.col.requesting.eq(pl.col.refill_request)
             & pl.col.refill_request.gt(0)
         )
     )
@@ -936,11 +937,11 @@ class Dispatcher:
                 reserved=pl.lit(0)
             )
 
-        input_data_info = self.predictor.get_input_data_info().join(
-            self.channel_info, on=Channel.members()
-        )
-
         if Channel.parse("jjweb ca east") in self.dispatch_channels:
+            input_data_info = self.predictor.get_input_data_info().join(
+                self.channel_info, on=Channel.members()
+            )
+
             self.expected_demand_last_year = (
                 calculate_jjweb_past_one_year_quantity(db, predictor).join(
                     input_data_info.select(
@@ -949,7 +950,8 @@ class Dispatcher:
                         "prediction_type",
                         "has_po_data",
                     ).filter(
-                        pl.col.prediction_type.eq("PO") & ~pl.col.has_po_data
+                        pl.col.prediction_type.eq(PredictionType.PO.name)
+                        & ~pl.col.has_po_data
                     ),
                     on=["sku", *Channel.members()],
                     validate="1:1",
@@ -1072,23 +1074,23 @@ class Dispatcher:
         ) == len(self.dispatch_channels)
 
         # attach input data information
-        self.all_sku_info = override_sku_info(
-            self.all_sku_info,
-            input_data_info,
-            fill_null_value=None,
-            create_info_columns=[
-                "current_period_sales",
-            ],
-            create_missing_info_flags=False,
-            nulls_equal=False,
-            dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
-        )
-        find_dupes(
-            self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
-        )
-        assert len(
-            self.all_sku_info.select(Channel.members()).unique()
-        ) == len(self.dispatch_channels)
+        # self.all_sku_info = override_sku_info(
+        #     self.all_sku_info,
+        #     input_data_info,
+        #     fill_null_value=None,
+        #     create_info_columns=[
+        #         "current_period_sales",
+        #     ],
+        #     create_missing_info_flags=False,
+        #     nulls_equal=False,
+        #     dupe_check_index=ALL_SKU_AND_CHANNEL_IDS,
+        # )
+        # find_dupes(
+        #     self.all_sku_info, ALL_SKU_AND_CHANNEL_IDS, raise_error=True
+        # )
+        # assert len(
+        #     self.all_sku_info.select(Channel.members()).unique()
+        # ) == len(self.dispatch_channels)
 
         self.dispatch_start = Date.from_datelike(
             dispatch_start if dispatch_start else analysis_defn.dispatch_date
@@ -1152,7 +1154,15 @@ class Dispatcher:
         self.all_sku_info = (
             override_sku_info(
                 self.all_sku_info,
-                demand_predictions,
+                demand_predictions.select(
+                    ["sku", "a_sku"]
+                    + Channel.members()
+                    + [
+                        x
+                        for x in demand_predictions.columns
+                        if x not in self.all_sku_info.columns
+                    ]
+                ),
                 fill_null_value=defaultdict(
                     lambda: None,
                     {
@@ -1167,36 +1177,19 @@ class Dispatcher:
                 ],
             )
             .with_columns(
-                refill_request_override=(
-                    (pl.col.prediction_type.eq("E") & ~pl.col.has_e_data)
-                    | (
-                        pl.col.prediction_type.eq("PO")
-                        & ~pl.col.uses_ne
-                        & ~pl.col.has_po_data
-                        & ~pl.col.e_overrides_po
-                    )
-                    | (pl.col.uses_ne & pl.col.new_category_problem)
-                )
-                & pl.col("refill_request").is_not_null()
-                & pl.col("refill_request").gt(0)
-            )
-            .with_columns(
-                expected_demand_before_missing_po_consideration=pl.when(
-                    pl.col("refill_request_override").gt(0)
-                )
-                .then(pl.col("refill_request"))
-                .otherwise(pl.col("expected_demand")),
-            )
-            .with_columns(
-                applies_missing_po_consideration=pl.when(
-                    pl.col.prediction_type.eq("PO")
+                applies_missing_po_consideration=(
+                    (pl.col.uses_po & ~pl.col.has_po_data & ~pl.col.uses_ne)
                     & pl.struct(Channel.members()).eq(
                         Channel.parse("jjweb ca east").as_dict()
                     )
-                    & ~pl.col.has_po_data
                 )
-                .then(pl.lit(True))
-                .otherwise(pl.lit(False))
+            )
+            .with_columns(
+                expected_demand_before_missing_po_consideration=pl.when(
+                    pl.col.applies_missing_po_consideration
+                )
+                .then(pl.col.refill_request)
+                .otherwise(pl.col.expected_demand),
             )
             .with_columns(
                 expected_demand=pl.when(

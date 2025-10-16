@@ -18,67 +18,13 @@ from jjpred.scripting.dateoffset import (
     determine_main_program_compatible_start_end_dates,
 )
 from jjpred.seasons import CurrentSeason, CurrentSeasonDict, POSeason, Season
+from jjpred.sku import Category
 from jjpred.utils.datetime import (
     Date,
     DateLike,
     DateOffset,
     DateUnit,
-    first_day,
 )
-
-
-@dataclass
-class LatestDates:
-    """Sometimes we may want to only consider historical data up to a particular
-    month in a year.
-
-    This data structure defines such time points."""
-
-    sales_history_latest_date: Date
-    """The latest date to use from historical data.
-
-    For example, if historical data is available until ``2024-AUG-01``, but this
-    variable is set to ``2024-MAR-01``, then historical data including and after
-    ``2024-MAR-01`` will be ignored."""
-
-    # demand_ratio_rolling_update_to: Date
-    # """The latest date to perform a rolling update to for demand (monthly)
-    # ratios."""
-
-    def __init__(
-        self,
-        sales_history_latest_date: DateLike,
-        # demand_ratio_rolling_update_to: DateLike | None = None,
-        use_old_current_period_method: bool = True,
-    ) -> None:
-        self.sales_history_latest_date = Date.from_datelike(
-            sales_history_latest_date
-        )
-        # if demand_ratio_rolling_update_to is not None:
-        #     self.demand_ratio_rolling_update_to = Date.from_datelike(
-        #         demand_ratio_rolling_update_to
-        #     )
-        # else:
-        #     self.demand_ratio_rolling_update_to = (
-        #         self.sales_history_latest_date
-        #     )
-
-        if use_old_current_period_method:
-            self.sales_history_latest_date = first_day(
-                self.sales_history_latest_date
-            )
-            # self.demand_ratio_rolling_update_to = first_day(
-            #     self.demand_ratio_rolling_update_to
-            # )
-
-    # def latest(self) -> Date:
-    #     if (
-    #         self.demand_ratio_rolling_update_to
-    #         < self.sales_history_latest_date
-    #     ):
-    #         return self.demand_ratio_rolling_update_to
-    #     else:
-    #         return self.sales_history_latest_date
 
 
 def normalize_optional_datelike(date_like: DateLike | None) -> Date | None:
@@ -196,9 +142,12 @@ class AnalysisDefn:
     po_date: Date | None = field(default=None, compare=False, init=False)
     """Date of associated static PO data file."""
 
-    latest_dates: LatestDates = field(init=False)
-    """Latest dates for: default current period end dates and monthly ratio
-    rolling update point."""
+    latest_date: Date = field(init=False)
+    """The latest date to use from historical data.
+
+    For example, if historical data is available until ``2024-AUG-01``, but this
+    variable is set to ``2024-MAR-01``, then historical data after
+    ``2024-MAR-01`` will be ignored."""
 
     extra_descriptor: str | None = field(default=None, init=False)
     """Extra description string."""
@@ -217,7 +166,7 @@ class AnalysisDefn:
         ignore_sku_list: list[str],
         ignore_category_list: list[str],
         default_storage_format: Literal["parquet"],
-        latest_dates: LatestDates | None = None,
+        latest_date: DateLike | None = None,
         config_date: DateLike | None = None,
         in_stock_ratio_date: DateLike | None = None,
         po_date: DateLike | None = None,
@@ -244,10 +193,11 @@ class AnalysisDefn:
         self.ignore_category_list = ignore_category_list
         self.default_storage_format = default_storage_format
 
-        if latest_dates is None:
-            self.latest_dates = LatestDates(self.date)
-        else:
-            self.latest_dates = latest_dates
+        self.latest_date = (
+            Date.from_datelike(self.date)
+            if latest_date is None
+            else Date.from_datelike(latest_date)
+        )
 
         self.extra_descriptor = extra_descriptor
         self.current_seasons = current_seasons
@@ -493,10 +443,7 @@ class RefillDefn(AnalysisDefn):
     """Additional refill config info, apart from what might be given in the main
     marketing config file."""
 
-    use_old_current_period_method: bool = field(default=True)
-    """Whether to use the old current period method, or the new one."""
-
-    new_categories: list[str] = field(default_factory=list)
+    additional_new_categories: list[str] = field(default_factory=list)
     """Categories marked for using NE type prediction when applicable."""
 
     forced_po_categories: list[str] = field(default_factory=list)
@@ -518,6 +465,13 @@ class RefillDefn(AnalysisDefn):
 as having low category historical sales (relevant if historical sales data + current
 period data is used to generate a prediction for expected sales for this
 SKU)."""
+
+    reference_categories: dict[Category, Category] = field(
+        default_factory=dict
+    )
+    """Sometimes, a category (``primary_category``) refers to another category
+    (``reference_category``) for monthly ratio information. This dictionary
+    should be a map from all primary categories to reference categories."""
 
     def __init__(
         self,
@@ -551,16 +505,16 @@ SKU)."""
         dispatch_cutoff_qty: int = 2,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        use_old_current_period_method: bool = True,
         full_box_rounding_margin_ratio: float = 0.1,
         full_box_rounding_margin_qty: int = 0,
-        new_categories: list[str] = [],
+        additional_new_categories: list[str] = [],
         forced_po_categories: list[str] = [],
         channels: Sequence[str | Channel] = list(),
         default_storage_format: Literal["parquet"] = "parquet",
         low_current_period_sales: int = 20,
         low_category_historical_sales: int = 100,
         outperform_factor: float = 0.2,
+        reference_categories: dict[Category, Category] = dict(),
     ):
         self.dispatch_date = Date.from_datelike(dispatch_date)
         self.end_date = Date.from_datelike(end_date)
@@ -612,16 +566,16 @@ SKU)."""
 
         self.extra_refill_config_info = extra_refill_config_info
 
-        self.use_old_current_period_method = use_old_current_period_method
-
         self.full_box_rounding_margin_qty = full_box_rounding_margin_qty
         self.full_box_rounding_margin_ratio = full_box_rounding_margin_ratio
-        self.new_categories = new_categories
+        self.additional_new_categories = additional_new_categories
         self.forced_po_categories = forced_po_categories
         self.channels = [Channel.parse(x) for x in channels]
         self.low_current_period_sales = low_current_period_sales
         self.low_category_historical_sales = low_category_historical_sales
         self.outperform_factor = outperform_factor
+
+        self.reference_categories = reference_categories
 
         super().__init__(
             basic_descriptor=refill_description,
@@ -635,11 +589,7 @@ SKU)."""
             config_date=config_date,
             in_stock_ratio_date=in_stock_ratio_date,
             po_date=po_date,
-            latest_dates=LatestDates(
-                self.dispatch_date,
-                # demand_ratio_rolling_update_to=demand_ratio_rolling_update_to,
-                use_old_current_period_method=use_old_current_period_method,
-            ),
+            latest_date=self.dispatch_date,
             extra_descriptor=extra_descriptor,
             current_seasons=current_seasons,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
@@ -696,8 +646,7 @@ class FbaRevDefnArgs:
         RefillConfigInfo | GeneralRefillConfigInfo
     ] = field(default_factory=list)
     combine_hca0_hcb0_gra_asg_history: bool = field(default=False)
-    use_old_current_period_method: bool = field(default=True)
-    new_categories: list[str] = field(default_factory=list)
+    additional_new_categories: list[str] = field(default_factory=list)
     forced_po_categories: list[str] = field(default_factory=list)
     full_box_rounding_margin_ratio: float = field(default=0.1)
     full_box_rounding_margin_qty: int = field(default=10)
@@ -705,6 +654,9 @@ class FbaRevDefnArgs:
     default_storage_format: Literal["parquet"] = field(default="parquet")
     low_current_period_sales: int = field(default=20)
     low_category_historical_sales: int = field(default=20)
+    reference_categories: dict[Category, Category] = field(
+        default_factory=dict
+    )
 
     def as_dict(self) -> dict:
         return {
@@ -796,8 +748,7 @@ class FbaRevDefn(RefillDefn):
         extra_descriptor: str | None = None,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        use_old_current_period_method: bool = True,
-        new_categories: list[str] = list(),
+        additional_new_categories: list[str] = list(),
         forced_po_categories: list[str] = list(),
         full_box_rounding_margin_ratio: float = 0.1,
         full_box_rounding_margin_qty: int = 10,
@@ -805,6 +756,7 @@ class FbaRevDefn(RefillDefn):
         default_storage_format: Literal["parquet"] = "parquet",
         low_current_period_sales: int = 20,
         low_category_historical_sales: int = 100,
+        reference_categories: dict[Category, Category] = dict(),
     ):
         self.refill_type = refill_type
 
@@ -880,8 +832,7 @@ class FbaRevDefn(RefillDefn):
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
             current_seasons=current_seasons,
-            use_old_current_period_method=use_old_current_period_method,
-            new_categories=new_categories,
+            additional_new_categories=additional_new_categories,
             forced_po_categories=forced_po_categories,
             full_box_rounding_margin_qty=full_box_rounding_margin_qty,
             full_box_rounding_margin_ratio=full_box_rounding_margin_ratio,
@@ -889,6 +840,7 @@ class FbaRevDefn(RefillDefn):
             default_storage_format=default_storage_format,
             low_current_period_sales=low_current_period_sales,
             low_category_historical_sales=low_category_historical_sales,
+            reference_categories=reference_categories,
         )
 
     @classmethod
@@ -914,7 +866,7 @@ class FbaRevDefn(RefillDefn):
             qty_box_date=self.qty_box_date,
             mon_sale_r_date=self.mon_sale_r_date,
             mainprogram_date=self.mainprogram_date,
-            new_categories=self.new_categories,
+            additional_new_categories=self.additional_new_categories,
             forced_po_categories=self.forced_po_categories,
             full_box_rounding_margin_qty=self.full_box_rounding_margin_qty,
             full_box_rounding_margin_ratio=self.full_box_rounding_margin_ratio,
@@ -925,6 +877,7 @@ class FbaRevDefn(RefillDefn):
             low_category_historical_sales=self.low_category_historical_sales,
             ignore_category_list=self.ignore_category_list,
             ignore_sku_list=self.ignore_sku_list,
+            reference_categories=self.reference_categories,
         )
 
     @classmethod
@@ -955,7 +908,7 @@ class FbaRevDefn(RefillDefn):
         match_main_program_month_fractions: bool = True,
         extra_refill_config_info: list[RefillConfigInfo] = [],
         combine_hca0_hcb0_gra_asg_history: bool = False,
-        use_old_current_period_method: bool = True,
+        reference_categories: dict[Category, Category] = dict(),
     ) -> Self:
         """Create an analysis definition for an FBA review that is meant to
         compare against an analysis from Matt's program.
@@ -1002,7 +955,7 @@ class FbaRevDefn(RefillDefn):
             enable_low_current_period_isr_logic=enable_low_current_period_isr_logic,
             extra_refill_config_info=extra_refill_config_info,
             combine_hca0_hcb0_gra_asg_history=combine_hca0_hcb0_gra_asg_history,
-            use_old_current_period_method=use_old_current_period_method,
+            reference_categories=reference_categories,
         )
 
     def _get_date(self, date_name: str) -> Date:

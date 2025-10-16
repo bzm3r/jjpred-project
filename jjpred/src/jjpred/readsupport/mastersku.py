@@ -768,15 +768,14 @@ def read_master_sku_excel_file(
                 how="anti",
             )
             .with_columns(
-                # ^(?P<category>MBH|MCH|MKB|SKB-INSOL)-(?P<print>[^-]+)-(?P<size>[^-]+)(?:-(?P<remainder>.*))?$
                 pl.col.m_sku.str.extract_groups(
                     r"^(?P<category>MBH|MCH|MKB|SKB)-(?P<print>[^-]+)-(?P<size>[^-]+)"
                 ).alias("extracted"),
                 status=pl.lit("active"),
                 a_sku=pl.col.m_sku,
                 print_name=pl.lit(""),
-                website_sku=pl.lit(True),
-                orphan_sku=pl.lit(True),
+                is_website_sku=pl.lit(True),
+                is_orphan_sku=pl.lit(True),
                 pause_plan_str=pl.lit("<undefined>"),
             )
             .unnest("extracted")
@@ -834,7 +833,7 @@ def read_master_sku_excel_file(
 
         master_sku_with_website_info = master_sku_df.join(
             website_sku.with_columns(
-                website_sku=pl.lit(True), orphan_sku=pl.lit(False)
+                is_website_sku=pl.lit(True), is_orphan_sku=pl.lit(False)
             ),
             on=["m_sku"],
             how="left",
@@ -848,8 +847,8 @@ def read_master_sku_excel_file(
                 ),
             ]
         ).with_columns(
-            pl.col.website_sku.fill_null(pl.lit(False)),
-            pl.col.orphan_sku.fill_null(pl.lit(False)),
+            pl.col.is_website_sku.fill_null(pl.lit(False)),
+            pl.col.is_orphan_sku.fill_null(pl.lit(False)),
         )
     # print(master_sku_df["status"].unique().sort())
 

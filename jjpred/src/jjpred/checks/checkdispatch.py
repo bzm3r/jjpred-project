@@ -281,13 +281,17 @@ def check_dispatch_results(
             pl.col.dispatch.sum(),
         ),
         "NE data missing (sku)": active_results.filter(
-            pl.col("new_category_problem") & pl.col("is_current_sku")
+            pl.col.uses_ne
+            & ~(pl.col.has_po_data | pl.col.has_e_data)
+            & pl.col.is_current_sku
         )
         .select(ALL_IDS + DATA_AVAILABILITY_FLAGS)
         .unique()
         .sort(ALL_SKU_AND_CHANNEL_IDS),
         "NE data missing (cat)": active_results.filter(
-            pl.col("new_category_problem") & pl.col("is_current_sku")
+            pl.col.uses_ne
+            & ~(pl.col.has_po_data | pl.col.has_e_data)
+            & pl.col.is_current_sku
         )
         .select("category")
         .unique()
@@ -619,10 +623,6 @@ def check_dispatch_results(
         "Low Demand Prints": results_with_check_flags.filter(
             ~(pl.col("is_master_paused") | pl.col("is_config_paused"))
             & pl.col("expected_demand").lt(2)
-            # & pl.col("current_period_sales").lt(100)
-            # & ~pl.col("new_category_problem")
-            # & ~pl.col("po_problem")
-            # & ~pl.col("e_problem")
             & pl.col("wh_dispatchable").gt(0)
             & pl.col("ch_stock").eq(0)
         )

@@ -15,6 +15,8 @@ from jjpred.analysisconfig import GeneralRefillConfigInfo
 
 import polars as pl
 
+from jjpred.utils.multidict import MultiDict
+
 args = FbaRevDefnArgs(
     analysis_date="2025-OCT-06",
     current_seasons=CurrentSeasonDefn(FW=25, SS=25),
@@ -61,37 +63,32 @@ args = FbaRevDefnArgs(
     po_date=None,
     new_overrides_e=True,
     forced_po_categories=["IHT"],
-    new_categories=[
-        "AJA",
-        "AJC",
-        "BSL",
-        "BST",
-        "DRC",
-        "FAN",
-        "FHA",
-        "FVM",
-        "IPC",
-        "IPS",
-        "ISB",
-        "ISJ",
-        "ISS",
-        "LAB",
-        "LAN",
-        "LBP",
-        "LBT",
-        # "SKX",
-        "SBS",
-        "SMF",
-        "SSW",
-        "SWS",
-        "WGS",
-        "WRM",
-        "XBK",
-        "XBM",
-        "XLB",
-        "XPC",
-        "XWG",
-    ],
+    additional_new_categories=["FVM", "ISJ", "SBS", "SMF"],
+    reference_categories=MultiDict(
+        data={
+            ("AJA", "AWWJ"): "WJT",
+            ("WPO", "WJO", "FSM", "FJM"): "FPM",
+            ("GBX",): "GUX",
+            ("GHA",): "GUA",
+            ("ISJ",): "ISS",
+            ("FHA", "LAB"): "KEH",
+            ("FAN",): "LAN",
+            ("BST", "BTT"): "BTB",
+            ("IPS", "IPC", "ISS", "ISB", "ICP"): "IHT",
+            ("XWG", "WBS"): "WPS",
+            ("XLB",): "XBM",
+            ("XPC",): "XBK",
+            ("LBP", "LBT"): "LAB",
+            ("SMF", "SWS"): "SKG",
+            ("LAN", "WBF"): "WPF",
+            ("WGS", "WRM"): "WMT",
+            ("UST",): "UT1",
+            ("HBU",): "HBS",
+            ("HLC", "HXC", "HXU"): "HXP",
+            ("HJS", "AJS", "ACB", "ACA", "AAA", "HLH"): "HCF0",
+            ("BSL",): "BSA",
+        }
+    ).as_dict(),
     enable_full_box_logic=True,
     full_box_rounding_margin_qty=10,
     full_box_rounding_margin_ratio=0.2,
@@ -103,12 +100,21 @@ analysis_defn_fba = FbaRevDefn.from_args(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
-        use_old_current_period_method=False,
         extra_descriptor="fba",
         channels=["amazon.ca", "amazon.com"],
     ),
 )
 
+analysis_defn_fba_test = FbaRevDefn.from_args(
+    args.update(
+        jjweb_reserve_info=JJWebPredictionInfo(
+            reservation_expr=DEFAULT_RESERVATION_EXPR,
+            force_po_prediction_for_reservation=True,
+        ),
+        extra_descriptor="fba_test",
+        channels=["amazon.ca", "amazon.com"],
+    ),
+)
 
 analysis_defn_3pl_east = FbaRevDefn.from_args(
     args.update(
@@ -116,7 +122,6 @@ analysis_defn_3pl_east = FbaRevDefn.from_args(
             reservation_expr=DEFAULT_RESERVATION_EXPR,
             force_po_prediction_for_reservation=True,
         ),
-        use_old_current_period_method=False,
         extra_descriptor="3pl_east",
         channels=["jjweb ca east"],
     )
